@@ -32,3 +32,19 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-dbt-smoke.mjs   # against pnpm dev on 
 ```
 
 The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its own data directory), imports the group if missing, and activates the `master` row under `dbt-demo`. Five screenshots: editor, model rows, inline rows, compiled SQL, connection.
+
+## Domain setup on a real machine
+
+`domain-setup.mjs` turns a folder of clones into a domain without clicking: it imports the group, saves roles, stakeholder teams, agent env and dbt defaults through `window.api.ae.domains.save`, then opens Domain settings for a screenshot. It works against the installed Pod when that was started with a debugging port (`open -a Pod --args --remote-debugging-port=9334`).
+
+```sh
+POD_CDP=9334 POD_PARENT=$HOME POD_NAME=MEX \
+POD_REPOS=$HOME/dbt-analytics,$HOME/omni-analytics \
+POD_ROLES=$HOME/dbt-analytics=dbt,$HOME/omni-analytics=omni \
+POD_TEAMS="Support Optimisation,Channels,Customer IAM,App Engagement,Dev-rel" \
+POD_ENV="OMNI_BASE_URL=https://mollie.omniapp.co" \
+POD_DBT_PROFILES_DIR=$HOME/dbt-analytics POD_SMOKE_OUT=/tmp \
+node docs/pod/smoke/domain-setup.mjs
+```
+
+Secrets (`OMNI_API_KEY`) are added afterwards in the dialog, because the script never handles secret values.
