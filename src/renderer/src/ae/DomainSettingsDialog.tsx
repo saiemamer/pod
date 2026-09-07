@@ -19,13 +19,13 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { PodPathInput } from '@/components/settings/PodPathInput'
-import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import { AE_REPO_ROLES, type AeRepoRole } from '../../../shared/ae/domain-types'
 import { ALL_TUI_AGENTS, TUI_AGENT_DISPLAY_NAMES } from '../../../shared/tui-agent-display-names'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import { DomainSecretsSection } from './DomainSecretsSection'
+import { revealPodFolderWorkspace } from './reveal-folder-workspace'
 import {
   domainInputFromDraft,
   draftFromDomain,
@@ -50,7 +50,6 @@ export function DomainSettingsDialog({
   const saveAeDomain = useAppStore((s) => s.saveAeDomain)
   const detectAeRepoRoles = useAppStore((s) => s.detectAeRepoRoles)
   const openAeDomainMainAgent = useAppStore((s) => s.openAeDomainMainAgent)
-  const fetchFolderWorkspaces = useAppStore((s) => s.fetchFolderWorkspaces)
   const repos = useAppStore((s) => s.repos)
   const groupRepos = useMemo(
     () => repos.filter((repo) => repo.projectGroupId === groupId),
@@ -117,12 +116,7 @@ export function DomainSettingsDialog({
     run('agent', async () => {
       await save()
       const result = await openAeDomainMainAgent(groupId)
-      const workspaceId = result.workspaceKey.replace(/^folder:/, '')
-      if (!activateAndRevealFolderWorkspace(workspaceId, { providesInitialSurface: true })) {
-        // Why: the main process created the workspace a moment ago; the renderer list may not have it yet.
-        await fetchFolderWorkspaces()
-        activateAndRevealFolderWorkspace(workspaceId, { providesInitialSurface: true })
-      }
+      await revealPodFolderWorkspace(result.workspaceKey)
       onOpenChange(false)
     })
 

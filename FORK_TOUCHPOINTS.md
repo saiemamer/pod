@@ -79,6 +79,7 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/renderer/src/components/right-sidebar/right-sidebar-panel-content.tsx` | lazy import + `{effectiveTab === 'initiative' && <PodInitiativePanel />}` | Renders the panel. |
 | `src/renderer/src/components/right-sidebar/use-right-sidebar-activity-items.ts` | `...podInitiativeActivityItems()` after the Ports item + import | Adds the folder-only Initiative tab before plugin tabs, so plugin positions stay stable. |
 | `src/main/runtime/rpc/methods/client-ui-schemas.ts` | `'initiative'` in `STATIC_RIGHT_SIDEBAR_TABS` | `ui-state-schema-parity-checks.ts` fails the typecheck when the ui.set schema's tab list is narrower than `RightSidebarTab`. |
+| `src/renderer/src/lib/worktree-activation-surface-caller-wiring.test.ts` | `reveal-folder-workspace.ts` in `SURFACE_PROVIDING_CALLERS` | The census fails when any file under `src/` mentions `providesInitialSurface`; Pod keeps a single mention in that helper (the main process opens the agent session, so activation must not seed a shell). |
 
 ## Pod-owned files outside `ae/`
 
