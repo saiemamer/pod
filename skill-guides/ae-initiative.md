@@ -25,7 +25,9 @@ if set, else `orca` on PATH. Every command below is run through it.
 1. `orca domain show --domain "$POD_DOMAIN_ID" --json` lists the repos with ids and
    roles, the env variable names the domain injects, the dbt defaults, and the
    initiatives so far. `POD_DOMAIN_ID`, `POD_DOMAIN_NAME` and `POD_REPO_ROLE` are in
-   your environment whenever you run inside a domain.
+   your environment whenever you run inside a domain. In a folder workspace you also
+   get `POD_WORKSPACE_KEY`, and in an initiative folder `POD_INITIATIVE_ID` and
+   `POD_INITIATIVE_TITLE`.
 2. Read `INITIATIVE.md` in the current folder. If it has no goal, ask the person for
    one before planning. If you are in the domain folder rather than an initiative
    folder, create `initiatives/<slug>/INITIATIVE.md` first.
@@ -44,27 +46,30 @@ initiative:
 
 ```sh
 orca orchestration run-create --objective "<goal in one sentence>" --json
+orca domain initiative-update --initiative "$POD_INITIATIVE_ID" --run <run_id> --status running
 orca orchestration task-create --run <run_id> --task-title "<part>" --spec "<what to change, in which repo, done when...>" --json
 orca orchestration task-create --run <run_id> --task-title "<omni part>" --spec "..." --deps '["<dbt task id>"]' --json
 ```
 
-Put the repo id and role in each task spec so the worker knows where it is.
+Record the run id on the initiative right after `run-create`: that is what the
+Initiative panel reads to list the run's tasks. Put the repo id and role in each task
+spec so the worker knows where it is.
 
 ## Dispatch
 
-For each ready task, start a worker in a fresh worktree of the right repo:
+For each ready task, create a worktree of the right repo, then hand it to a worker.
+Two steps, because you sit in a folder workspace and `worker-start --worktree
+new-top-level` cannot resolve a folder as its parent (it fails with
+`selector_not_found`):
 
 ```sh
-orca orchestration worker-start --task <task_id> --worktree new-top-level --repo id:<repo_id> --name <initiative-slug>-<part> --agent claude --json
-```
-
-If Pod refuses to create the worktree from a folder terminal (`selector_not_found`),
-create it explicitly and hand the existing worktree to the worker:
-
-```sh
-orca worktree create --repo id:<repo_id> --parent-worktree "$ORCA_WORKSPACE_KEY" --agent claude --name <initiative-slug>-<part> --json
+orca worktree create --repo id:<repo_id> --parent-worktree "$POD_WORKSPACE_KEY" --name <initiative-slug>-<part> --agent claude --json
 orca orchestration worker-start --task <task_id> --worktree id:<worktree_id> --agent claude --json
 ```
+
+Take `<worktree_id>` from the JSON of the first command. The `--parent-worktree`
+value ties the new worktree to this initiative, so it shows up under the workspace
+in the sidebar and in the Initiative panel.
 
 The worktree name is also the git branch name and, for an Omni repo, the Omni model
 branch name. Keep it short and unique: `<initiative-slug>-<part>`.
@@ -86,5 +91,7 @@ Omni phase until every dbt task it depends on is done and reviewed.
 ## Report
 
 Update `INITIATIVE.md` with what shipped, the merge requests, and what is left.
-Set the status line to `review` when everything is dispatched and to `done` when
-merged. Keep notes in the initiative folder, not in the repos.
+Set the status to `review` when everything is dispatched and to `done` when merged,
+both in the file and with `orca domain initiative-update --initiative
+"$POD_INITIATIVE_ID" --status <status>`. Keep notes in the initiative folder, not in
+the repos.

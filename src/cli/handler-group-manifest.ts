@@ -61,7 +61,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
   },
   {
     name: 'domain', // Pod
-    keys: ['domain list', 'domain show'],
+    keys: ['domain list', 'domain show', 'domain initiative-update'],
     load: async () => (await import('./handlers/ae-domain.js')).DOMAIN_HANDLERS
   },
   {
