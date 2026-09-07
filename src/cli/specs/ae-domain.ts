@@ -17,5 +17,20 @@ export const DOMAIN_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'domain'],
     examples: ['orca domain show --domain MEX --json'],
     notes: ['Secret values are never printed; only their names.']
+  },
+  {
+    path: ['domain', 'initiative-update'],
+    summary: 'Record the orchestration run id or status on a Pod initiative',
+    usage:
+      'orca domain initiative-update --initiative <id> [--run <run_id>] [--status planning|running|review|done|archived] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'initiative', 'run', 'status'],
+    examples: [
+      'orca domain initiative-update --initiative "$POD_INITIATIVE_ID" --run <run_id>',
+      'orca domain initiative-update --initiative "$POD_INITIATIVE_ID" --status review'
+    ],
+    notes: [
+      'The main agent calls this right after run-create so the Initiative panel can list the run.',
+      'Valid --status values: planning, running, review, done, archived.'
+    ]
   }
 ]

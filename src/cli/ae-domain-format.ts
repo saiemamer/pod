@@ -2,6 +2,7 @@ import type { AeDomainConfig, AeInitiative } from '../shared/ae/domain-types'
 
 export type DomainListResult = { domains: AeDomainConfig[]; initiatives: AeInitiative[] }
 export type DomainShowResult = { domain: AeDomainConfig; initiatives: AeInitiative[] }
+export type InitiativeUpdateResult = { initiative: AeInitiative }
 
 export function formatDomainList(result: DomainListResult): string {
   if (result.domains.length === 0) {
@@ -35,4 +36,9 @@ export function formatDomainShow(result: DomainShowResult): string {
     )
   }
   return lines.join('\n')
+}
+
+export function formatInitiativeUpdate(result: InitiativeUpdateResult): string {
+  const { initiative } = result
+  return `${initiative.title} [${initiative.status}]${initiative.runId ? ` run ${initiative.runId}` : ''} (${initiative.id})`
 }
