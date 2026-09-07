@@ -1,0 +1,61 @@
+name: Pod PR checks
+
+# Why a separate workflow from upstream's pr.yml: that one fans out to packaging,
+# Windows, e2e, and cloud jobs that need Stably's runners and secrets. Pod gates on
+# what its touchpoints can break: typecheck, lint, and the unit suite minus the
+# files listed in config/vitest.pod.config.ts.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pod-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+      - run: pnpm run typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+      - run: pnpm exec oxlint --format github
+
+  test:
+    name: tests ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          cache-electron-package: 'true'
+      - name: Install Electron package binary for tests
+        run: node config/scripts/install-electron-package-binary.mjs
+      - name: Test shard
+        run: pnpm exec vitest run --config config/vitest.pod.config.ts --shard=${{ matrix.shard }}/8
