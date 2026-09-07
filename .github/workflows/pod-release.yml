@@ -102,6 +102,22 @@ jobs:
           # Why: no Developer ID yet. Unsigned apps open via right-click, Open.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      # Why: the 0.1.0 build shipped with Orca's feed and a CLI wrapper that could not
+      # find the Pod binary; both are only visible in the packaged bundle.
+      - name: Verify the packaged app updates from Pod and its CLI starts
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          app="$(find dist -maxdepth 2 -name 'Pod.app' -type d | head -1)"
+          test -n "$app" || { echo "::error::No Pod.app under dist/"; exit 1; }
+          grep -q '^owner: saiemamer$' "$app/Contents/Resources/app-update.yml"
+          grep -q '^repo: pod$' "$app/Contents/Resources/app-update.yml"
+          cli_version="$("$app/Contents/Resources/bin/orca" --version)"
+          test "$cli_version" = "${TAG#v}" || { echo "::error::Bundled CLI reports $cli_version, tag is $TAG"; exit 1; }
+          echo "Packaged app updates from saiemamer/pod; bundled CLI reports $cli_version"
+
       - name: Summary
         shell: bash
         env:
