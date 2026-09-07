@@ -5,6 +5,7 @@ import type {
   DbtContextSummary,
   DbtShowResult
 } from '../../../../shared/ae/dbt-types'
+import type { DbtLspStatus } from '../../../../shared/ae/dbt-lsp-types'
 import {
   podDbtErrorMessage,
   podDbtRunLabel,
@@ -49,6 +50,33 @@ export type AeDbtResultsSlice = {
   toggleAeDbtCollapsed: (fileId: string) => void
   closeAeDbtResults: (fileId: string) => void
   loadAeDbtProject: (fileId: string, filePath: string) => Promise<void>
+  /** Dock height in pixels, shared by every dock and kept across restarts. */
+  aeDbtDockHeight: number
+  setAeDbtDockHeight: (height: number) => void
+  /** Language server status per project directory. */
+  aeDbtLsp: Record<string, DbtLspStatus>
+  setAeDbtLspStatus: (status: DbtLspStatus) => void
+}
+
+export const POD_DBT_DOCK_HEIGHT_DEFAULT = 288
+export const POD_DBT_DOCK_HEIGHT_MIN = 120
+const DOCK_HEIGHT_STORAGE_KEY = 'pod.dbt.dockHeight'
+
+export function clampPodDbtDockHeight(height: number, viewportHeight: number): number {
+  const max = Math.max(POD_DBT_DOCK_HEIGHT_MIN, Math.floor(viewportHeight * 0.8))
+  return Math.min(max, Math.max(POD_DBT_DOCK_HEIGHT_MIN, Math.round(height)))
+}
+
+function readStoredDockHeight(): number {
+  try {
+    const raw = globalThis.localStorage?.getItem(DOCK_HEIGHT_STORAGE_KEY)
+    const parsed = raw ? Number(raw) : Number.NaN
+    return Number.isFinite(parsed) && parsed >= POD_DBT_DOCK_HEIGHT_MIN
+      ? parsed
+      : POD_DBT_DOCK_HEIGHT_DEFAULT
+  } catch {
+    return POD_DBT_DOCK_HEIGHT_DEFAULT
+  }
 }
 
 function dbtApi(): Window['api']['ae']['dbt'] | null {
@@ -126,6 +154,21 @@ export const createAeDbtResultsSlice: StateCreator<AppState, [], [], AeDbtResult
     closeAeDbtResults: (fileId) => {
       const { [fileId]: _closed, ...rest } = get().aeDbtResults
       set({ aeDbtResults: rest })
+    },
+    aeDbtDockHeight: readStoredDockHeight(),
+    setAeDbtDockHeight: (height) => {
+      set({ aeDbtDockHeight: height })
+      try {
+        globalThis.localStorage?.setItem(DOCK_HEIGHT_STORAGE_KEY, String(height))
+      } catch {
+        // Why: storage can be unavailable in tests and private contexts; the height still applies.
+      }
+    },
+    aeDbtLsp: {},
+    setAeDbtLspStatus: (status) => {
+      if (status.projectDir) {
+        set({ aeDbtLsp: { ...get().aeDbtLsp, [status.projectDir]: status } })
+      }
     },
     loadAeDbtProject: async (fileId, filePath) => {
       const api = dbtApi()

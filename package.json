@@ -31,6 +31,7 @@
     "prepare": "husky",
     "test": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.config.ts",
     "test:pod": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.pod.config.ts",
+    "typecheck:pod": "node config/pod-typecheck-changed.mjs",
     "test:bun:profile": "node config/scripts/run-bun-profile-tests.mjs",
     "test:skill-sharing:release": "vitest run --config config/vitest.config.ts src/main/skills src/main/runtime/rpc/methods/skills.test.ts src/relay/skill-install-handler.test.ts src/shared/skill-bundle-install-contract.test.ts src/shared/skill-install-contract.test.ts src/shared/skill-install-failure.test.ts src/shared/skill-package-manifest.test.ts",
     "test:repro:remote-agent-session": "pnpm run build:cli && pnpm run build:electron-vite && node config/scripts/remote-agent-session-authority-repro.mjs",
@@ -197,6 +198,7 @@
     "ssh2": "^1.17.0",
     "tldts": "7.4.14",
     "tweetnacl": "^1.0.3",
+    "vscode-jsonrpc": "9.0.2",
     "ws": "^8.21.3",
     "yaml": "^2.9.1",
     "zod": "~4.6.5"

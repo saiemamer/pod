@@ -1,0 +1,20 @@
+{
+  "metadata": { "generated_at": "2026-09-07T14:05:00Z", "dbt_version": "1.9.0" },
+  "nodes": {
+    "model.demo.orders": {
+      "metadata": { "type": "table", "schema": "dbt", "name": "orders", "database": "proj" },
+      "columns": {
+        "order_id": { "type": "INT64", "index": 1, "name": "order_id" },
+        "status": { "type": "STRING", "index": 2, "name": "status" }
+      }
+    },
+    "model.demo.stg_orders": {
+      "metadata": { "type": "view", "schema": "dbt", "name": "stg_orders", "database": "proj" },
+      "columns": {
+        "order_id": { "type": "INT64", "index": 1, "name": "order_id" },
+        "status": { "type": "STRING", "index": 2, "name": "status" }
+      }
+    }
+  },
+  "sources": {}
+}

@@ -22,6 +22,7 @@ import {
 import {
   resolveDbtContext,
   summarizeDbtContext,
+  summarizeDbtManifest,
   type DbtContext,
   type DbtContextDeps
 } from './dbt-context'
@@ -76,22 +77,11 @@ export class AeDbtService {
   async parse(request: DbtParseRequest): Promise<DbtParseResult> {
     const context = await this.resolve(request)
     const result = await this.run(context, ['parse'])
-    const file = dbtManifestPath(context.project)
-    const manifest = loadDbtManifest(file)
-    if (!manifest) {
-      throw new DbtRunError(`dbt parse finished but ${file} was not written`, result)
+    const manifest = this.manifestSummary(context)
+    if (!manifest.exists) {
+      throw new DbtRunError(`dbt parse finished but ${manifest.file} was not written`, result)
     }
-    return {
-      command: result.command,
-      durationMs: result.durationMs,
-      manifest: {
-        file,
-        exists: true,
-        generatedAt: manifest.generatedAt,
-        dbtVersion: manifest.dbtVersion,
-        nodeCount: manifest.nodes.size
-      }
-    }
+    return { command: result.command, durationMs: result.durationMs, manifest }
   }
 
   async listModels(request: DbtListModelsRequest): Promise<DbtListModelsResult> {
@@ -198,6 +188,11 @@ export class AeDbtService {
     }
   }
 
+  /** What the manifest on disk says right now, for callers that already hold a context. */
+  manifestSummary(context: DbtContext): DbtParseResult['manifest'] {
+    return summarizeDbtManifest(context.project)
+  }
+
   private async ensureManifest(context: DbtContext, refresh: boolean): Promise<DbtManifest> {
     const file = dbtManifestPath(context.project)
     const existing = refresh ? null : loadDbtManifest(file)
@@ -212,7 +207,8 @@ export class AeDbtService {
     return manifest
   }
 
-  private run(
+  /** Runs one dbt command in the project's queue; throws DbtRunError with dbt's own words. */
+  run(
     context: DbtContext,
     args: string[],
     options: { quiet?: boolean; logFormat?: 'text' | 'json' } = {}

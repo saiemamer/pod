@@ -1,7 +1,24 @@
 import type { AeDomainConfig, AeDomainRepo, AeInitiative } from '../../shared/ae/domain-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type {
+  DbtLspChangeRequest,
+  DbtLspCompletionItem,
+  DbtLspDocumentRequest,
+  DbtLspEvent,
+  DbtLspHover,
+  DbtLspLocation,
+  DbtLspOpenRequest,
+  DbtLspPositionRequest,
+  DbtLspStatus
+} from '../../shared/ae/dbt-lsp-types'
+import type {
+  DbtCatalogRequest,
+  DbtCatalogResult,
   DbtCompileRequest,
+  DbtExportCsvRequest,
+  DbtExportCsvResult,
+  DbtResolveRefRequest,
+  DbtResolveRefResult,
   DbtCompileResult,
   DbtContextSummary,
   DbtLineageRequest,
@@ -54,6 +71,21 @@ export type AeApi = {
     listModels: (args: DbtListModelsRequest) => Promise<DbtListModelsResult>
     modelInfo: (args: DbtModelRequest) => Promise<DbtModelInfo>
     lineage: (args: DbtLineageRequest) => Promise<DbtLineageResult>
+    ensureCatalog: (args: DbtCatalogRequest) => Promise<DbtCatalogResult>
+    resolveRef: (args: DbtResolveRefRequest) => Promise<DbtResolveRefResult>
+    exportCsv: (args: DbtExportCsvRequest) => Promise<DbtExportCsvResult>
+    /** dbt-language-server, one per project; documents are keyed by absolute path. */
+    lsp: {
+      status: (args: DbtLspDocumentRequest) => Promise<DbtLspStatus>
+      open: (args: DbtLspOpenRequest) => Promise<DbtLspStatus>
+      change: (args: DbtLspChangeRequest) => Promise<void>
+      close: (args: DbtLspDocumentRequest) => Promise<void>
+      completion: (args: DbtLspPositionRequest) => Promise<DbtLspCompletionItem[]>
+      hover: (args: DbtLspPositionRequest) => Promise<DbtLspHover | null>
+      definition: (args: DbtLspPositionRequest) => Promise<DbtLspLocation[]>
+      restart: (args: DbtLspDocumentRequest) => Promise<DbtLspStatus>
+      onEvent: (callback: (event: DbtLspEvent) => void) => () => void
+    }
   }
   onChanged: (callback: () => void) => () => void
 }

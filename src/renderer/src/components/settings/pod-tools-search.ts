@@ -27,6 +27,14 @@ export const getPodToolsSearchEntries = createLocalizedCatalog((): SettingsSearc
       'Python with sqlglot installed, used for column-level lineage. Leave empty to use python3 on PATH.'
     ),
     keywords: ['python', 'sqlglot', 'lineage', 'path']
+  },
+  {
+    title: translate('pod.settings.tools.dbtLsp.title', 'dbt-language-server command'),
+    description: translate(
+      'pod.settings.tools.dbtLsp.description',
+      'Path to dbt-language-server for completion and go-to-definition in models. Leave empty and Pod downloads the pinned release.'
+    ),
+    keywords: ['dbt', 'lsp', 'language server', 'completion', 'definition', 'path']
   }
 ])
 
@@ -94,5 +102,13 @@ export const getPodDbtSearchEntries = createLocalizedCatalog((): SettingsSearchE
       'Stop expanding the lineage canvas past this many models so large projects stay responsive.'
     ),
     keywords: ['dbt', 'lineage', 'nodes', 'limit', 'performance']
+  },
+  {
+    title: translate('pod.settings.dbt.lspEnabled.title', 'Language server'),
+    description: translate(
+      'pod.settings.dbt.lspEnabled.description',
+      'Run dbt-language-server for Jinja SQL editors: completion for ref(), source() and macros, hover, go-to-definition, and diagnostics with dbt Fusion.'
+    ),
+    keywords: ['dbt', 'lsp', 'language server', 'completion', 'hover', 'definition']
   }
 ])

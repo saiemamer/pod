@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { create } from 'zustand'
 import type { AppState } from '../types'
-import { createAeDbtResultsSlice, type AeDbtResultsSlice } from './ae-dbt-results'
+import {
+  clampPodDbtDockHeight,
+  createAeDbtResultsSlice,
+  POD_DBT_DOCK_HEIGHT_DEFAULT,
+  POD_DBT_DOCK_HEIGHT_MIN,
+  type AeDbtResultsSlice
+} from './ae-dbt-results'
 
 const show = vi.fn()
 const compile = vi.fn()
@@ -87,5 +93,33 @@ describe('createAeDbtResultsSlice', () => {
     expect(store.getState().aeDbtResults.f1?.project).toEqual({ project: { name: 'demo' } })
     store.getState().closeAeDbtResults('f1')
     expect(store.getState().aeDbtResults).toEqual({})
+  })
+})
+
+describe('dock height and language server status', () => {
+  it('clamps the dock between the minimum and most of the window', () => {
+    expect(clampPodDbtDockHeight(10, 1000)).toBe(POD_DBT_DOCK_HEIGHT_MIN)
+    expect(clampPodDbtDockHeight(412.4, 1000)).toBe(412)
+    expect(clampPodDbtDockHeight(5000, 1000)).toBe(800)
+  })
+
+  it('starts at the default height and remembers a new one', () => {
+    const store = makeStore()
+    expect(store.getState().aeDbtDockHeight).toBe(POD_DBT_DOCK_HEIGHT_DEFAULT)
+    store.getState().setAeDbtDockHeight(360)
+    expect(store.getState().aeDbtDockHeight).toBe(360)
+  })
+
+  it('keeps one status per project directory and ignores statuses without one', () => {
+    const store = makeStore()
+    store
+      .getState()
+      .setAeDbtLspStatus({ state: 'running', projectDir: '/p', serverVersion: 'v0.4.2' })
+    store
+      .getState()
+      .setAeDbtLspStatus({ state: 'unavailable', message: 'Not inside a dbt project.' })
+    expect(Object.keys(store.getState().aeDbtLsp)).toEqual(['/p'])
+    store.getState().setAeDbtLspStatus({ state: 'error', projectDir: '/p', message: 'boom' })
+    expect(store.getState().aeDbtLsp['/p']).toMatchObject({ state: 'error', message: 'boom' })
   })
 })
