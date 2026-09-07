@@ -22,8 +22,8 @@ Rules:
 | `src/renderer/src/i18n/i18n.ts` | `translate()` passes its result through `rebrandProductName` (Pod-owned `src/shared/pod/brand-text.ts`) outside tests | One hook renames Orca to Pod in every renderer string and translation; Orca-operated names (Orca Mobile, Orca Cloud, Orca Relay, accounts, the star nag) stay. Tests see upstream text, and `brand-text.test.ts` covers the rule. |
 | `src/main/i18n/main-i18n.ts` | `translateMain()` does the same outside vitest | Menu, tray, notifications and dialogs that go through the main catalog. |
 | `src/renderer/index.html` | `<title>Pod</title>` | Window title. |
-| `src/main/window/main-window-close-lifecycle.ts` | tray notice title from `POD_PRODUCT_NAME` | Raw literal on a common path. |
-| `src/main/window/dashboard-popout-window.ts` | popout window title from `POD_PRODUCT_NAME` | Raw literal on a common path. |
+| `src/main/window/main-window-close-lifecycle.ts` | tray notice title goes through `translateMain` | Raw literal on a common path; the translate hook renames it, and upstream tests still see the literal. |
+| `src/main/window/dashboard-popout-window.ts` | popout window title goes through `translateMain` | Same. |
 | `src/shared/update-status-types.ts` | optional `podBrewUpgradeScript` on the available state | Additive optional field, wire-compatible. |
 | `src/renderer/src/components/maintenance/update-card/UpdateCardStateContent.tsx` | passes `brewUpgradeScript` to both content components | See `UpdateAvailableCardContent.tsx`. |
 | `resources/logo.svg` | replaced | Pod mark, used by the landing page, the sidebar help menu and the settings icon. Upstream's file is a wholesale replacement, so a rebase keeps ours unless upstream edits it. |
