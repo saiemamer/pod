@@ -140,7 +140,7 @@ export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Elem
       ? `sqlglot ${props.engine.sqlglotVersion ?? ''} · ${props.engine.python ?? ''}`.trim()
       : (props.engine.note ?? '')
   return (
-    <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border px-2 text-xs">
+    <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4 text-xs">
       <Stepper
         label={translate('pod.lineage.toolbar.upstream', 'Upstream')}
         value={String(props.upstreamDepth)}

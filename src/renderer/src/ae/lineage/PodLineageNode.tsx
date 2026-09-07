@@ -151,7 +151,7 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
       <SideButton side="up" data={data} id={id} color={color} />
       <SideButton side="down" data={data} id={id} color={color} />
       <div
-        className="flex h-10 items-center gap-1.5 rounded-t-[5px] px-2.5"
+        className="flex h-10 items-center gap-1.5 rounded-t-[calc(var(--radius-md)-1px)] px-2.5"
         style={{
           background: `color-mix(in srgb, ${color} 12%, var(--card))`,
           borderBottom: `1px solid color-mix(in srgb, ${color} 35%, transparent)`
@@ -183,9 +183,9 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
         </span>
       </div>
       {rows.length > 0 && (
-        // Why clip here: the rounded corners belong to the border; a row's hover wash
-        // must stop at them, and the side buttons outside the box must stay visible.
-        <div className="overflow-hidden rounded-b-[5px] py-0.5">
+        // Why round the last row itself: clipping the list with overflow-hidden put it on
+        // its own compositing layer, which left a seam beside the border when zoomed.
+        <div className="[&>*:last-child]:rounded-b-[calc(var(--radius-md)-1px)]">
           {rows.map((column) => {
             const isLit = lit.has(column.name.toLowerCase())
             const isFocusColumn =
@@ -197,7 +197,7 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
                 data-testid="pod-lineage-column"
                 data-lit={isLit ? 'true' : undefined}
                 className={cn(
-                  'nodrag relative flex h-5 w-full items-center gap-1 px-2.5 text-left text-[11px] hover:bg-accent hover:text-accent-foreground',
+                  'nodrag relative flex h-5 w-full items-center gap-1 px-2.5 text-left text-[11px] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,var(--card))]',
                   isLit && 'font-medium text-primary',
                   isFocusColumn && 'bg-accent'
                 )}
