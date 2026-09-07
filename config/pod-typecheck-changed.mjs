@@ -9,7 +9,7 @@
 //   node config/pod-typecheck-changed.mjs            # against HEAD (staged, unstaged, untracked)
 //   node config/pod-typecheck-changed.mjs main       # against a ref
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -23,10 +23,13 @@ function git(args) {
     .filter(Boolean)
 }
 
-const changed = new Set([
-  ...git(['diff', '--name-only', ref, '--']),
-  ...git(['ls-files', '--others', '--exclude-standard'])
-])
+// Why the existence check: a deleted file is still in the diff, and tsc refuses a `files` entry it cannot find.
+const changed = new Set(
+  [
+    ...git(['diff', '--name-only', ref, '--']),
+    ...git(['ls-files', '--others', '--exclude-standard'])
+  ].filter((file) => existsSync(join(root, file)))
+)
 
 const PROJECTS = [
   {
@@ -53,7 +56,9 @@ const PROJECTS = [
       file.endsWith('.ts'),
     // Why: the global build identifiers live in src/types; without them telemetry/client.ts fails.
     extra: ['../src/types/build-constants.d.ts'],
-    compilerOptions: {}
+    // Why node: a small slice may hold no file that references Node's globals, and
+    // tsconfig.node.json's `types` list replaces the parent's `node` entry.
+    compilerOptions: { types: ['node', 'electron-vite/node'] }
   }
 ]
 
