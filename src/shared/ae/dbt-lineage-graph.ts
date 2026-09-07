@@ -171,7 +171,8 @@ export function selectDbtNeighbourhood(
 /**
  * Nodes with no column list take the union of their parents' columns, repeated until
  * nothing changes or the pass cap is hit, so a chain of `select *` models still shows
- * columns. Marks them as inherited.
+ * columns. A node whose SELECT has `*` beside named columns keeps its own and gains the
+ * parents' in front, as the star expands. Added columns are marked as inherited.
  */
 export function inheritDbtColumns(
   index: DbtGraphIndex,
@@ -181,30 +182,30 @@ export function inheritDbtColumns(
   for (let pass = 0; pass < maxPasses; pass += 1) {
     let changed = false
     for (const node of index.nodes.values()) {
-      if (node.columns.length > 0) {
+      if (node.columns.length > 0 && !node.selectsStar) {
         continue
       }
-      const seen = new Set<string>()
-      const columns: DbtGraphNode['columns'] = []
+      const own = new Set(node.columns.map((column) => column.name.toLowerCase()))
+      const seen = new Set(own)
+      const inherited: DbtGraphNode['columns'] = []
       for (const parentId of index.parents.get(node.uniqueId) ?? []) {
         for (const column of index.nodes.get(parentId)?.columns ?? []) {
           const key = column.name.toLowerCase()
           if (!seen.has(key)) {
             seen.add(key)
-            columns.push({
-              name: column.name,
-              dataType: column.dataType,
-              source: 'inherited'
-            })
+            inherited.push({ name: column.name, dataType: column.dataType, source: 'inherited' })
           }
         }
       }
-      if (columns.length > 0) {
-        node.columns = columns
+      if (inherited.length === 0) {
+        continue
+      }
+      if (node.columns.length === 0) {
         node.columnSource = 'inherited'
-        changed = true
         filled += 1
       }
+      node.columns = [...inherited, ...node.columns]
+      changed = true
     }
     if (!changed) {
       break

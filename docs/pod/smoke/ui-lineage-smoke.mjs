@@ -218,6 +218,45 @@ await stgSide.click({ force: true })
 await sleep(600)
 log('nodes after restoring:', await nodes.count())
 
+// 6b. depth 1 leaves the source out and puts a "+1" handle on stg_orders; clicking it loads it
+await dock.locator('[data-testid="pod-lineage-depth-up"]').waitFor({ state: 'visible' })
+const depthUp = async () =>
+  Number(await dock.locator('[data-testid="pod-lineage-depth-up"]').innerText())
+while ((await depthUp()) > 1) {
+  await dock.getByRole('button', { name: 'One level less' }).first().click()
+  await sleep(400)
+}
+await sleep(800)
+log('nodes at upstream depth 1:', await nodes.count())
+const loadMore = dock.locator(
+  '[data-node-id="model.demo.stg_orders"] [data-testid="pod-lineage-side-up"]'
+)
+log('stg_orders side handle reads:', await loadMore.innerText())
+await loadMore.click({ force: true })
+await sleep(1200)
+log('nodes after loading one more level:', await nodes.count())
+await page.screenshot({ path: `${OUT}/lineage-3b-expand.png` })
+while ((await depthUp()) < 4) {
+  await dock.getByRole('button', { name: 'One level more' }).first().click()
+  await sleep(400)
+}
+
+// 6c. the same canvas in dark mode: swap the theme classes the app toggles (the live
+// window retheme runs from the renderer's settings store, not from the settings file)
+await page.evaluate(() => {
+  const root = document.documentElement
+  root.classList.remove('light')
+  root.classList.add('dark')
+})
+await sleep(600)
+await page.screenshot({ path: `${OUT}/lineage-3c-dark.png` })
+await page.evaluate(() => {
+  const root = document.documentElement
+  root.classList.remove('dark')
+  root.classList.add('light')
+})
+await sleep(300)
+
 // 7. the Database tab in the right sidebar
 const databaseTab = page.locator('[aria-label^="Database"]').first()
 await databaseTab.click()

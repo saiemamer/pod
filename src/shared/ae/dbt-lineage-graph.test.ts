@@ -102,6 +102,25 @@ describe('inheritDbtColumns', () => {
     ])
   })
 
+  it('expands a star beside named columns from the parents, own columns last', () => {
+    const star = node('model.wide', ['flag'])
+    star.selectsStar = true
+    const index = indexDbtGraph(
+      [node('source.raw', ['id', 'status']), node('model.a'), star],
+      [
+        { source: 'source.raw', target: 'model.a' },
+        { source: 'model.a', target: 'model.wide' }
+      ]
+    )
+    expect(inheritDbtColumns(index)).toBe(1)
+    expect(index.nodes.get('model.wide')?.columns.map((c) => `${c.name}:${c.source}`)).toEqual([
+      'id:inherited',
+      'status:inherited',
+      'flag:catalog'
+    ])
+    expect(index.nodes.get('model.wide')?.columnSource).toBe('catalog')
+  })
+
   it('stops at the pass cap', () => {
     // Why reversed: a pass visits nodes in order, so children listed first cannot
     // pick up what their parents receive later in the same pass.

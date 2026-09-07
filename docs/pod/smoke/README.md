@@ -47,6 +47,8 @@ POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/s
 
 `POD_SMOKE_PYTHON` is written into the dev instance's `toolCmdOverrides.python`; leave it out and column lineage falls back to name matching, which the toolbar's engine label shows. The same venv runs the gated unit test: `POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python pnpm test:pod src/main/ae/dbt/dbt-column-lineage.test.ts`.
 
+**Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
+
 ## Domain setup on a real machine
 
 `domain-setup.mjs` turns a folder of clones into a domain without clicking: it imports the group, saves roles, stakeholder teams, agent env and dbt defaults through `window.api.ae.domains.save`, then opens Domain settings for a screenshot. It works against the installed Pod when that was started with a debugging port (`open -a Pod --args --remote-debugging-port=9334`).

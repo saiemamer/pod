@@ -39,6 +39,13 @@ const manifestJson = JSON.stringify({
       original_file_path: 'models/summary.sql',
       depends_on: { nodes: ['model.demo.orders'] }
     },
+    'model.demo.wide': {
+      name: 'wide',
+      resource_type: 'model',
+      package_name: 'demo',
+      original_file_path: 'models/wide.sql',
+      depends_on: { nodes: ['model.demo.orders'] }
+    },
     'test.demo.not_null': { name: 'not_null', resource_type: 'test' }
   },
   sources: {
@@ -56,7 +63,8 @@ const manifestJson = JSON.stringify({
   parent_map: {
     'model.demo.orders': ['model.demo.stg_orders'],
     'model.demo.stg_orders': ['source.demo.raw.orders'],
-    'model.demo.summary': ['model.demo.orders', 'test.demo.not_null']
+    'model.demo.summary': ['model.demo.orders', 'test.demo.not_null'],
+    'model.demo.wide': ['model.demo.orders']
   },
   child_map: {}
 })
@@ -82,7 +90,8 @@ const catalogJson = JSON.stringify({
 const sqlByPath: Record<string, string> = {
   'models/stg_orders.sql':
     "select id as order_id, status, {{ var('x') }} as flag from {{ source('raw', 'orders') }}",
-  'models/summary.sql': 'select * from {{ ref("orders") }}'
+  'models/summary.sql': 'select * from {{ ref("orders") }}',
+  'models/wide.sql': 'select *, status = \'paid\' as is_paid from {{ ref("orders") }}'
 }
 
 describe('buildDbtGraphIndex', () => {
@@ -98,6 +107,7 @@ describe('buildDbtGraphIndex', () => {
       'model.demo.orders',
       'model.demo.stg_orders',
       'model.demo.summary',
+      'model.demo.wide',
       'source.demo.raw.orders'
     ])
     const orders = index.nodes.get('model.demo.orders')!
@@ -126,6 +136,13 @@ describe('buildDbtGraphIndex', () => {
     const summary = index.nodes.get('model.demo.summary')!
     expect(summary.columnSource).toBe('inherited')
     expect(summary.columns.map((c) => c.name)).toEqual(['order_id', 'status'])
+    const wide = index.nodes.get('model.demo.wide')!
+    expect(wide.selectsStar).toBe(true)
+    expect(wide.columns.map((c) => `${c.name}:${c.source}`)).toEqual([
+      'order_id:inherited',
+      'status:inherited',
+      'is_paid:parsed'
+    ])
     // Why: the test node is not a lineage node, so its edge is dropped.
     expect(index.parents.get('model.demo.summary')).toEqual(['model.demo.orders'])
   })
@@ -144,6 +161,7 @@ describe('DbtGraphService', () => {
     writeFileSync(join(dir, 'target', 'catalog.json'), catalogJson)
     writeFileSync(join(dir, 'models', 'stg_orders.sql'), sqlByPath['models/stg_orders.sql'])
     writeFileSync(join(dir, 'models', 'summary.sql'), sqlByPath['models/summary.sql'])
+    writeFileSync(join(dir, 'models', 'wide.sql'), sqlByPath['models/wide.sql'])
     writeFileSync(join(dir, 'models', 'marts', 'orders.sql'), 'select 1')
     writeFileSync(
       join(dir, 'target', 'compiled', 'demo', 'models', 'marts', 'orders.sql'),
@@ -189,8 +207,8 @@ describe('DbtGraphService', () => {
       'model.demo.stg_orders'
     ])
     expect(result.moreUpstream).toEqual({ 'model.demo.stg_orders': 1 })
-    expect(result.moreDownstream).toEqual({ 'model.demo.orders': 1 })
-    expect(result.totalNodes).toBe(4)
+    expect(result.moreDownstream).toEqual({ 'model.demo.orders': 2 })
+    expect(result.totalNodes).toBe(5)
     expect(result.catalogExists).toBe(true)
     // Why touch the catalog: a rebuild must follow a new docs generate.
     utimesSync(join(dir, 'target', 'catalog.json'), new Date(5000), new Date(5000))
