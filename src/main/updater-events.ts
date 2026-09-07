@@ -15,7 +15,7 @@ import {
   shouldIgnoreDownloadedUpdateEvent
 } from './linux-package-downloaded-status'
 import { isExternallyManagedLinuxInstall } from './linux-update-package-type'
-import { isBrewManagedPodInstall } from './pod/brew-managed-install'
+import { isBrewManagedPodInstall, podBrewUpgradeScriptField } from './pod/brew-managed-install'
 import * as linuxPackageRecovery from './linux-package-update-recovery'
 
 const AUTO_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -207,7 +207,7 @@ export function registerAutoUpdaterHandlers({
             changelog,
             // Why: the offer is real, but this host can never apply it — say so before a download is offered.
             ...(isExternallyManagedLinuxInstall() || isBrewManagedPodInstall()
-              ? { externallyManaged: true }
+              ? { externallyManaged: true, ...podBrewUpgradeScriptField() }
               : {}) // Pod: see brand.ts
           }
         )

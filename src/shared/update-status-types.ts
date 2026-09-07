@@ -77,6 +77,8 @@ export type UpdateStatus = (
       /** Linux only: a package manager owns this install, so Orca cannot apply the update itself.
        *  Additive and optional — older clients simply keep offering their own download. */
       externallyManaged?: boolean
+      /** Pod: a .command file that runs the Homebrew upgrade when opened; set on unsigned macOS builds. */
+      podBrewUpgradeScript?: string
     }
   | { state: 'not-available'; userInitiated?: boolean }
   | { state: 'downloading'; percent: number; version: string; activeNudgeId?: string }
