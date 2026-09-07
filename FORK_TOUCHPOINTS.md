@@ -13,6 +13,7 @@ Rules:
 | Upstream file | Touch | Reason |
 |---|---|---|
 | `package.json` | `test:pod` script | Runs vitest with `config/vitest.pod.config.ts`. `name`, `version` and `bin` stay upstream's: the version line changes every release and would conflict, so `pod-release.yml` stamps Pod's `0.x.y` from the tag at build time. |
+| `resources/darwin/bin/orca` | `ELECTRON=` reads `CFBundleExecutable` from `Info.plist` | electron-builder names the binary after `productName`, so `Pod.app/Contents/MacOS/Pod`; the upstream wrapper assumed `Orca` and the bundled `orca` CLI could not start. Upstream PR candidate. |
 | `config/electron-builder.config.cjs` | `appId`, `productName`, mac `executableName`, mac `artifactName`, publish `owner` / `repo` read from `config/pod-brand.cjs` | Bundle identity, `pod-macos-<arch>.dmg`, publish to `saiemamer/pod`. |
 | `src/shared/release-channel.ts` | four release-repo constants read `POD_RELEASE_REPO` | All channels point at Pod's releases; Pod publishes no hourly/daily builds. |
 | `src/main/updater/updater-release-feed.ts` | fallback feed URL built from `POD_RELEASES_URL` | electron-updater feed. |
