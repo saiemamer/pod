@@ -13,6 +13,8 @@ export type SettingsNavInstallStatus =
   | 'checking'
 
 const SETTINGS_NAV_TARGETS = [
+  'tools', // Pod
+  'dbt', // Pod
   'general',
   'integrations',
   'accounts',

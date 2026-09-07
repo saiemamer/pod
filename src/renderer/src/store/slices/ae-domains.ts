@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { AeDomainConfig, AeDomainRepo, AeInitiative } from '../../../../shared/ae/domain-types'
+import type { TuiAgent } from '../../../../shared/tui-agent'
 
 /** Pod: domains and initiatives, fetched lazily and refreshed on the main process's `ae:changed`. */
 export type AeDomainsSlice = {
@@ -17,6 +18,17 @@ export type AeDomainsSlice = {
     input: Partial<AeInitiative> & { domainId: string; title: string }
   ) => Promise<AeInitiative>
   removeAeInitiative: (initiativeId: string) => Promise<void>
+  launchAeInitiative: (args: {
+    domainId: string
+    title: string
+    stakeholderTeam?: string
+    agent?: TuiAgent
+    repoIds?: string[]
+  }) => Promise<AeInitiative>
+  openAeDomainMainAgent: (
+    domainId: string,
+    agent?: TuiAgent
+  ) => Promise<{ workspaceKey: string; reused: boolean }>
 }
 
 function aeApi(): Window['api']['ae'] | null {
@@ -90,6 +102,25 @@ export const createAeDomainsSlice: StateCreator<AppState, [], [], AeDomainsSlice
       set({
         aeInitiatives: get().aeInitiatives.filter((initiative) => initiative.id !== initiativeId)
       })
+    },
+    launchAeInitiative: async (args) => {
+      const api = aeApi()
+      if (!api) {
+        throw new Error('Pod domain API unavailable')
+      }
+      const initiative = await api.initiatives.launch(args)
+      const others = get().aeInitiatives.filter((entry) => entry.id !== initiative.id)
+      set({ aeInitiatives: [initiative, ...others] })
+      return initiative
+    },
+    openAeDomainMainAgent: async (domainId, agent) => {
+      const api = aeApi()
+      if (!api) {
+        throw new Error('Pod domain API unavailable')
+      }
+      const result = await api.domains.openMainAgent({ domainId, agent })
+      await refresh()
+      return result
     }
   }
 }

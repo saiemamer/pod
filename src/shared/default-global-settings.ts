@@ -1,3 +1,4 @@
+import { DEFAULT_AE_DBT_SETTINGS } from './ae/dbt-settings-types' // Pod
 import type { GlobalSettings } from './global-settings-types'
 import type { NotificationSettings } from './notification-settings-types'
 import type { VoiceSettings } from './speech-types'
@@ -217,6 +218,8 @@ export function buildDefaultSettings(args: {
     minimaxEndpoint: 'overseas',
     geminiCliOAuthEnabled: false,
     agentCmdOverrides: {},
+    toolCmdOverrides: {}, // Pod
+    aeDbt: { ...DEFAULT_AE_DBT_SETTINGS }, // Pod
     agentDefaultArgs: { ...DEFAULT_TUI_AGENT_ARGS },
     agentDefaultEnv: { ...DEFAULT_TUI_AGENT_ENV },
     agentYoloDefaultsMigrated: true,
