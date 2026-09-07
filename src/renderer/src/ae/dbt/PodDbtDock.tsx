@@ -21,12 +21,26 @@ import { ensurePodDbtLanguageClient } from './dbt-lsp-client'
 import { startPodDbtRun } from './pod-dbt-run'
 import { podDbtErrorMessage } from './pod-dbt-run-target'
 import { usePodDbtShortcuts } from './use-pod-dbt-shortcuts'
+import { POD_DBT_DOCK_VIEWS, usePodDbtDockMotion } from './use-pod-dbt-dock-motion'
 
 // Why lazy: React Flow and dagre only load for editors that open the Lineage tab.
 const PodDbtLineageView = lazy(() => import('@/ae/lineage/PodDbtLineageView'))
 
 type PodDbtDockProps = {
   activeFile: { id: string; filePath: string; language: string }
+}
+
+function tabLabel(view: PodDbtDockView): string {
+  switch (view) {
+    case 'table':
+      return translate('pod.dbt.dock.table', 'Table')
+    case 'compiled':
+      return translate('pod.dbt.dock.compiled.tab', 'Compiled')
+    case 'lineage':
+      return translate('pod.dbt.dock.lineage', 'Lineage')
+    default:
+      return translate('pod.dbt.dock.connection', 'Connection')
+  }
 }
 
 function statusText(state: PodDbtResultState): string {
@@ -87,6 +101,7 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     paneRef.current = anchorRef.current?.parentElement ?? null
   })
   usePodDbtShortcuts(isJinjaSql ? activeFile : null, paneRef)
+  const motion = usePodDbtDockMotion(state?.view)
   if (!isJinjaSql) {
     return null
   }
@@ -220,23 +235,31 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
         >
           {/* Why line tabs: the pill read as a floating control next to the plain
               toolbar the Lineage tab adds below; underlined text sits on the same grid. */}
-          <TabsList variant="line" className="h-full gap-0 p-0">
-            {(
-              [
-                ['table', translate('pod.dbt.dock.table', 'Table')],
-                ['compiled', translate('pod.dbt.dock.compiled.tab', 'Compiled')],
-                ['lineage', translate('pod.dbt.dock.lineage', 'Lineage')],
-                ['connection', translate('pod.dbt.dock.connection', 'Connection')]
-              ] as const
-            ).map(([value, label]) => (
+          <TabsList variant="line" className="relative h-full gap-0 p-0">
+            {POD_DBT_DOCK_VIEWS.map((value) => (
               <TabsTrigger
                 key={value}
                 value={value}
-                className="h-full px-2 text-[11px] font-medium group-data-[orientation=horizontal]/tabs:after:inset-x-2 group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]"
+                ref={(element) => motion.setTrigger(value, element)}
+                // Why hide the primitive's underline: one shared indicator slides instead.
+                className="h-full px-2 text-[11px] font-medium group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-0"
               >
-                {label}
+                {tabLabel(value)}
               </TabsTrigger>
             ))}
+            <span
+              aria-hidden
+              data-testid="pod-dbt-tab-indicator"
+              className="pointer-events-none absolute bottom-[-1px] left-0 h-0.5 rounded-full bg-foreground transition-[transform,width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+              style={
+                motion.indicator
+                  ? {
+                      transform: `translateX(${motion.indicator.left}px)`,
+                      width: motion.indicator.width
+                    }
+                  : { opacity: 0 }
+              }
+            />
           </TabsList>
         </Tabs>
         <span
@@ -282,7 +305,10 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
       </div>
       {!state.collapsed && (
         // Why dim: the previous answer stays visible while a rerun is in flight, so mark it stale.
-        <div className={`min-h-0 flex-1 ${state.status === 'running' ? 'opacity-60' : ''}`}>
+        <div
+          ref={motion.bodyRef}
+          className={`min-h-0 flex-1 ${state.status === 'running' ? 'opacity-60' : ''}`}
+        >
           {body()}
         </div>
       )}
