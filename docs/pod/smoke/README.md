@@ -33,7 +33,7 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-dbt-smoke.mjs   # against pnpm dev on 
 
 The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its own data directory), imports the group if missing, and activates the `master` row under `dbt-demo`. Ten screenshots: editor, model rows, inline rows, compiled SQL, connection, completion popup, the opened `stg_orders.sql`, grid tools, export toast, resized dock. Re-runs are fine: the dock height persists, so the script restores it, and the previous rows stay visible while a rerun is in flight, so waits key on the status text.
 
-Before pushing, `pnpm typecheck:pod` typechecks the changed files and everything they import in about half a minute; a cold `pnpm typecheck:web` needs more heap than this 8 GB Mac gives Node.
+Before pushing, run the full check with a bigger heap: `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web` (about four minutes cold, twenty seconds once `config/tsconfig.tc.web.tsbuildinfo` exists). Node's default 2 GB heap dies on this 8 GB Mac even with the cache warm. `pnpm typecheck:pod` checks only the changed files and their imports in about half a minute, for quick loops.
 
 ## Domain setup on a real machine
 
