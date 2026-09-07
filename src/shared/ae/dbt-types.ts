@@ -27,6 +27,14 @@ export type DbtManifestSummary = {
   nodeCount?: number
 }
 
+/** target/catalog.json, written by `dbt docs generate`; the explorer and lineage read it. */
+export type DbtCatalogSummary = {
+  file: string
+  exists: boolean
+  generatedAt?: string
+  nodeCount?: number
+}
+
 export type DbtContextSummary = {
   project: DbtProjectSummary
   repoRoot: string | null
@@ -39,7 +47,10 @@ export type DbtContextSummary = {
   envFiles: string[]
   distribution: AeDbtDistribution
   showLimit: number
+  parseOnLoad: boolean
+  lspEnabled: boolean
   manifest: DbtManifestSummary
+  catalog: DbtCatalogSummary
 }
 
 export type DbtPathRequest = {
@@ -100,6 +111,47 @@ export type DbtParseResult = {
   command: string
   durationMs: number
   manifest: DbtManifestSummary
+}
+
+export type DbtCatalogRequest = DbtPathRequest & {
+  target?: string
+  /** Run again even when this project was refreshed earlier in the session. */
+  force?: boolean
+}
+
+export type DbtCatalogResult = {
+  /** 'skipped' when parseOnLoad is off or the project was already refreshed this session. */
+  outcome: 'refreshed' | 'skipped' | 'running'
+  commands: string[]
+  durationMs: number
+  manifest: DbtManifestSummary
+  catalog: DbtCatalogSummary
+}
+
+export type DbtResolveRefRequest = DbtPathRequest & {
+  /** `ref('name')` or `ref('package', 'name')`. */
+  name: string
+  packageName?: string
+}
+
+export type DbtResolveRefResult = {
+  name: string
+  /** Absolute path of the model file, or null when no file matches. */
+  file: string | null
+  /** Other files with the same base name, when the name is ambiguous. */
+  alternatives: string[]
+}
+
+export type DbtExportCsvRequest = DbtPathRequest & {
+  /** Model name or a short label for the inline query; becomes the file name. */
+  label: string
+  columns: string[]
+  rows: unknown[][]
+}
+
+export type DbtExportCsvResult = {
+  file: string
+  rowCount: number
 }
 
 export type DbtModelSummary = {

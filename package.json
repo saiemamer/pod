@@ -26,6 +26,7 @@
     "prepare": "husky",
     "test": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.config.ts",
     "test:pod": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.pod.config.ts",
+    "typecheck:pod": "node config/pod-typecheck-changed.mjs",
     "test:skill-sharing:release": "vitest run --config config/vitest.config.ts src/main/skills src/main/runtime/rpc/methods/skills.test.ts src/relay/skill-install-handler.test.ts src/shared/skill-bundle-install-contract.test.ts src/shared/skill-install-contract.test.ts src/shared/skill-install-failure.test.ts src/shared/skill-package-manifest.test.ts",
     "test:repro:remote-agent-session": "pnpm run build:cli && pnpm run build:electron-vite && node config/scripts/remote-agent-session-authority-repro.mjs",
     "check:reliability-gates": "node config/scripts/check-reliability-gates.mjs",
@@ -175,6 +176,7 @@
     "sherpa-onnx": "1.12.37",
     "ssh2": "^1.17.0",
     "tweetnacl": "^1.0.3",
+    "vscode-jsonrpc": "9.0.2",
     "ws": "^8.21.3",
     "yaml": "^2.8.4",
     "zod": "~4.5.4"

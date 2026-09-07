@@ -18,7 +18,7 @@ For the orchestration half (run-create, task-create, two-step dispatch, `check -
 
 ## dbt dock (Phase 2)
 
-`ui-dbt-smoke.mjs` opens `models/marts/orders.sql` in the smoke dbt repo, presses Cmd+Enter (model run), selects three lines and presses Cmd+Enter again (inline run), then Cmd+Shift+Enter (compile), and reads the Connection tab. It needs a `dbt` on the path Pod is told about; without a warehouse on this Mac, `dbt-stub.sh` answers `show`, `compile` and `parse` with canned output.
+`ui-dbt-smoke.mjs` opens `models/marts/orders.sql` in the smoke dbt repo, presses Cmd+Enter (model run), selects three lines and presses Cmd+Enter again (inline run), then Cmd+Shift+Enter (compile), and reads the Connection tab. It then waits for the language server, asks for completion inside `ref('…')`, Cmd-clicks the model name to open `stg_orders.sql`, and on a fresh model run sorts by `status`, searches `paid`, hides `amount`, exports the shown rows to `target/orders_results.csv`, and drags the dock handle up 120 px (then back). It needs a `dbt` on the path Pod is told about; without a warehouse on this Mac, `dbt-stub.sh` answers `show`, `compile`, `parse` and `docs generate` with canned output. The first run downloads dbt-language-server v0.4.2 (5 MB, from GitHub Releases) into the dev instance's data directory; the Connection tab shows where it landed.
 
 ```sh
 S=~/Projects/pod-smoke
@@ -31,7 +31,9 @@ cd ~/Projects/pod
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-dbt-smoke.mjs   # against pnpm dev on port 9333
 ```
 
-The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its own data directory), imports the group if missing, and activates the `master` row under `dbt-demo`. Five screenshots: editor, model rows, inline rows, compiled SQL, connection.
+The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its own data directory), imports the group if missing, and activates the `master` row under `dbt-demo`. Ten screenshots: editor, model rows, inline rows, compiled SQL, connection, completion popup, the opened `stg_orders.sql`, grid tools, export toast, resized dock. Re-runs are fine: the dock height persists, so the script restores it, and the previous rows stay visible while a rerun is in flight, so waits key on the status text.
+
+Before pushing, `pnpm typecheck:pod` typechecks the changed files and everything they import in about half a minute; a cold `pnpm typecheck:web` needs more heap than this 8 GB Mac gives Node.
 
 ## Domain setup on a real machine
 

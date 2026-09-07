@@ -3,6 +3,8 @@ export type AeToolCmdOverrides = {
   dbt?: string
   omni?: string
   python?: string
+  /** dbt-language-server binary; empty means Pod downloads the pinned release. */
+  dbtLsp?: string
 }
 
 export const AE_DBT_DISTRIBUTIONS = ['core', 'fusion'] as const
@@ -17,6 +19,8 @@ export type AeDbtSettings = {
   env: Record<string, string>
   envFile?: string
   parseOnLoad: boolean
+  /** Start dbt-language-server for Jinja SQL editors (completion, definition, hover). */
+  lspEnabled: boolean
   lineageDepth: number
   lineageTreeDepth: number
   lineageMaxNodes: number
@@ -30,6 +34,7 @@ export const DEFAULT_AE_DBT_SETTINGS: AeDbtSettings = {
   showLimit: 500,
   env: {},
   parseOnLoad: true,
+  lspEnabled: true,
   lineageDepth: 4,
   lineageTreeDepth: 8,
   lineageMaxNodes: 500,
@@ -57,7 +62,7 @@ export function normalizeAeToolCmdOverrides(value: unknown): AeToolCmdOverrides 
     return {}
   }
   const overrides: AeToolCmdOverrides = {}
-  for (const tool of ['dbt', 'omni', 'python'] as const) {
+  for (const tool of ['dbt', 'omni', 'python', 'dbtLsp'] as const) {
     const path = optionalPath(value[tool])
     if (path) {
       overrides[tool] = path
@@ -87,6 +92,7 @@ export function normalizeAeDbtSettings(value: unknown): AeDbtSettings {
     ),
     env,
     parseOnLoad: typeof value.parseOnLoad === 'boolean' ? value.parseOnLoad : true,
+    lspEnabled: typeof value.lspEnabled === 'boolean' ? value.lspEnabled : true,
     lineageDepth: clampInt(value.lineageDepth, DEFAULT_AE_DBT_SETTINGS.lineageDepth, 1, 20),
     lineageTreeDepth: clampInt(
       value.lineageTreeDepth,

@@ -12,7 +12,7 @@ Rules:
 
 | Upstream file | Touch | Reason |
 |---|---|---|
-| `package.json` | `test:pod` script | Runs vitest with `config/vitest.pod.config.ts`. `name`, `version` and `bin` stay upstream's: the version line changes every release and would conflict, so `pod-release.yml` stamps Pod's `0.x.y` from the tag at build time. |
+| `package.json` | `test:pod` and `typecheck:pod` scripts; `vscode-jsonrpc` in `dependencies` | Runs vitest with `config/vitest.pod.config.ts`; typechecks changed files with `config/pod-typecheck-changed.mjs`; the LSP bridge's framing library (pinned, MIT). `name`, `version` and `bin` stay upstream's: the version line changes every release and would conflict, so `pod-release.yml` stamps Pod's `0.x.y` from the tag at build time. |
 | `resources/darwin/bin/orca` | `ELECTRON=` reads `CFBundleExecutable` from `Info.plist` | electron-builder names the binary after `productName`, so `Pod.app/Contents/MacOS/Pod`; the upstream wrapper assumed `Orca` and the bundled `orca` CLI could not start. Upstream PR candidate. |
 | `config/electron-builder.config.cjs` | `appId`, `productName`, mac `executableName`, mac `artifactName`, publish `owner` / `repo` read from `config/pod-brand.cjs` | Bundle identity, `pod-macos-<arch>.dmg`, publish to `saiemamer/pod`. |
 | `src/shared/release-channel.ts` | four release-repo constants read `POD_RELEASE_REPO` | All channels point at Pod's releases; Pod publishes no hourly/daily builds. |
@@ -92,11 +92,11 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/shared/keybindings/types.ts`, `src/shared/keybindings/definitions.ts` | `'dbt.runSelection' \| 'dbt.compileSelection'` in the action union; `...KEYBINDING_DEFINITION_AE` spread + import | Cmd+Enter and Cmd+Shift+Enter in Jinja SQL editors (Pod-owned `definitions-ae.ts`), rebindable in Settings like every other action. |
 | `src/renderer/src/components/editor/EditorEditFileSurface.tsx` | `<PodDbtDock activeFile />` after the editor surface + import | The results dock (Pod-owned `src/renderer/src/ae/dbt/`). A new editor tab mode was rejected: `'check-details'` is special-cased in 32 renderer files. |
 
-The dbt IPC (`ae:dbt:*`) registers from `registerAeDomainHandlers`, the dbt service installs there too, and the dock's store slice (`ae-dbt-results.ts`) is composed inside the Pod domains slice, so Phase 2 adds no new IPC or store touch.
+The dbt IPC (`ae:dbt:*`, including `ae:dbt:lsp:*` and the `ae:dbt:lsp:event` push channel) registers from `registerAeDomainHandlers`, the dbt and language-server services install there too, and the dock's store slice (`ae-dbt-results.ts`) is composed inside the Pod domains slice, so Phase 2 adds no new IPC or store touch. The language server's Monaco providers, document sync and editor opener are registered from Pod code (`src/renderer/src/ae/dbt/dbt-lsp-client.ts`) on the first dock mount, not from `monaco-setup.ts` or `MonacoEditor.tsx`.
 
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `config/pod-typecheck-changed.mjs`, `docs/pod/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 
