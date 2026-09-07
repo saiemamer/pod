@@ -13,7 +13,6 @@ Rules:
 | Upstream file | Touch | Reason |
 |---|---|---|
 | `package.json` | `test:pod` script | Runs vitest with `config/vitest.pod.config.ts`. `name`, `version` and `bin` stay upstream's: the version line changes every release and would conflict, so `pod-release.yml` stamps Pod's `0.x.y` from the tag at build time. |
-| `config/scripts/run-electron-vite-dev.mjs` | dev instance label and dock title from `config/pod-brand.cjs` | `pnpm dev` shows "Pod: main" instead of "Orca: main". |
 | `config/electron-builder.config.cjs` | `appId`, `productName`, mac `executableName`, mac `artifactName`, publish `owner` / `repo` read from `config/pod-brand.cjs` | Bundle identity, `pod-macos-<arch>.dmg`, publish to `saiemamer/pod`. |
 | `src/shared/release-channel.ts` | four release-repo constants read `POD_RELEASE_REPO` | All channels point at Pod's releases; Pod publishes no hourly/daily builds. |
 | `src/main/updater/updater-release-feed.ts` | fallback feed URL built from `POD_RELEASES_URL` | electron-updater feed. |
@@ -30,7 +29,7 @@ Rules:
 
 Deferred to Phase 1: `src/shared/agent-feature-install-commands.ts` (skills repository URL), needed once `ae-*` skills exist so `npx skills add` can fetch them; it costs seven excluded test files, so it waits.
 
-Left deliberately untouched: the `orca://` URL scheme and the `orca` CLI name (skills, worker preamble and hook env reference them), `src/shared/plugins/plugin-marketplace.ts` (plugins are off by default), telemetry (`ORCA_POSTHOG_WRITE_KEY` is unset in Pod builds, so no client is created).
+Left deliberately untouched: the `Orca: <branch>` label of `pnpm dev` instances (`config/scripts/run-electron-vite-dev.mjs`; packaged builds are named by electron-builder, and `src/main/startup/run-electron-vite-dev.test.ts` asserts the literal), the `orca://` URL scheme and the `orca` CLI name (skills, worker preamble and hook env reference them), `src/shared/plugins/plugin-marketplace.ts` (plugins are off by default), telemetry (`ORCA_POSTHOG_WRITE_KEY` is unset in Pod builds, so no client is created).
 
 ## Pod-owned files outside `ae/`
 
