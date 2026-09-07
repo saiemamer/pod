@@ -62,7 +62,8 @@ const devChannelRepo = isHourlyChannel
     : isAdhocChannel
       ? 'orca-adhoc'
       : null
-const appId = 'com.stablyai.orca'
+const podBrand = require('./pod-brand.cjs') // Pod: brand constants live in one file
+const appId = podBrand.appId
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -137,7 +138,7 @@ const MARKDOWN_FILE_EXTENSIONS = ['md', 'markdown', 'mdx']
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId,
-  productName: 'Orca',
+  productName: podBrand.productName,
   protocols: [{ name: 'Orca', schemes: ['orca'] }],
   toolsets: { appimage: '1.0.3' },
   ...(devChannelBuildVersion
@@ -374,7 +375,7 @@ module.exports = {
     }
   },
   win: {
-    executableName: 'Orca',
+    executableName: podBrand.productName,
     // Why: Windows installers are signed after electron-builder packaging by
     // SignPath, so the packager cannot infer the updater publisherName.
     //
@@ -518,7 +519,7 @@ module.exports = {
   // silently downgrading to ad-hoc artifacts that look shippable in CI logs.
   forceCodeSigning: isMacRelease,
   dmg: {
-    artifactName: 'orca-macos-${arch}.${ext}'
+    artifactName: 'pod-macos-${arch}.${ext}'
   },
   linux: {
     // Why mimeTypes and not fileAssociations: shared-mime-info already maps *.md/*.markdown to
@@ -616,8 +617,8 @@ module.exports = {
   npmRebuild: true,
   publish: {
     provider: 'github',
-    owner: 'stablyai',
-    repo: devChannelRepo ?? 'orca',
+    owner: podBrand.releaseOwner,
+    repo: devChannelRepo ?? podBrand.releaseRepo,
     releaseType: devChannelRepo ? 'prerelease' : 'release'
   }
 }

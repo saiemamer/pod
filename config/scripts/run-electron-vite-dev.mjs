@@ -37,6 +37,7 @@ import {
 delete process.env.ELECTRON_RUN_AS_NODE
 
 const require = createRequire(import.meta.url)
+const podBrand = require('../pod-brand.cjs') // Pod: dev instance carries the product name
 const repoRoot = path.resolve(import.meta.dirname, '../..')
 const STABLE_NAME_FLAG = '--stable-name'
 const rawForwardedArgs = process.argv.slice(2)
@@ -76,7 +77,7 @@ function formatDevInstanceLabel(branch, worktreeName) {
 }
 
 function createDockTitle(branch, label) {
-  return `Orca: ${branch || label || 'dev'}`
+  return `${podBrand.productName}: ${branch || label || 'dev'}`
 }
 
 function seedDevInstanceIdentityEnv() {
@@ -175,7 +176,7 @@ function prepareMacDevElectronApp() {
     electronVersion = JSON.parse(readFileSync(electronPackagePath, 'utf8')).version ?? null
   } catch {}
 
-  const title = process.env.ORCA_DEV_DOCK_TITLE || 'Orca: dev'
+  const title = process.env.ORCA_DEV_DOCK_TITLE || `${podBrand.productName}: dev`
   const identityKey = process.env.ORCA_DEV_INSTANCE_KEY || repoRoot
   // v11: stop patching the branch title into Info.plist so every dev bundle signs to one cdhash.
   // A stale copy only emits extra fields the parser ignores, so narrowing its schema needs no bump.

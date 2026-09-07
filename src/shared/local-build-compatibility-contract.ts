@@ -1,6 +1,7 @@
+import { POD_APP_ID } from './brand'
 export const LOCAL_BUILD_COMPATIBILITY_CONTRACT = {
   formatVersion: 1,
-  appId: 'com.stablyai.orca',
+  appId: POD_APP_ID,
   stateSchemaVersion: 1,
   readableStateSchemaVersions: [1],
   daemonProtocolVersion: 36,

@@ -21,3 +21,5 @@
 # Generated runtime English subset: compared byte-for-byte by
 # verify:localization-runtime-catalog, so a CRLF checkout would fail the gate.
 /src/renderer/src/i18n/en-runtime-required.json linguist-generated=true text eol=lf
+# Pod: keep Pod's front page across rebases (driver configured in docs/pod/README.md)
+README.md merge=pod-keep
