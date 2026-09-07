@@ -2,12 +2,12 @@ import { runProcess } from '../../../shared/child-process/run-process'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import type { DbtLineageEngineStatus } from '../../../shared/ae/dbt-graph-types'
 import { findOnPath } from './dbt-runner'
-import SQLGLOT_LINEAGE_SCRIPT from './sqlglot_lineage.py?raw'
+import { SQLGLOT_LINEAGE_SCRIPT } from './sqlglot-lineage-script'
 
 /**
  * Pod: runs sqlglot in the user's Python for column lineage. The script travels as a
- * `-c` argument and the models as JSON on stdin, so nothing is written to disk and no
- * resource has to be packaged. sqlglot is never bundled: it is MIT, but it is the
+ * `-c` argument (a string constant, so no bundler needs a loader) and the models as JSON
+ * on stdin, so nothing is written to disk and no resource has to be packaged. sqlglot is never bundled: it is MIT, but it is the
  * user's interpreter, found through Settings > Analytics Tools or PATH.
  */
 export type SqlglotNodeInput = {

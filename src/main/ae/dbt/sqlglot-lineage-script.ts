@@ -1,10 +1,15 @@
-"""Pod: column lineage for dbt models through sqlglot.
+/**
+ * Pod: the sqlglot sidecar, kept as a string so every bundler (Vite for the app, esbuild
+ * for the orcad daemon, vitest) ships it without a loader. Handed to Python with -c;
+ * the models arrive on stdin. See dbt-sqlglot-sidecar.ts for the contract.
+ */
+export const SQLGLOT_LINEAGE_SCRIPT = `"""Pod: column lineage for dbt models through sqlglot.
 
 Reads one JSON document on stdin:
 
   {"dialect": "bigquery",
    "nodes": [{"id": "model.demo.orders",
-              "sql": "select ... from `proj`.`dbt`.`stg_orders`",
+              "sql": "select ... from \`proj\`.\`dbt\`.\`stg_orders\`",
               "schema": {"proj.dbt.stg_orders": ["order_id", "status"]}}]}
 
 and prints one JSON document: for every node, its output column names and, per
@@ -92,3 +97,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+`
