@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { safeHomedir } from './dbt-runner'
 
 /**
  * Pod: where dbt should read profiles.yml from. The answer carries its source so the
@@ -47,8 +47,9 @@ export function findDbtProfilesDir(options: DbtProfilesSearchOptions): DbtProfil
       return { dir: repoHit, source: 'repo' }
     }
   }
-  const home = join(options.home ?? homedir(), '.dbt')
-  if (existsSync(join(home, DBT_PROFILES_FILE))) {
+  const homeRoot = options.home ?? safeHomedir()
+  const home = homeRoot ? join(homeRoot, '.dbt') : null
+  if (home && existsSync(join(home, DBT_PROFILES_FILE))) {
     return { dir: home, source: 'home' }
   }
   return { source: 'dbt' }
