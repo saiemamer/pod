@@ -1,3 +1,4 @@
+import type { AeApi } from './api/ae-api' // Pod
 import type {
   ClaudeAccountsApi,
   CodexAccountsApi,
@@ -79,6 +80,7 @@ export type PreloadApi = {
   projectGroups: ProjectGroupsApi
   folderWorkspaces: FolderWorkspacesApi
   sparsePresets: SparsePresetsApi
+  ae: AeApi // Pod
   worktrees: WorktreeApi
   workspaceCleanup: WorkspaceCleanupApi
   workspaceSpace: WorkspaceSpaceApi

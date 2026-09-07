@@ -1,3 +1,4 @@
+import { registerAeDomainHandlers } from './ae/ae-domain-handlers' // Pod
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../persistence'
@@ -79,4 +80,5 @@ export function registerRepoHandlers(
   registerRepoCloneHandlers(mainWindow, store)
   registerRepoGitUsernameHandler(store)
   registerBaseRefQueryHandlers(store)
+  registerAeDomainHandlers(mainWindow, store, runtime) // Pod
 }

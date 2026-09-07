@@ -71,6 +71,7 @@ import {
   OrcadCatalogImportPersistence,
   installOrcadCatalogImportPersistenceContext
 } from '../migrating-orcad-catalog/orcad-catalog-import'
+import { AeDomainPersistence, installAeDomainPersistenceContext } from './ae-domain-persistence' // Pod
 
 export type StoreDomainOperations = WriteSchedulingOperations &
   PrimaryStateWriteOperations &
@@ -89,6 +90,7 @@ export type StoreDomainOperations = WriteSchedulingOperations &
   SshLeaseRecoveryOperations &
   OrcadSourceExportPersistence &
   OrcadCatalogImportPersistence &
+  AeDomainPersistence & // Pod
   WriteFlushBarrierOperations
 
 export type StoreDomains = {
@@ -115,6 +117,7 @@ export type StoreDomains = {
   sshLeases: SshLeaseRecoveryOperations
   orcadSourceExport: OrcadSourceExportPersistence
   orcadCatalogImports: OrcadCatalogImportPersistence
+  aeDomains: AeDomainPersistence // Pod
 }
 
 export const STORE_DOMAIN_OPERATION_CLASSES = [
@@ -135,6 +138,7 @@ export const STORE_DOMAIN_OPERATION_CLASSES = [
   SshLeaseRecoveryOperations,
   OrcadSourceExportPersistence,
   OrcadCatalogImportPersistence,
+  AeDomainPersistence, // Pod
   WriteFlushBarrierOperations
 ] as const
 
@@ -156,6 +160,7 @@ export function installStoreDomainContexts(target: Store, domains: StoreDomains)
   installSshLeaseRecoveryOperationsContext(target, domains.sshLeases)
   installOrcadSourceExportPersistenceContext(target, domains.orcadSourceExport)
   installOrcadCatalogImportPersistenceContext(target, domains.orcadCatalogImports)
+  installAeDomainPersistenceContext(target, domains.aeDomains) // Pod
   installWriteFlushBarrierOperationsContext(target, domains.flushBarriers)
 }
 
@@ -182,6 +187,7 @@ export function createStoreDomains(runtime: StoreRuntimeState): StoreDomains {
   const automations = new AutomationPersistence(runtime, flushBarriers, preferences)
   const mobileTabSelections = new MobileTabSelectionPersistence(runtime, scheduling)
   const sparsePresets = new SparsePresetPersistence(runtime, scheduling)
+  const aeDomains = new AeDomainPersistence(runtime, scheduling) // Pod
   const ptyBindings = new PtyBindingPersistenceOperations(runtime, sessions)
   const sshProfiles = new SshProfileOperations(runtime, scheduling, flushBarriers, repos)
   const retiredWorktreeNames = new RetiredWorktreeNamePersistence(runtime, scheduling)
@@ -210,6 +216,7 @@ export function createStoreDomains(runtime: StoreRuntimeState): StoreDomains {
     automations,
     mobileTabSelections,
     sparsePresets,
+    aeDomains, // Pod
     ptyBindings,
     sshProfiles,
     retiredWorktreeNames,

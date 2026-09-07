@@ -1,3 +1,4 @@
+import { aeApi } from './api/ae-bridge' // Pod
 import { contextBridge, ipcRenderer } from 'electron'
 import type { PreloadApi } from './api-types'
 import { installBrowserFindListener } from './preload-runtime-support'
@@ -109,6 +110,7 @@ const api = {
   projectGroups: projectGroupsApi,
   folderWorkspaces: folderWorkspacesApi,
   sparsePresets: sparsePresetsApi,
+  ae: aeApi, // Pod
   worktrees: worktreesApi,
   workspaceCleanup: workspaceCleanupApi,
   workspaceSpace: workspaceSpaceApi,

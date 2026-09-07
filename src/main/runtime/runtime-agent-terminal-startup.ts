@@ -11,7 +11,7 @@ import {
   nameLocalTypedLineShell
 } from './agent-launch-typed-line-shell'
 import { resolveTerminalStartupCwd } from '../../shared/terminal-startup-cwd'
-import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
+import { resolvePodAgentStartupPlanInputs } from '../ae/domain-agent-env' // Pod
 import { agentStartedTelemetry } from '../agent-launch/agent-started-telemetry'
 
 export async function buildRuntimeAgentTerminalStartupOptions(
@@ -46,7 +46,7 @@ export async function buildRuntimeAgentTerminalStartupOptions(
     throw new Error(`Agent ${agent} does not take a startup prompt on its launch command.`)
   }
   const { plan: startupPlan, promptCarried } = await planExecutionHostStartupWithPromptCandidate({
-    inputs: resolveAgentStartupPlanInputs({
+    inputs: resolvePodAgentStartupPlanInputs(workspace, {
       agent,
       settings,
       platform,

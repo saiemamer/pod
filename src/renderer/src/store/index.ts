@@ -1,3 +1,4 @@
+import { createAeDomainsSlice } from './slices/ae-domains' // Pod
 import { create, type StateCreator } from 'zustand'
 import type { AppState } from './types'
 import { createRepoSlice } from './slices/repos'
@@ -82,6 +83,7 @@ export const useAppStore = create<AppState>()(
       return {
         ...createRepoSlice(...a),
         ...createSparsePresetsSlice(...a),
+        ...createAeDomainsSlice(...a), // Pod
         ...createWorktreeSlice(...a),
         ...createTerminalSlice(...a),
         ...createTabsSlice(...a),
