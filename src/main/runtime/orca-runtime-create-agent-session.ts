@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { resolvePodAgentStartupPlanInputs } from '../ae/domain-agent-env' // Pod
 import { OrcaRuntimeWithGetAgentSessionExecutionNamespace } from './orca-runtime-get-agent-session-execution-namespace'
 import type {
   RuntimeAgentSessionRpcCaller,
@@ -16,7 +17,6 @@ import {
   AGENT_SESSION_OPERATION_PER_CLIENT_LIMIT
 } from './orca-runtime-core'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
-import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from '../../shared/tui-agent-startup'
 import type { RuntimeTerminalCreate } from '../../shared/runtime-types'
 import type {
@@ -149,7 +149,7 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
       if (!isTuiAgentEnabled(request.agent, settings.disabledTuiAgents)) {
         throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')
       }
-      const startupArgs = resolveAgentStartupPlanInputs({
+      const startupArgs = resolvePodAgentStartupPlanInputs(workspace, {
         agent: request.agent,
         settings,
         platform: this.getAgentLaunchPlatformForWorkspace(workspace),

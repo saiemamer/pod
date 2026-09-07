@@ -1,4 +1,5 @@
 import { agentStartedTelemetry } from '../agent-launch/agent-started-telemetry'
+import { resolvePodAgentStartupPlanInputs } from '../ae/domain-agent-env' // Pod
 import type { AgentLaunchPreferences } from '../../shared/agent-session-host-authority'
 import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -7,7 +8,6 @@ import { repoIsRemote } from '../../shared/agent-launch-remote'
 import { getRepoSshConnectionId } from '../../shared/execution-host'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { isTuiAgentEnabled, pickTuiAgent } from '../../shared/tui-agent-selection'
-import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from '../../shared/tui-agent-startup'
 import {
   detectInstalledAgentsWithShellPathHydration,
@@ -73,7 +73,7 @@ export async function buildWorktreeStartupForDraft(
     return null
   }
 
-  const launchArgs = resolveAgentStartupPlanInputs({
+  const launchArgs = resolvePodAgentStartupPlanInputs(environment, {
     agent,
     settings,
     platform: environment.getLaunchPlatform(),
@@ -138,7 +138,7 @@ export function buildWorktreeStartupForAgent(
     throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')
   }
   const startupPlan = buildAgentStartupPlan({
-    ...resolveAgentStartupPlanInputs({
+    ...resolvePodAgentStartupPlanInputs(environment, {
       agent,
       settings,
       platform: environment.getLaunchPlatform(),
