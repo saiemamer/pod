@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -42,6 +42,20 @@ describe('Pod brand', () => {
   // Why: GitHub runs every file under .github/workflows. Upstream's live in
   // .github/workflows-upstream so their edits still apply on rebase; a rebase that
   // brings a new upstream workflow into the live folder must move it too.
+  // Why: the 0.1.0 build checked Orca's feed because a second hardcoded URL in
+  // updater-setup.ts was missed; a rebase can bring another one in.
+  it('leaves no upstream release URL in the updater sources', () => {
+    const updaterDir = resolve(repoRoot, 'src/main/updater')
+    const files = [
+      ...readdirSync(updaterDir).map((name) => resolve(updaterDir, name)),
+      ...readdirSync(resolve(repoRoot, 'src/main'))
+        .filter((name) => name.startsWith('updater'))
+        .map((name) => resolve(repoRoot, 'src/main', name))
+    ].filter((file) => file.endsWith('.ts') && !/\.test\.ts$|test-harness/.test(file))
+    const offenders = files.filter((file) => readFileSync(file, 'utf8').includes('stablyai/orca'))
+    expect(offenders).toEqual([])
+  })
+
   it('keeps only Pod workflows in .github/workflows', () => {
     const workflowsDir = resolve(repoRoot, '.github/workflows')
     const stray = readdirSync(workflowsDir).filter((name) => !name.startsWith('pod-'))
