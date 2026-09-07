@@ -50,6 +50,22 @@ Raw "Orca" literals that bypass both translate layers and were left alone: crash
 
 Left deliberately untouched: the app data directory (`~/Library/Application Support/orca`, shared with stock Orca because Electron names it after `package.json`'s `name`; separating it means a `productName` line next to the conflict-prone `version` line, or a startup touch, so it waits until someone needs both apps on one machine), the `Orca: <branch>` label of `pnpm dev` instances (`config/scripts/run-electron-vite-dev.mjs`; packaged builds are named by electron-builder, and `src/main/startup/run-electron-vite-dev.test.ts` asserts the literal), the `orca://` URL scheme and the `orca` CLI name (skills, worker preamble and hook env reference them), `src/shared/plugins/plugin-marketplace.ts` (plugins are off by default), telemetry (`ORCA_POSTHOG_WRITE_KEY` is unset in Pod builds, so no client is created).
 
+## Phase 1: domains, initiatives, tools
+
+| Upstream file | Touch | Reason |
+|---|---|---|
+| `src/shared/persisted-state-types.ts` | three optional keys `aeDomains`, `aeInitiatives`, `aeDomainSecrets` + type import | Unknown keys already round-trip; the types make the store methods typed. |
+| `src/main/persistence/loading-store/store-domain-composition.ts` | import, `StoreDomains` field, class list, install call, constructor, return | Registers `AeDomainPersistence` (Pod-owned `ae-domain-persistence.ts`) like every other domain. |
+| `src/main/persistence/loading-store/store.ts` | `AeDomainPersistence` in the `Store` extends list + type import | Makes `store.getAeDomains()` and friends typed. |
+| `src/main/ipc/repos.ts` | `registerAeDomainHandlers(mainWindow, store, runtime)` + import | Registers Pod IPC (`ae:*`) and installs the domain service where store and runtime meet. |
+| `src/preload/api-types.ts`, `src/preload/index.ts` | `ae: AeApi` / `ae: aeApi` + imports | Preload bridge for domains and initiatives. |
+| `src/renderer/src/store/types.ts`, `src/renderer/src/store/index.ts` | `AeDomainsSlice` in `AppState`, `createAeDomainsSlice` spread + imports | Renderer store slice. |
+| `src/main/runtime/orca-runtime-resolve-worktree-removal-target.ts` | `agentEnv` spreads `podDomainAgentEnv(workspace)` | Every agent launched in a domain repo or initiative folder gets the domain env, secrets and `POD_*` markers; `{}` outside a domain. |
+| `src/main/runtime/runtime-worktree-agent-startup.ts` | same, two sites, from `environment.repo` | Worktree-creating launches, including orchestration workers. |
+| `src/main/runtime/orca-runtime-create-agent-session.ts` | same, from `workspace` | Structured agent sessions, which the initiative launcher uses. |
+| `src/main/startup/cli-command-names.ts` | `'domain'` in the sorted list | `orca domain ...` top-level name. |
+| `src/cli/specs/index.ts`, `src/cli/handler-group-manifest.ts`, `src/main/runtime/rpc/methods/index.ts` | one import and one spread/group each | `orca domain list|show` specs, handlers and RPC methods (Pod-owned `ae-domain.ts` files). |
+
 ## Pod-owned files outside `ae/`
 
 `src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.

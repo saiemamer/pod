@@ -1,3 +1,4 @@
+import { DOMAIN_COMMAND_SPECS } from './ae-domain' // Pod
 import type { CommandSpec } from '../args'
 import { ACCOUNT_COMMAND_SPECS } from './account'
 import { BROWSER_ADVANCED_COMMAND_SPECS } from './browser-advanced'
@@ -36,5 +37,6 @@ export const COMMAND_SPECS: CommandSpec[] = [
   ...LINEAR_COMMAND_SPECS,
   ...VM_COMMAND_SPECS,
   ...EMULATOR_COMMAND_SPECS,
-  ...SKILL_COMMAND_SPECS
+  ...SKILL_COMMAND_SPECS,
+  ...DOMAIN_COMMAND_SPECS // Pod
 ]

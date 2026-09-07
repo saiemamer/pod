@@ -1,3 +1,4 @@
+import { podDomainAgentEnv } from '../ae/domain-agent-env'
 import type { AgentLaunchPreferences } from '../../shared/agent-session-host-authority'
 import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -84,7 +85,10 @@ export async function buildWorktreeStartupForDraft(
     agent,
     cmdOverrides: settings.agentCmdOverrides ?? {},
     agentArgs: resolveTuiAgentLaunchArgs(agent, settings.agentDefaultArgs),
-    agentEnv: resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+    agentEnv: {
+      ...resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+      ...podDomainAgentEnv({ repo: environment.repo })
+    }, // Pod
     platform,
     shell,
     isRemote
@@ -147,7 +151,10 @@ export function buildWorktreeStartupForAgent(
     prompt: environment.prompt ?? '',
     cmdOverrides: settings.agentCmdOverrides ?? {},
     agentArgs: resolveTuiAgentLaunchArgs(agent, settings.agentDefaultArgs),
-    agentEnv: resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+    agentEnv: {
+      ...resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+      ...podDomainAgentEnv({ repo: environment.repo })
+    }, // Pod
     sessionOptions,
     sessionOptionsOverrideAgentArgs: Boolean(sessionOptions),
     platform,

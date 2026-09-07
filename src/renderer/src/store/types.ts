@@ -1,3 +1,4 @@
+import type { AeDomainsSlice } from './slices/ae-domains' // Pod
 import type { RepoSlice } from './repos/repo-state'
 import type { SparsePresetsSlice } from './slices/sparse-presets'
 import type { WorktreeSlice } from './slices/worktrees'
@@ -45,6 +46,7 @@ import type { RemoteServerUpdatesSlice } from './slices/remote-server-updates'
 import type { TerminalQuickCommandHostsSlice } from './slices/terminal-quick-command-hosts'
 
 export type AppState = RepoSlice &
+  AeDomainsSlice & // Pod
   SparsePresetsSlice &
   WorktreeSlice &
   TerminalSlice &

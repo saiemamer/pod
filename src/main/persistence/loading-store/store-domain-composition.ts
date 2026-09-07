@@ -63,6 +63,7 @@ import {
   SshLeaseRecoveryOperations,
   installSshLeaseRecoveryOperationsContext
 } from './ssh-lease-recovery-operations'
+import { AeDomainPersistence, installAeDomainPersistenceContext } from './ae-domain-persistence' // Pod
 
 export type StoreDomains = {
   adaptation: LoadedStateAdaptationOperations
@@ -87,6 +88,7 @@ export type StoreDomains = {
   sshProfiles: SshProfileOperations
   retiredWorktreeNames: RetiredWorktreeNamePersistence
   sshLeases: SshLeaseRecoveryOperations
+  aeDomains: AeDomainPersistence // Pod
 }
 
 export const STORE_DOMAIN_OPERATION_CLASSES = [
@@ -105,6 +107,7 @@ export const STORE_DOMAIN_OPERATION_CLASSES = [
   SshProfileOperations,
   RetiredWorktreeNamePersistence,
   SshLeaseRecoveryOperations,
+  AeDomainPersistence, // Pod
   WriteFlushBarrierOperations
 ] as const
 
@@ -124,6 +127,7 @@ export function installStoreDomainContexts(target: object, domains: StoreDomains
   installSshProfileOperationsContext(target, domains.sshProfiles)
   installRetiredWorktreeNamePersistenceContext(target, domains.retiredWorktreeNames)
   installSshLeaseRecoveryOperationsContext(target, domains.sshLeases)
+  installAeDomainPersistenceContext(target, domains.aeDomains) // Pod
   installWriteFlushBarrierOperationsContext(target, domains.flushBarriers)
 }
 
@@ -151,6 +155,7 @@ export function createStoreDomains(runtime: StoreRuntimeState): StoreDomains {
   const automations = new AutomationPersistence(runtime, flushBarriers, preferences)
   const mobileTabSelections = new MobileTabSelectionPersistence(runtime, scheduling)
   const sparsePresets = new SparsePresetPersistence(runtime, scheduling)
+  const aeDomains = new AeDomainPersistence(runtime, scheduling) // Pod
   const ptyBindings = new PtyBindingPersistenceOperations(runtime, sessions)
   const sshProfiles = new SshProfileOperations(runtime, scheduling, flushBarriers, repos)
   const retiredWorktreeNames = new RetiredWorktreeNamePersistence(runtime, scheduling)
@@ -179,6 +184,7 @@ export function createStoreDomains(runtime: StoreRuntimeState): StoreDomains {
     automations,
     mobileTabSelections,
     sparsePresets,
+    aeDomains, // Pod
     ptyBindings,
     sshProfiles,
     retiredWorktreeNames,

@@ -1,3 +1,4 @@
+import type { AeDomainConfig, AeInitiative } from './ae/domain-types' // Pod
 import type { ExecutionHostId } from './execution-host'
 import type {
   RemovedSshTargetTombstone,
@@ -114,4 +115,9 @@ export type PersistedState = {
   featureInteractionTelemetryBuckets?: FeatureInteractionTelemetryBucketState
   /** Main-owned reset mutation journal. Never expose this through renderer settings APIs. */
   codexResetCreditAttemptLedger?: CodexResetCreditAttemptLedger
+  /** Pod: domains keyed by project group id, and their initiatives. */
+  aeDomains?: Record<string, AeDomainConfig>
+  aeInitiatives?: AeInitiative[]
+  /** Pod: domain secrets as base64 safeStorage ciphertext keyed `<domainId>:<NAME>`. */
+  aeDomainSecrets?: Record<string, string>
 }

@@ -60,6 +60,11 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/project.js')).PROJECT_HANDLERS
   },
   {
+    name: 'domain', // Pod
+    keys: ['domain list', 'domain show'],
+    load: async () => (await import('./handlers/ae-domain.js')).DOMAIN_HANDLERS
+  },
+  {
     name: 'repo',
     keys: ['repo list', 'repo add', 'repo show', 'repo set-base-ref', 'repo search-refs'],
     load: async () => (await import('./handlers/repo.js')).REPO_HANDLERS

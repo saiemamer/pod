@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { podDomainAgentEnv } from '../ae/domain-agent-env'
 import { OrcaRuntimeWithRemoveManagedWorktree } from './orca-runtime-remove-managed-worktree'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import type { RuntimeWorktreeRemovalTarget } from './runtime-worktree-selection'
@@ -203,7 +204,10 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
       prompt: '',
       cmdOverrides: settings.agentCmdOverrides ?? {},
       agentArgs: resolveTuiAgentLaunchArgs(agent, settings.agentDefaultArgs),
-      agentEnv: resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+      agentEnv: {
+        ...resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+        ...podDomainAgentEnv(workspace)
+      }, // Pod
       sessionOptions,
       sessionOptionsOverrideAgentArgs: Boolean(sessionOptions),
       platform,

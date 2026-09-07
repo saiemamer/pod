@@ -18,6 +18,7 @@ export const CLI_COMMAND_NAMES = [
   'dblclick',
   'diagnostics',
   'dialog',
+  'domain', // Pod
   'download',
   'drag',
   'emulator',

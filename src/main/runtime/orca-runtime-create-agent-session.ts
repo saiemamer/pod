@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { podDomainAgentEnv } from '../ae/domain-agent-env'
 import { OrcaRuntimeWithGetAgentSessionExecutionNamespace } from './orca-runtime-get-agent-session-execution-namespace'
 import type {
   RuntimeAgentSessionRpcCaller,
@@ -166,7 +167,10 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
           request.agentArgs !== undefined
             ? request.agentArgs
             : resolveTuiAgentLaunchArgs(request.agent, settings.agentDefaultArgs),
-        agentEnv: resolveTuiAgentLaunchEnv(request.agent, settings.agentDefaultEnv),
+        agentEnv: {
+          ...resolveTuiAgentLaunchEnv(request.agent, settings.agentDefaultEnv),
+          ...podDomainAgentEnv(workspace)
+        }, // Pod
         sessionOptions: this.toAgentSessionOptions(request.launchPreferences),
         platform,
         shell,

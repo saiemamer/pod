@@ -1,3 +1,4 @@
+import { DOMAIN_METHODS } from './ae-domain' // Pod
 import type { RpcAnyMethod } from '../core'
 import { STATUS_METHODS } from './status'
 import { AI_VAULT_METHODS } from './ai-vault'
@@ -56,6 +57,7 @@ export const ALL_RPC_METHODS: readonly RpcAnyMethod[] = [
   ...ARTIFACT_METHODS,
   ...AUTOMATION_METHODS,
   ...REPO_METHODS,
+  ...DOMAIN_METHODS, // Pod
   ...WORKTREE_METHODS,
   ...AGENT_SESSION_METHODS,
   ...STRUCTURED_AGENT_SESSION_METHODS,

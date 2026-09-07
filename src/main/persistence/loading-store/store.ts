@@ -1,3 +1,4 @@
+import type { AeDomainPersistence } from './ae-domain-persistence' // Pod
 import { dirname } from 'node:path'
 import {
   setMigrationUnsupportedPty,
@@ -122,6 +123,7 @@ export interface Store
     SshProfileOperations,
     RetiredWorktreeNamePersistence,
     SshLeaseRecoveryOperations,
+    AeDomainPersistence, // Pod
     WriteFlushBarrierOperations {}
 
 for (const OperationClass of STORE_DOMAIN_OPERATION_CLASSES) {
