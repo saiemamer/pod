@@ -170,6 +170,8 @@ What the run taught, now in the `ae-initiative` guide:
 - Claude Code keys its trust prompt to the repo's main worktree path, so it appears once per repo (and the bypass-permissions acceptance once per machine); later worktrees start clean.
 - On a machine with Pod installed from Homebrew, a `pnpm dev` worker's `orca` resolves to the installed build, which at 0.1.6 predates the `ae-*` skills. `orca-dev` is the dev wrapper. Irrelevant once 0.1.7 ships.
 
+Released as v0.1.7 on 2026-09-07 (release run green, `pod-macos-arm64.dmg` and `pod-macos-x64.dmg` published, tap cask bumped to 0.1.7 the same afternoon).
+
 Still open after Phase 1: the folder-coordinator `worker-start --worktree new-top-level` fix upstream (the two-step path is the documented one); signing (deferred by decision); a Playwright check in CI (the smoke script runs by hand against a dev instance).
 
 ## Phase 2: dbt language, LSP, results, compiled SQL, discovery, agent tools
