@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import type { DbtGraphNode } from '../../../../shared/ae/dbt-graph-types'
+import { lineageKind } from './lineage-canvas-state'
 import { LINEAGE_COLUMN_ROWS_MAX, LINEAGE_NODE_WIDTH } from './lineage-layout'
 
 export type PodLineageNodeData = {
@@ -29,23 +30,6 @@ export type PodLineageNodeData = {
 
 export type PodLineageNodeType = Node<PodLineageNodeData, 'pod'>
 
-/** Header wash per materialisation, mixed from the chart ramp so light and dark agree. */
-function headerBackground(node: DbtGraphNode): string {
-  const token =
-    node.resourceType === 'source'
-      ? '--chart-1'
-      : node.resourceType === 'seed' || node.resourceType === 'snapshot'
-        ? '--chart-5'
-        : node.materialized === 'incremental'
-          ? '--chart-4'
-          : node.materialized === 'view'
-            ? '--chart-2'
-            : node.materialized === 'ephemeral'
-              ? '--muted-foreground'
-              : '--chart-3'
-  return `color-mix(in srgb, var(${token}) 18%, var(--card))`
-}
-
 function ResourceIcon({ node }: { node: DbtGraphNode }): React.JSX.Element {
   if (node.resourceType === 'source') {
     return <Database className="size-3.5 shrink-0" />
@@ -62,11 +46,13 @@ function ResourceIcon({ node }: { node: DbtGraphNode }): React.JSX.Element {
 function SideButton({
   side,
   data,
-  id
+  id,
+  color
 }: {
   side: 'up' | 'down'
   data: PodLineageNodeData
   id: string
+  color: string
 }): React.JSX.Element | null {
   const more = side === 'up' ? data.moreUp : data.moreDown
   const loaded = side === 'up' ? data.sideUp : data.sideDown
@@ -74,18 +60,15 @@ function SideButton({
   if (more === 0 && loaded === 0 && !collapsed) {
     return null
   }
+  const what = side === 'up' ? 'parents' : 'children'
   const label = collapsed
-    ? translate('pod.lineage.node.expand', 'Show hidden {{side}}', {
-        side: side === 'up' ? 'parents' : 'children'
-      })
+    ? translate('pod.lineage.node.expand', 'Show hidden {{side}}', { side: what })
     : more > 0
       ? translate('pod.lineage.node.loadMore', 'Load {{count}} more {{side}}', {
           count: more,
-          side: side === 'up' ? 'parents' : 'children'
+          side: what
         })
-      : translate('pod.lineage.node.collapse', 'Hide {{side}}', {
-          side: side === 'up' ? 'parents' : 'children'
-        })
+      : translate('pod.lineage.node.collapse', 'Hide {{side}}', { side: what })
   const text = collapsed ? '+' : more > 0 ? `+${more}` : '−'
   return (
     <Tooltip>
@@ -95,9 +78,10 @@ function SideButton({
           aria-label={label}
           data-testid={`pod-lineage-side-${side}`}
           className={cn(
-            'nodrag absolute top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-border bg-card px-1 text-[10px] leading-none text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground',
+            'nodrag absolute top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border bg-card px-1 text-[10px] leading-none text-muted-foreground shadow-xs hover:text-foreground',
             side === 'up' ? '-left-2.5' : '-right-2.5'
           )}
+          style={{ borderColor: color }}
           onClick={(event) => {
             event.stopPropagation()
             if (!collapsed && more > 0) {
@@ -117,8 +101,14 @@ function SideButton({
   )
 }
 
+/**
+ * One model on the canvas. The border and the header wash carry the materialisation
+ * colour (see lineage-theme.css); the focused model glows in the same colour.
+ */
 function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): React.JSX.Element {
   const { node } = data
+  const kind = lineageKind(node)
+  const color = `var(--pod-lineage-${kind})`
   const lit = new Set(data.highlighted.map((name) => name.toLowerCase()))
   const rows = data.showColumns ? node.columns.slice(0, LINEAGE_COLUMN_ROWS_MAX) : []
   const hidden = data.showColumns ? node.columns.length - rows.length : 0
@@ -127,34 +117,49 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
     <div
       data-testid="pod-lineage-node"
       data-node-id={node.uniqueId}
+      data-kind={kind}
       className={cn(
-        'relative rounded-md border border-border bg-card text-card-foreground shadow-xs transition-opacity',
-        data.isFocus && 'ring-2 ring-ring',
-        data.dimmed && 'opacity-40'
+        'relative rounded-md border bg-card text-card-foreground transition-opacity',
+        data.dimmed && 'opacity-35'
       )}
-      style={{ width: LINEAGE_NODE_WIDTH }}
+      style={{
+        width: LINEAGE_NODE_WIDTH,
+        borderColor: color,
+        // Why a glow: the focus node must be found at a glance among dozens; the ring
+        // token is reserved for keyboard focus, so the halo uses the node's own colour.
+        boxShadow: data.isFocus
+          ? `0 0 0 1px ${color}, 0 0 16px color-mix(in srgb, ${color} 45%, transparent)`
+          : undefined
+      }}
       onDoubleClick={() => data.onOpen(id)}
     >
       <Handle
         type="target"
         position={Position.Left}
         id="in"
-        className="!size-2 !border-0 !bg-border"
+        className="!size-2 !border-0"
+        style={{ background: color }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="out"
-        className="!size-2 !border-0 !bg-border"
+        className="!size-2 !border-0"
+        style={{ background: color }}
       />
-      <SideButton side="up" data={data} id={id} />
-      <SideButton side="down" data={data} id={id} />
+      <SideButton side="up" data={data} id={id} color={color} />
+      <SideButton side="down" data={data} id={id} color={color} />
       <div
-        className="flex h-10 items-center gap-1.5 rounded-t-md px-2.5"
-        style={{ background: headerBackground(node) }}
+        className="flex h-10 items-center gap-1.5 rounded-t-[5px] px-2.5"
+        style={{
+          background: `color-mix(in srgb, ${color} 12%, var(--card))`,
+          borderBottom: `1px solid color-mix(in srgb, ${color} 35%, transparent)`
+        }}
         title={node.path}
       >
-        <ResourceIcon node={node} />
+        <span style={{ color }}>
+          <ResourceIcon node={node} />
+        </span>
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.name}</span>
         {inferred && (
           <Tooltip>
@@ -172,7 +177,7 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
             </TooltipContent>
           </Tooltip>
         )}
-        <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] leading-4 text-muted-foreground">
+        <span className="shrink-0 text-[10px] leading-4" style={{ color }}>
           {node.materialized ?? node.resourceType}
         </span>
       </div>
@@ -195,7 +200,7 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
                 )}
                 style={
                   isLit
-                    ? { background: 'color-mix(in srgb, var(--primary) 12%, var(--card))' }
+                    ? { background: 'color-mix(in srgb, var(--primary) 14%, var(--card))' }
                     : undefined
                 }
                 onClick={(event) => {

@@ -2,10 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
-  Controls,
   MarkerType,
   ReactFlow,
-  ReactFlowProvider,
   applyNodeChanges,
   useReactFlow,
   useStore,
@@ -13,6 +11,7 @@ import {
   type NodeChange
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import './lineage-theme.css'
 import type { DbtGraphResult } from '../../../../shared/ae/dbt-graph-types'
 import {
   highlightedColumnNames,
@@ -32,7 +31,7 @@ export type PodLineageCanvasProps = {
   focusColumn: string | null
   nameMatchedNodes: Set<string>
   showColumns: boolean
-  /** Bumped by Arrange to drop dragged positions and refit. */
+  /** Bumped by Arrange to drop dragged positions and recentre. */
   arrangeKey: number
   selectedNodeId: string | null
   onColumnClick: PodLineageNodeData['onColumnClick']
@@ -50,15 +49,14 @@ const FLOW_THEME = {
   '--xy-edge-stroke-selected-default': 'var(--primary)',
   '--xy-background-pattern-dots-color-default':
     'color-mix(in srgb, var(--foreground) 14%, transparent)',
-  '--xy-controls-button-background-color-default': 'var(--card)',
-  '--xy-controls-button-background-color-hover-default': 'var(--accent)',
-  '--xy-controls-button-color-default': 'var(--muted-foreground)',
-  '--xy-controls-button-color-hover-default': 'var(--accent-foreground)',
-  '--xy-controls-button-border-color-default': 'var(--border)',
   '--xy-attribution-background-color-default': 'transparent'
 } as React.CSSProperties
 
-function PodLineageFlow(props: PodLineageCanvasProps): React.JSX.Element {
+/**
+ * The graph itself. Sits inside the view's ReactFlowProvider so the toolbar can drive
+ * zoom; opens at 100 percent centred on the focused model, where the reader came from.
+ */
+export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Element {
   const { graph, collapse, highlight, showColumns, arrangeKey, selectedNodeId } = props
   const zoom = useStore((state) => state.transform[2])
   const columnsVisible = lineageColumnsVisible(showColumns, zoom)
@@ -138,7 +136,7 @@ function PodLineageFlow(props: PodLineageCanvasProps): React.JSX.Element {
         sourceHandle: 'out',
         targetHandle: 'in',
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-        style: highlight ? { opacity: 0.25 } : undefined
+        style: highlight ? { opacity: 0.2 } : undefined
       }))
     if (!highlight) {
       return list
@@ -165,8 +163,8 @@ function PodLineageFlow(props: PodLineageCanvasProps): React.JSX.Element {
         zIndex: 10,
         style: {
           stroke: 'var(--primary)',
-          strokeWidth: 1.5,
-          strokeDasharray: edge.engine === 'name-match' ? '4 3' : undefined
+          strokeWidth: 2,
+          strokeDasharray: edge.engine === 'name-match' ? '5 4' : undefined
         }
       })
     }
@@ -197,14 +195,18 @@ function PodLineageFlow(props: PodLineageCanvasProps): React.JSX.Element {
 
   useEffect(() => {
     setDragged({})
-    // Why defer: nodes measure on the next frame; fitting before that uses stale bounds.
-    const handle = window.setTimeout(() => void fitView({ padding: 0.15, duration: 200 }), 50)
+    // Why the focus at full size: fitting everything shrinks a wide graph below the zoom
+    // at which columns show; the reader starts at the model they opened and pans.
+    const handle = window.setTimeout(
+      () => void fitView({ nodes: [{ id: graph.focus }], minZoom: 1, maxZoom: 1, duration: 0 }),
+      60
+    )
     return () => window.clearTimeout(handle)
-  }, [graph.focus, graph.nodes.length, arrangeKey, fitView])
+  }, [graph.focus, arrangeKey, fitView])
 
   useEffect(() => {
     if (selectedNodeId && visible.has(selectedNodeId)) {
-      void fitView({ nodes: [{ id: selectedNodeId }], duration: 200, maxZoom: 1.1, padding: 0.5 })
+      void fitView({ nodes: [{ id: selectedNodeId }], duration: 200, minZoom: 1, maxZoom: 1 })
     }
   }, [selectedNodeId, visible, fitView])
 
@@ -223,15 +225,6 @@ function PodLineageFlow(props: PodLineageCanvasProps): React.JSX.Element {
       className="bg-card text-foreground"
     >
       <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-      <Controls showInteractive={false} position="bottom-right" />
     </ReactFlow>
-  )
-}
-
-export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Element {
-  return (
-    <ReactFlowProvider>
-      <PodLineageFlow {...props} />
-    </ReactFlowProvider>
   )
 }

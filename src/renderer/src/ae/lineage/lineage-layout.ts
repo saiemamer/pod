@@ -2,9 +2,9 @@ import dagre from '@dagrejs/dagre'
 import type { DbtGraphEdge } from '../../../../shared/ae/dbt-graph-types'
 
 /**
- * Pod: node placement for the lineage canvas. Left to right, ranked by longest path so
- * a source sits at the far left however many models feed it, ordered by dagre's
- * barycenter pass so edges cross as little as it can manage.
+ * Pod: node placement for the lineage canvas. Left to right, ranks from dagre's network
+ * simplex so consumers of one model sit in the same column, ordered by its barycenter
+ * pass so edges cross as little as it can manage.
  */
 export const LINEAGE_NODE_WIDTH = 232
 export const LINEAGE_HEADER_HEIGHT = 40
@@ -38,7 +38,9 @@ export function layoutLineage(
   edges: DbtGraphEdge[]
 ): LineageLayoutResult {
   const graph = new dagre.graphlib.Graph()
-  graph.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: 72, ranker: 'longest-path' })
+  // Why network simplex: longest-path drags every sink into the last column, so two
+  // consumers of one model land in different columns; this keeps each edge short.
+  graph.setGraph({ rankdir: 'LR', nodesep: 32, ranksep: 96, ranker: 'network-simplex' })
   graph.setDefaultEdgeLabel(() => ({}))
   const sizes = new Map<string, { width: number; height: number }>()
   for (const node of nodes) {

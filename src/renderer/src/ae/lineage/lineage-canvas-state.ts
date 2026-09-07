@@ -148,3 +148,42 @@ export const LINEAGE_COLUMN_ZOOM_MIN = 0.55
 export function lineageColumnsVisible(showColumns: boolean, zoom: number): boolean {
   return showColumns && zoom >= LINEAGE_COLUMN_ZOOM_MIN
 }
+
+export const LINEAGE_KINDS = [
+  'source',
+  'view',
+  'table',
+  'incremental',
+  'seed',
+  'snapshot',
+  'ephemeral',
+  'other'
+] as const
+export type LineageKind = (typeof LINEAGE_KINDS)[number]
+
+/** The colour family a node belongs to: its resource type for non-models, else its materialisation. */
+export function lineageKind(
+  node: Pick<DbtGraphNode, 'resourceType' | 'materialized'>
+): LineageKind {
+  if (
+    node.resourceType === 'source' ||
+    node.resourceType === 'seed' ||
+    node.resourceType === 'snapshot'
+  ) {
+    return node.resourceType
+  }
+  const materialized = (node.materialized ?? '').toLowerCase()
+  if (materialized === 'table' || materialized === 'incremental' || materialized === 'ephemeral') {
+    return materialized
+  }
+  if (materialized.includes('view')) {
+    return 'view'
+  }
+  return materialized === '' ? 'view' : 'other'
+}
+
+/** Kinds present in the graph, in legend order. */
+export function lineageKindsIn(nodes: DbtGraphNode[]): LineageKind[] {
+  const present = new Set(nodes.map(lineageKind))
+  return LINEAGE_KINDS.filter((kind) => present.has(kind))
+}
