@@ -1,11 +1,13 @@
 import type { CommandHandler } from '../dispatch'
 import { printResult } from '../format'
-import { getRequiredStringFlag } from '../flags'
+import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import {
   formatDomainList,
   formatDomainShow,
+  formatInitiativeUpdate,
   type DomainListResult,
-  type DomainShowResult
+  type DomainShowResult,
+  type InitiativeUpdateResult
 } from '../ae-domain-format'
 
 export const DOMAIN_HANDLERS: Record<string, CommandHandler> = {
@@ -18,5 +20,13 @@ export const DOMAIN_HANDLERS: Record<string, CommandHandler> = {
       domain: getRequiredStringFlag(flags, 'domain')
     })
     printResult(result, json, formatDomainShow)
+  },
+  'domain initiative-update': async ({ flags, client, json }) => {
+    const result = await client.call<InitiativeUpdateResult>('domain.initiativeUpdate', {
+      initiative: getRequiredStringFlag(flags, 'initiative'),
+      run: getOptionalStringFlag(flags, 'run'),
+      status: getOptionalStringFlag(flags, 'status')
+    })
+    printResult(result, json, formatInitiativeUpdate)
   }
 }

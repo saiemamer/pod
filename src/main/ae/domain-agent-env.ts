@@ -39,6 +39,18 @@ export function podDomainAgentEnv(scope: AeAgentLaunchScope): Record<string, str
     POD_DOMAIN_NAME: domain.name,
     POD_REPO_ROLE: role
   }
+  if (scope.folderWorkspace) {
+    // Why: the main agent passes this as --parent-worktree when it creates worker worktrees.
+    const workspaceKey = `folder:${scope.folderWorkspace.id}`
+    env.POD_WORKSPACE_KEY = workspaceKey
+    const initiative = service
+      .listInitiatives(domain.id)
+      .find((entry) => entry.coordinatorWorkspaceKey === workspaceKey)
+    if (initiative) {
+      env.POD_INITIATIVE_ID = initiative.id
+      env.POD_INITIATIVE_TITLE = initiative.title
+    }
+  }
   if (domain.dbt?.profilesDir) {
     env.DBT_PROFILES_DIR = domain.dbt.profilesDir
   }
