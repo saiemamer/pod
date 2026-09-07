@@ -30,6 +30,8 @@ export type AeDomainConfig = {
   dbt?: AeDomainDbtDefaults
   /** Stakeholder teams an initiative can be tagged with. */
   stakeholderTeams: string[]
+  /** Workspace key of the folder workspace hosting the domain's standing main agent (`folder:<id>`). */
+  mainAgentWorkspaceKey?: string
   createdAt: number
   updatedAt: number
 }
@@ -155,6 +157,10 @@ export function normalizeAeDomain(value: unknown, fallbackId?: string): AeDomain
   const dbt = normalizeDbtDefaults(value.dbt)
   if (dbt) {
     domain.dbt = dbt
+  }
+  const mainAgentWorkspaceKey = optionalString(value.mainAgentWorkspaceKey)
+  if (mainAgentWorkspaceKey) {
+    domain.mainAgentWorkspaceKey = mainAgentWorkspaceKey
   }
   return domain
 }

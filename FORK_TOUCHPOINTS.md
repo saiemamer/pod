@@ -59,7 +59,12 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/main/persistence/loading-store/store.ts` | `AeDomainPersistence` in the `Store` extends list + type import | Makes `store.getAeDomains()` and friends typed. |
 | `src/main/ipc/repos.ts` | `registerAeDomainHandlers(mainWindow, store, runtime)` + import | Registers Pod IPC (`ae:*`) and installs the domain service where store and runtime meet. |
 | `src/preload/api-types.ts`, `src/preload/index.ts` | `ae: AeApi` / `ae: aeApi` + imports | Preload bridge for domains and initiatives. |
-| `src/renderer/src/store/types.ts`, `src/renderer/src/store/index.ts` | `AeDomainsSlice` in `AppState`, `createAeDomainsSlice` spread + imports | Renderer store slice. |
+| `src/renderer/src/store/types.ts`, `src/renderer/src/store/index.ts`, `src/renderer/src/store/slices/store-test-helpers.ts` | `AeDomainsSlice` in `AppState`, `createAeDomainsSlice` spread + imports | Renderer store slice; the test helper composes every slice, so it needs the same line. |
+| `src/shared/global-settings-types.ts`, `src/shared/default-global-settings.ts` | optional `toolCmdOverrides` and `aeDbt` keys with defaults | Tool paths and dbt defaults; unknown keys already round-trip. |
+| `src/renderer/src/components/settings/settings-navigation-foundations.ts` | `tools` group | "Analytics Tools" group in the Settings sidebar. |
+| `src/renderer/src/hooks/useSettingsNavigationMetadata.ts` | `...buildPodToolSettingsSections()` after the setup sections | Tools and dbt pages in the navigation. |
+| `src/renderer/src/components/settings/settings-page-renderer.tsx` | two render calls + import | Mounts the two panes. |
+| `src/renderer/src/lib/settings-navigation-types.ts` | `'tools'`, `'dbt'` targets | Cmd+J and deep links accept the new pages. |
 | `src/main/runtime/orca-runtime-resolve-worktree-removal-target.ts` | `agentEnv` spreads `podDomainAgentEnv(workspace)` | Every agent launched in a domain repo or initiative folder gets the domain env, secrets and `POD_*` markers; `{}` outside a domain. |
 | `src/main/runtime/runtime-worktree-agent-startup.ts` | same, two sites, from `environment.repo` | Worktree-creating launches, including orchestration workers. |
 | `src/main/runtime/orca-runtime-create-agent-session.ts` | same, from `workspace` | Structured agent sessions, which the initiative launcher uses. |

@@ -1,3 +1,7 @@
+import {
+  renderPodDbtSettingsSection,
+  renderPodToolsSettingsSection
+} from './settings-pod-tool-section-renderers' // Pod
 import { ActiveSettingsSectionProvider } from './SettingsSection'
 import { SettingsSidebar } from './SettingsSidebar'
 import { cn } from '@/lib/utils'
@@ -121,6 +125,8 @@ export function renderSettingsPage(context: SettingsRenderContext): React.JSX.El
                 {renderDesktopCapabilitySettingsSections(context)}
                 {renderOrcaAccountSettingsSection(context)}
                 {renderSetupGuideSettingsSection(context)}
+                {renderPodToolsSettingsSection(context)}
+                {renderPodDbtSettingsSection(context)}
                 {renderGeneralSettingsSection(context)}
                 {renderIntegrationsSettingsSection(context)}
                 {renderMobileSettingsSection(context)}
