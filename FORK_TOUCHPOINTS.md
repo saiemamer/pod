@@ -37,7 +37,7 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/main/updater-pod-release-feed.test.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `Casks/pod.rb`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/main/updater-pod-release-feed.test.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 
