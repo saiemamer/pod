@@ -29,7 +29,7 @@ Rules:
 
 Deferred to Phase 1: `src/shared/agent-feature-install-commands.ts` (skills repository URL), needed once `ae-*` skills exist so `npx skills add` can fetch them; it costs seven excluded test files, so it waits.
 
-Left deliberately untouched: the `Orca: <branch>` label of `pnpm dev` instances (`config/scripts/run-electron-vite-dev.mjs`; packaged builds are named by electron-builder, and `src/main/startup/run-electron-vite-dev.test.ts` asserts the literal), the `orca://` URL scheme and the `orca` CLI name (skills, worker preamble and hook env reference them), `src/shared/plugins/plugin-marketplace.ts` (plugins are off by default), telemetry (`ORCA_POSTHOG_WRITE_KEY` is unset in Pod builds, so no client is created).
+Left deliberately untouched: the app data directory (`~/Library/Application Support/orca`, shared with stock Orca because Electron names it after `package.json`'s `name`; separating it means a `productName` line next to the conflict-prone `version` line, or a startup touch, so it waits until someone needs both apps on one machine), the `Orca: <branch>` label of `pnpm dev` instances (`config/scripts/run-electron-vite-dev.mjs`; packaged builds are named by electron-builder, and `src/main/startup/run-electron-vite-dev.test.ts` asserts the literal), the `orca://` URL scheme and the `orca` CLI name (skills, worker preamble and hook env reference them), `src/shared/plugins/plugin-marketplace.ts` (plugins are off by default), telemetry (`ORCA_POSTHOG_WRITE_KEY` is unset in Pod builds, so no client is created).
 
 ## Pod-owned files outside `ae/`
 
