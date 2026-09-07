@@ -17,6 +17,8 @@ Rules:
 | `config/electron-builder.config.cjs` | `appId`, `productName`, mac `executableName`, mac `artifactName`, publish `owner` / `repo` read from `config/pod-brand.cjs` | Bundle identity, `pod-macos-<arch>.dmg`, publish to `saiemamer/pod`. |
 | `src/shared/release-channel.ts` | four release-repo constants read `POD_RELEASE_REPO` | All channels point at Pod's releases; Pod publishes no hourly/daily builds. |
 | `src/main/updater/updater-setup.ts` | `setFeedURL` URL built from `POD_RELEASES_URL` | The initial electron-updater feed. Missed in the first pass, so the 0.1.0 and 0.1.1 builds checked Orca's feed; `src/shared/brand.test.ts` now fails if any updater source contains `stablyai/orca`. |
+| `src/main/updater-events.ts` | `externallyManaged` also set when `isBrewManagedPodInstall()` (Pod-owned `src/main/pod/brew-managed-install.ts`) | Unsigned macOS builds cannot replace themselves, so the update card offers no Update button and points at Homebrew. Gated by `POD_MAC_UPDATES_VIA_BREW` in `brand.ts`; flip it when releases are signed. |
+| `src/renderer/src/components/maintenance/update-card/UpdateAvailableCardContent.tsx` | two English defaults: the externally-managed note names `brew upgrade --cask pod`; "Pod v{{x}} is ready." | English resolves from the inline default, so no catalog edit; other locales keep upstream's wording until the branding pass. |
 | `src/main/updater/updater-release-feed.ts` | fallback feed URL built from `POD_RELEASES_URL` | electron-updater fallback feed. |
 | `src/main/updater-prerelease-feed.ts` | atom URL, download base, tag regex, asset-host check built from `POD_RELEASES_URL` | Prerelease fallback feed. |
 | `src/shared/local-build-compatibility-contract.ts` | `appId` from `POD_APP_ID` | Local-build contract keyed by bundle id. |
@@ -37,7 +39,7 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/main/updater-pod-release-feed.test.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 
