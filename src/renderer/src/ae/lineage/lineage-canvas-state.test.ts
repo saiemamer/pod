@@ -139,6 +139,35 @@ describe('layoutLineage', () => {
     expect(lineageNodeHeight(30, false)).toBe(LINEAGE_HEADER_HEIGHT)
   })
 
+  it('keeps the same placement for the same graph', () => {
+    // Why a snapshot: dagre's ordering is deterministic; a change here means the
+    // layout options or the size model moved, which the canvas would show.
+    const placed = layoutLineage(
+      graph.nodes.map((n) => ({
+        id: n.uniqueId,
+        columnCount: n.columns.length,
+        showColumns: true
+      })),
+      graph.edges
+    )
+    expect(
+      Object.fromEntries(
+        Object.entries(placed).map(([id, box]) => [
+          id,
+          `${box.x},${box.y} ${box.width}x${box.height}`
+        ])
+      )
+    ).toMatchInlineSnapshot(`
+      {
+        "a": "420,33 232x66",
+        "b": "724,80 232x86",
+        "c": "1028,80 232x40",
+        "raw": "116,33 232x66",
+        "x": "420,127 232x66",
+      }
+    `)
+  })
+
   it('hides columns below the zoom threshold', () => {
     expect(lineageColumnsVisible(true, 0.5)).toBe(false)
     expect(lineageColumnsVisible(true, 0.6)).toBe(true)

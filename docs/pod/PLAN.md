@@ -176,6 +176,10 @@ Released as v0.1.7 on 2026-09-07 (release run green, `pod-macos-arm64.dmg` and `
 
 Still open after Phase 1: the folder-coordinator `worker-start --worktree new-top-level` fix upstream (the two-step path is the documented one); signing (deferred by decision); a Playwright check in CI (the smoke script runs by hand against a dev instance).
 
+## Parked until every phase has shipped
+
+a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
+
 ## Phase 2: dbt language, LSP, results, compiled SQL, discovery, agent tools
 
 Goal: open a model in a dbt project, get Jinja-aware highlighting and LSP, press Cmd+Enter, see rows; agents can call the same operations through `orca dbt ...`.
@@ -253,7 +257,11 @@ On main as `62cc0740ae` (`pod(phase3): lineage graph, sqlglot column lineage, Re
 
 Fusion, checked on this Mac against `dbt-fusion 2.0.0-preview.220` (x86_64 tarball from `public.cdn.getdbt.com/fs/cli/`): `dbt parse` writes a v12 manifest Pod's reader accepts (1.2 s on the smoke project); `compile --write-catalog` writes `catalog.json` and the compiled files without warehouse credentials (the catalog is empty, with the credential error under `errors`), so Pod's Fusion catalog command holds; `--log-format json compile --select` emits no `CompiledNode` event, so the compiled-file fallback serves model compiles, while `--inline` does emit one. The language server under `--fusion` publishes diagnostics only on `textDocument/didSave` and published an empty list for a missing `ref()` that Fusion's own parse reports (`DependencyNotFound`), and it looks for `~/.dbt/profiles.yml` unless `DBT_PROFILES_DIR` is set; Pod sends no `didSave`, so Fusion diagnostics stay off until the server catches up with Fusion. Left as recorded facts, no code change.
 
-Still open in Phase 3: manual on the 49-model OpenCX subgraph (needs the work MacBook); layout snapshot tests beyond the ordering assertions; `select *` beside named columns keeps only the named ones.
+Finished after review (2026-09-08): `select *` beside named columns now expands from the parents (own columns last, inherited ones marked), a layout snapshot test pins dagre's placement for the fixture graph, and the smoke covers the depth-expansion handle and a dark-mode screenshot. Still open in Phase 3: manual on the 49-model OpenCX subgraph (needs the work MacBook), and a visual pass on the Lineage tab (see "Lineage UI review" below).
+
+### Lineage UI review (2026-09-08, Saiem)
+
+Saiem compared the Lineage tab with dbt-zed's canvas and asked for a consistent style before Phase 4; no restyle has been made yet. Differences on record: dbt-zed colours the node border by materialisation and glows the selected node, draws column-to-column edges as smooth curves between rows, shows a materialisation legend at the toolbar's right, and keeps one toolbar row (Upstream, Downstream, Columns, Arrange, zoom). Pod tints the header, uses a ring for the focus node, draws column edges between handles, has no legend, and stacks the dock's tab strip and the lineage toolbar as two bars of different heights with the model name repeated on both. The Phase 2 dock tab strip itself (Table, Compiled, Lineage, Connection) reads as misaligned next to the toolbar. Waiting on Saiem's go-ahead for the restyle.
 
 ## Phase 4: Omni panel, company distribution, upstream PRs
 

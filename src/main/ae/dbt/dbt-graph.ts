@@ -76,7 +76,7 @@ function columnsFor(
   node: DbtManifestNode,
   catalog: DbtCatalog | null,
   readSql: (node: DbtManifestNode) => DbtGraphSqlSource | null
-): { columns: DbtGraphColumn[]; source: DbtGraphNode['columnSource'] } {
+): { columns: DbtGraphColumn[]; source: DbtGraphNode['columnSource']; selectsStar?: boolean } {
   const fromCatalog = catalog?.nodes.get(node.uniqueId)?.columns ?? []
   if (fromCatalog.length > 0) {
     const docs = new Map(node.columns.map((column) => [column.name.toLowerCase(), column]))
@@ -107,7 +107,9 @@ function columnsFor(
       if (parsed.columns.length > 0) {
         return {
           source: 'parsed',
-          columns: parsed.columns.map((name) => ({ name, source: 'parsed' }))
+          columns: parsed.columns.map((name) => ({ name, source: 'parsed' })),
+          // Why: `select *, x` lists x here and takes the rest from the parents.
+          ...(parsed.hasStar ? { selectsStar: true } : {})
         }
       }
     }
@@ -125,7 +127,7 @@ export function buildDbtGraphIndex(
     if (!DBT_LINEAGE_NODE_TYPES.has(node.resourceType)) {
       continue
     }
-    const { columns, source } = columnsFor(node, catalog, readSql)
+    const { columns, source, selectsStar } = columnsFor(node, catalog, readSql)
     nodes.push({
       uniqueId: node.uniqueId,
       name: node.name,
@@ -138,7 +140,8 @@ export function buildDbtGraphIndex(
       alias: node.alias ?? node.identifier,
       description: node.description,
       columns,
-      columnSource: source
+      columnSource: source,
+      ...(selectsStar ? { selectsStar } : {})
     })
   }
   const edges = Object.entries(manifest.parentMap).flatMap(([child, parents]) =>

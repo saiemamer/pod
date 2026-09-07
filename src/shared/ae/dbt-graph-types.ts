@@ -30,6 +30,8 @@ export type DbtGraphNode = {
   columns: DbtGraphColumn[]
   /** Where the column list came from; 'none' when nothing was found. */
   columnSource: DbtGraphColumnSource | 'none'
+  /** The final SELECT has a `*` beside named columns, so parents' columns join the list. */
+  selectsStar?: boolean
 }
 
 /** A dependency: `source` feeds `target` (parent to child). */
