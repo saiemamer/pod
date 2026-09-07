@@ -36,6 +36,10 @@ ensure(
   "select id as order_id, status, amount from {{ source('raw', 'orders') }}\n"
 )
 ensure(
+  `${repo}/models/marts/orders_by_customer.sql`,
+  "select order_id, status, amount from {{ ref('stg_orders') }} where status = 'paid'\n"
+)
+ensure(
   `${repo}/models/marts/order_summary.sql`,
   "select status, count(*) as n from {{ ref('orders') }} group by 1\n"
 )
@@ -172,9 +176,13 @@ await nodes.first().waitFor({ state: 'visible', timeout: 30000 })
 await sleep(1200)
 const nodeIds = await nodes.evaluateAll((els) => els.map((el) => el.dataset.nodeId))
 log('canvas nodes:', nodeIds.join(', '))
+const legendText = async () =>
+  (await dock.locator('[data-testid="pod-lineage-legend"]').innerText()).replace(/\n+/g, ' ')
 log(
   'toolbar:',
-  await dock.locator('[data-testid="pod-lineage-count"]').innerText(),
+  await dock.locator('[data-testid="pod-lineage-zoom"]').innerText(),
+  '|',
+  await legendText(),
   '|',
   await dock.locator('[data-testid="pod-lineage-engine"]').innerText()
 )
@@ -200,6 +208,22 @@ log('lit columns:', litText.join(', '))
 await sleep(400)
 await page.screenshot({ path: `${OUT}/lineage-2-column.png` })
 
+// 5b. the same canvas in dark mode: swap the theme classes the app toggles (the live
+// window retheme runs from the renderer's settings store, not from the settings file)
+await page.evaluate(() => {
+  const root = document.documentElement
+  root.classList.remove('light')
+  root.classList.add('dark')
+})
+await sleep(600)
+await page.screenshot({ path: `${OUT}/lineage-3c-dark.png` })
+await page.evaluate(() => {
+  const root = document.documentElement
+  root.classList.remove('dark')
+  root.classList.add('light')
+})
+await sleep(300)
+
 // 6. the upstream/downstream list, then collapse and restore the parents of stg_orders
 await dock.locator('[data-testid="pod-lineage-tree-toggle"]').click()
 await dock.locator('[data-testid="pod-lineage-tree"]').waitFor({ state: 'visible' })
@@ -208,6 +232,11 @@ log(
   (await dock.locator('[data-testid="pod-lineage-tree"]').innerText()).replace(/\n+/g, ' | ')
 )
 await page.screenshot({ path: `${OUT}/lineage-3-tree.png` })
+const centreOn = async (name) => {
+  await dock.locator('[data-testid="pod-lineage-tree"] button', { hasText: name }).first().click()
+  await sleep(600)
+}
+await centreOn('stg_orders')
 const stgSide = dock.locator(
   '[data-node-id="model.demo.stg_orders"] [data-testid="pod-lineage-side-up"]'
 )
@@ -228,6 +257,7 @@ while ((await depthUp()) > 1) {
 }
 await sleep(800)
 log('nodes at upstream depth 1:', await nodes.count())
+await centreOn('stg_orders')
 const loadMore = dock.locator(
   '[data-node-id="model.demo.stg_orders"] [data-testid="pod-lineage-side-up"]'
 )
@@ -240,21 +270,7 @@ while ((await depthUp()) < 4) {
   await dock.getByRole('button', { name: 'One level more' }).first().click()
   await sleep(400)
 }
-
-// 6c. the same canvas in dark mode: swap the theme classes the app toggles (the live
-// window retheme runs from the renderer's settings store, not from the settings file)
-await page.evaluate(() => {
-  const root = document.documentElement
-  root.classList.remove('light')
-  root.classList.add('dark')
-})
-await sleep(600)
-await page.screenshot({ path: `${OUT}/lineage-3c-dark.png` })
-await page.evaluate(() => {
-  const root = document.documentElement
-  root.classList.remove('dark')
-  root.classList.add('light')
-})
+await dock.locator('[data-testid="pod-lineage-tree-toggle"]').click()
 await sleep(300)
 
 // 7. the Database tab in the right sidebar
@@ -301,6 +317,30 @@ log(
   await page.evaluate(() => document.title)
 )
 await page.screenshot({ path: `${OUT}/lineage-5-summary.png` })
+
+// 8b. stg_orders feeds two models: its lineage shows them stacked to the right
+const stgRow = panel
+  .locator('[data-testid="pod-dbt-explorer-relation"]', { hasText: 'stg_orders' })
+  .first()
+await stgRow.hover()
+await stgRow.getByRole('button', { name: 'Show lineage' }).click({ force: true })
+await sleep(2500)
+const fanNodes = page.locator('[data-testid="pod-lineage-view"] [data-testid="pod-lineage-node"]')
+const fanBoxes = await fanNodes.evaluateAll((els) =>
+  els.map((el) => {
+    const r = el.getBoundingClientRect()
+    return `${el.dataset.nodeId}@${Math.round(r.x)},${Math.round(r.y)}`
+  })
+)
+log('fan-out boxes:', fanBoxes.join(' | '))
+await page.screenshot({ path: `${OUT}/lineage-6-fanout.png` })
+log(
+  'legend:',
+  await page
+    .locator('[data-testid="pod-lineage-legend"]')
+    .innerText()
+    .then((t) => t.replace(/\n+/g, ' '))
+)
 
 // 9. put the dock height back for the next run
 const dockNow = page.locator('[data-testid="pod-dbt-dock"]').first()

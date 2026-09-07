@@ -1,8 +1,10 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { openPodDbtFile, podDbtOpenTargetFromEditor } from '@/ae/dbt/pod-dbt-open-file'
+import { lineageKindsIn } from './lineage-canvas-state'
 import { PodLineageCanvas } from './PodLineageCanvas'
 import { PodLineageToolbar } from './PodLineageToolbar'
 import { PodLineageTree } from './PodLineageTree'
@@ -15,7 +17,8 @@ type PodDbtLineageViewProps = {
 
 /**
  * Pod: the Lineage tab of the results dock. Loaded lazily, so React Flow and dagre
- * only ship to editors that open it.
+ * only ship to editors that open it. Owns the React Flow provider so the toolbar's
+ * zoom controls and the canvas share one viewport.
  */
 export default function PodDbtLineageView({
   fileId,
@@ -37,6 +40,7 @@ export default function PodDbtLineageView({
     },
     [fileId, graph]
   )
+  const kinds = useMemo(() => (graph ? lineageKindsIn(graph.nodes) : []), [graph])
 
   if (!graph) {
     return (
@@ -61,63 +65,62 @@ export default function PodDbtLineageView({
       </div>
     )
   }
-  const focus = graph.nodes.find((node) => node.uniqueId === graph.focus)
   const nameMatched = new Set(state.columnResult?.nameMatchedNodes ?? [])
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid="pod-lineage-view">
-      <PodLineageToolbar
-        focusName={focus?.name ?? graph.focus}
-        shownNodes={graph.nodes.length}
-        totalNodes={graph.totalNodes}
-        truncated={graph.truncated}
-        upstreamDepth={state.upstreamDepth ?? graph.upstreamDepth}
-        downstreamDepth={state.downstreamDepth ?? graph.downstreamDepth}
-        showColumns={state.showColumns}
-        showTree={state.showTree}
-        loading={state.loading}
-        engine={state.engine}
-        onDepthChange={state.setDepth}
-        onToggleColumns={state.toggleColumns}
-        onToggleTree={state.toggleTree}
-        onArrange={state.arrange}
-        onRefresh={state.reload}
-      />
-      {(state.error || state.columnError) && (
-        <div className="shrink-0 border-b border-border/60 px-2 py-1 text-[11px] text-destructive">
-          {state.error ?? state.columnError}
-        </div>
-      )}
-      <div className="flex min-h-0 flex-1">
-        {/* Why absolute: React Flow sizes itself from its parent, and a flex child's
-            percentage height resolves to auto until the box is positioned. */}
-        <div className="relative min-w-0 flex-1">
-          <div className="absolute inset-0">
-            <PodLineageCanvas
+    <ReactFlowProvider>
+      <div className="flex h-full min-h-0 flex-col" data-testid="pod-lineage-view">
+        <PodLineageToolbar
+          truncated={graph.truncated}
+          upstreamDepth={state.upstreamDepth ?? graph.upstreamDepth}
+          downstreamDepth={state.downstreamDepth ?? graph.downstreamDepth}
+          showColumns={state.showColumns}
+          showTree={state.showTree}
+          loading={state.loading}
+          engine={state.engine}
+          kinds={kinds}
+          onDepthChange={state.setDepth}
+          onToggleColumns={state.toggleColumns}
+          onToggleTree={state.toggleTree}
+          onArrange={state.arrange}
+          onRefresh={state.reload}
+        />
+        {(state.error || state.columnError) && (
+          <div className="shrink-0 border-b border-border px-2 py-1 text-[11px] text-destructive">
+            {state.error ?? state.columnError}
+          </div>
+        )}
+        <div className="flex min-h-0 flex-1">
+          {/* Why absolute: React Flow sizes itself from its parent, and a flex child's
+              percentage height resolves to auto until the box is positioned. */}
+          <div className="relative min-w-0 flex-1">
+            <div className="absolute inset-0">
+              <PodLineageCanvas
+                graph={graph}
+                collapse={state.collapse}
+                highlight={state.highlight}
+                focusColumn={state.focusColumn}
+                nameMatchedNodes={nameMatched}
+                showColumns={state.showColumns}
+                arrangeKey={state.arrangeKey}
+                selectedNodeId={state.selectedNodeId}
+                onColumnClick={(nodeId, column) => void state.clickColumn(nodeId, column)}
+                onToggleCollapse={state.toggleCollapse}
+                onExpand={(nodeId, side) => void state.expand(nodeId, side)}
+                onOpen={openNode}
+              />
+            </div>
+          </div>
+          {state.showTree && (
+            <PodLineageTree
               graph={graph}
-              collapse={state.collapse}
-              highlight={state.highlight}
-              focusColumn={state.focusColumn}
-              nameMatchedNodes={nameMatched}
-              showColumns={state.showColumns}
-              arrangeKey={state.arrangeKey}
+              maxDepth={Math.max(state.upstreamDepth ?? 1, state.downstreamDepth ?? 1, 1) + 8}
               selectedNodeId={state.selectedNodeId}
-              onColumnClick={(nodeId, column) => void state.clickColumn(nodeId, column)}
-              onToggleCollapse={state.toggleCollapse}
-              onExpand={(nodeId, side) => void state.expand(nodeId, side)}
+              onSelect={state.select}
               onOpen={openNode}
             />
-          </div>
+          )}
         </div>
-        {state.showTree && (
-          <PodLineageTree
-            graph={graph}
-            maxDepth={Math.max(state.upstreamDepth ?? 1, state.downstreamDepth ?? 1, 1) + 8}
-            selectedNodeId={state.selectedNodeId}
-            onSelect={state.select}
-            onOpen={openNode}
-          />
-        )}
       </div>
-    </div>
+    </ReactFlowProvider>
   )
 }

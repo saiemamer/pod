@@ -212,24 +212,30 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
           onPointerDown={startDrag}
         />
       )}
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border/60 px-2">
+      <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border px-2">
         <Tabs
           value={state.view}
           onValueChange={(value) => setAeDbtView(activeFile.id, value as PodDbtDockView)}
         >
-          <TabsList className="h-6">
-            <TabsTrigger value="table" className="h-5 px-2 text-[11px]">
-              {translate('pod.dbt.dock.table', 'Table')}
-            </TabsTrigger>
-            <TabsTrigger value="compiled" className="h-5 px-2 text-[11px]">
-              {translate('pod.dbt.dock.compiled.tab', 'Compiled')}
-            </TabsTrigger>
-            <TabsTrigger value="lineage" className="h-5 px-2 text-[11px]">
-              {translate('pod.dbt.dock.lineage', 'Lineage')}
-            </TabsTrigger>
-            <TabsTrigger value="connection" className="h-5 px-2 text-[11px]">
-              {translate('pod.dbt.dock.connection', 'Connection')}
-            </TabsTrigger>
+          {/* Why line tabs: the pill read as a floating control next to the plain
+              toolbar the Lineage tab adds below; underlined text sits on the same grid. */}
+          <TabsList variant="line" className="h-7 gap-0 p-0">
+            {(
+              [
+                ['table', translate('pod.dbt.dock.table', 'Table')],
+                ['compiled', translate('pod.dbt.dock.compiled.tab', 'Compiled')],
+                ['lineage', translate('pod.dbt.dock.lineage', 'Lineage')],
+                ['connection', translate('pod.dbt.dock.connection', 'Connection')]
+              ] as const
+            ).map(([value, label]) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="h-full px-2 text-[11px] font-medium after:bottom-0"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
         <span
