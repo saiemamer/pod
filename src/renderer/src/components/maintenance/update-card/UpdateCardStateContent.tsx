@@ -133,6 +133,7 @@ export function UpdateCardStateContent({
       onUpdate={onUpdate}
       onClose={onDismiss}
       externallyManaged={status.externallyManaged}
+      brewUpgradeScript={status.podBrewUpgradeScript} // Pod
     />
   ) : (
     <UpdateAvailableSimpleContent
@@ -141,6 +142,7 @@ export function UpdateCardStateContent({
       onUpdate={onUpdate}
       onClose={onDismiss}
       externallyManaged={status.externallyManaged}
+      brewUpgradeScript={status.podBrewUpgradeScript} // Pod
     />
   )
 }

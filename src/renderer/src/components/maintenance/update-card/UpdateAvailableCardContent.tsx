@@ -8,14 +8,36 @@ function isAnimatedGif(url: string | undefined): boolean {
 }
 
 /** A package manager owns this install: the release is real but Orca can never apply it here. */
-function ExternallyManagedNote(): React.JSX.Element {
+function ExternallyManagedNote({
+  brewUpgradeScript
+}: {
+  brewUpgradeScript?: string
+}): React.JSX.Element {
+  // Pod: unsigned macOS builds hand the upgrade to Homebrew through a .command file.
   return (
-    <p className="text-xs leading-relaxed text-muted-foreground">
-      {translate(
-        'auto.components.UpdateCard.7f1a4c9e02',
-        'Pod cannot install this release itself yet. Run `brew upgrade --cask pod` in a terminal to update.' // Pod: unsigned builds
+    <div className="flex flex-col gap-2">
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {brewUpgradeScript
+          ? translate(
+              'auto.components.UpdateCard.pod.brewNote',
+              'Pod updates through Homebrew. This opens Terminal and runs `brew upgrade --cask pod`; quit and reopen Pod afterwards.'
+            )
+          : translate(
+              'auto.components.UpdateCard.7f1a4c9e02',
+              'Pod cannot install this release itself yet. Run `brew upgrade --cask pod` in a terminal to update.' // Pod: unsigned builds
+            )}
+      </p>
+      {brewUpgradeScript && (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => void window.api.shell.openPath(brewUpgradeScript)}
+          className="w-full cursor-pointer"
+        >
+          {translate('auto.components.UpdateCard.pod.brewUpdate', 'Update with Homebrew')}
+        </Button>
       )}
-    </p>
+    </div>
   )
 }
 
@@ -29,7 +51,8 @@ export function UpdateAvailableRichContent({
   onMediaLoad,
   onUpdate,
   onClose,
-  externallyManaged = false
+  externallyManaged = false,
+  brewUpgradeScript
 }: {
   release: NonNullable<ChangelogData['release']>
   releasesBehind: number | null
@@ -41,6 +64,7 @@ export function UpdateAvailableRichContent({
   onUpdate: () => void
   onClose: () => void
   externallyManaged?: boolean
+  brewUpgradeScript?: string
 }): React.JSX.Element {
   const showMedia =
     release.mediaUrl && !mediaFailed && !(prefersReducedMotion && isAnimatedGif(release.mediaUrl))
@@ -102,7 +126,7 @@ export function UpdateAvailableRichContent({
         {translate('auto.components.UpdateCard.aad383aecc', 'Read the full release notes')}
       </button>
       {externallyManaged ? (
-        <ExternallyManagedNote />
+        <ExternallyManagedNote brewUpgradeScript={brewUpgradeScript} />
       ) : (
         <Button variant="default" size="sm" onClick={onUpdate} className="w-full cursor-pointer">
           {translate('auto.components.UpdateCard.ec8fe71cfc', 'Update')}
@@ -117,13 +141,15 @@ export function UpdateAvailableSimpleContent({
   releaseUrl,
   onUpdate,
   onClose,
-  externallyManaged = false
+  externallyManaged = false,
+  brewUpgradeScript
 }: {
   version: string
   releaseUrl?: string
   onUpdate: () => void
   onClose: () => void
   externallyManaged?: boolean
+  brewUpgradeScript?: string
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2.5 p-3.5">
@@ -147,7 +173,7 @@ export function UpdateAvailableSimpleContent({
         })}
       </p>
       {externallyManaged ? (
-        <ExternallyManagedNote />
+        <ExternallyManagedNote brewUpgradeScript={brewUpgradeScript} />
       ) : (
         <p className="text-xs leading-relaxed text-muted-foreground">
           {translate('auto.components.UpdateCard.fdd4a364fa', "Sessions won't be interrupted.")}
