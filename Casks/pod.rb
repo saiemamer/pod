@@ -1,7 +1,7 @@
 cask "pod" do
   arch arm: "arm64", intel: "x64"
 
-  version "0.1.2"
+  version "0.1.3"
   # Why no_check for now: Pod's Homebrew tap and checksum bump land in Phase 4;
   # until then install from the DMG on the releases page.
   sha256 :no_check
