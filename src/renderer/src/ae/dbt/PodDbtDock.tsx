@@ -212,14 +212,14 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
           onPointerDown={startDrag}
         />
       )}
-      <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border px-2">
+      <div className="flex h-8 shrink-0 items-stretch gap-3 border-b border-border px-2">
         <Tabs
           value={state.view}
           onValueChange={(value) => setAeDbtView(activeFile.id, value as PodDbtDockView)}
         >
           {/* Why line tabs: the pill read as a floating control next to the plain
               toolbar the Lineage tab adds below; underlined text sits on the same grid. */}
-          <TabsList variant="line" className="h-7 gap-0 p-0">
+          <TabsList variant="line" className="h-full gap-0 p-0">
             {(
               [
                 ['table', translate('pod.dbt.dock.table', 'Table')],
@@ -231,7 +231,7 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
               <TabsTrigger
                 key={value}
                 value={value}
-                className="h-full px-2 text-[11px] font-medium group-data-[orientation=horizontal]/tabs:after:inset-x-2 group-data-[orientation=horizontal]/tabs:after:bottom-[-2px]"
+                className="h-full px-2 text-[11px] font-medium group-data-[orientation=horizontal]/tabs:after:inset-x-2 group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]"
               >
                 {label}
               </TabsTrigger>
