@@ -212,10 +212,11 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
           onPointerDown={startDrag}
         />
       )}
-      <div className="flex h-8 shrink-0 items-stretch gap-3 border-b border-border px-2">
+      <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border px-2">
         <Tabs
           value={state.view}
           onValueChange={(value) => setAeDbtView(activeFile.id, value as PodDbtDockView)}
+          className="self-stretch"
         >
           {/* Why line tabs: the pill read as a floating control next to the plain
               toolbar the Lineage tab adds below; underlined text sits on the same grid. */}
@@ -239,7 +240,7 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
           </TabsList>
         </Tabs>
         <span
-          className={`min-w-0 flex-1 truncate text-xs ${
+          className={`min-w-0 flex-1 truncate text-xs ${state.view === 'lineage' ? 'invisible' : ''} ${
             state.status === 'error' ? 'text-destructive' : 'text-muted-foreground'
           }`}
           title={statusText(state)}
