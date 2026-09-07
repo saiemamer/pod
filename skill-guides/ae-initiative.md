@@ -63,13 +63,15 @@ new-top-level` cannot resolve a folder as its parent (it fails with
 `selector_not_found`):
 
 ```sh
-orca worktree create --repo id:<repo_id> --parent-worktree "$POD_WORKSPACE_KEY" --name <initiative-slug>-<part> --agent claude --json
+orca worktree create --repo id:<repo_id> --parent-worktree "$POD_WORKSPACE_KEY" --name <initiative-slug>-<part> --json
 orca orchestration worker-start --task <task_id> --worktree id:<worktree_id> --agent claude --json
 ```
 
-Take `<worktree_id>` from the JSON of the first command. The `--parent-worktree`
-value ties the new worktree to this initiative, so it shows up under the workspace
-in the sidebar and in the Initiative panel.
+Take `<worktree_id>` from the JSON of the first command. Do not pass `--agent` to
+`worktree create`: `worker-start --agent` opens the worker's own agent terminal,
+waits until it is ready and delivers the task, so a second agent would sit idle. The
+`--parent-worktree` value ties the new worktree to this initiative, so it shows up
+under the workspace in the sidebar and in the Initiative panel.
 
 The worktree name is also the git branch name and, for an Omni repo, the Omni model
 branch name. Keep it short and unique: `<initiative-slug>-<part>`.
@@ -81,10 +83,13 @@ Omni workers use `ae-omni` (both via `orca skills get <name>`).
 
 ```sh
 orca orchestration check --wait --types worker_done,escalation --run <run_id> --json
+orca orchestration check --wait --ack <delivery_id> --types worker_done,escalation --run <run_id> --json
 ```
 
-On `worker_done`, read the worker's report and diff, then mark the next tasks ready
-or ask the person to review. On `escalation`, answer the worker with
+Each result carries a `deliveryId`; pass it as `--ack` on the next call, or the same
+batch comes straight back. On `worker_done`, read the worker's report and diff. A
+task whose dependencies are all complete turns `ready` on its own; dispatch it the
+same way. On `escalation`, answer the worker with
 `orca orchestration reply` or bring the question to the person. Never dispatch the
 Omni phase until every dbt task it depends on is done and reviewed.
 
