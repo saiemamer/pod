@@ -65,6 +65,19 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/ae-domain.js')).DOMAIN_HANDLERS
   },
   {
+    name: 'dbt', // Pod
+    keys: [
+      'dbt project',
+      'dbt list-models',
+      'dbt model-info',
+      'dbt lineage',
+      'dbt show',
+      'dbt compile',
+      'dbt parse'
+    ],
+    load: async () => (await import('./handlers/ae-dbt.js')).DBT_HANDLERS
+  },
+  {
     name: 'repo',
     keys: ['repo list', 'repo add', 'repo show', 'repo set-base-ref', 'repo search-refs'],
     load: async () => (await import('./handlers/repo.js')).REPO_HANDLERS

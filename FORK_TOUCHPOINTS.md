@@ -81,9 +81,22 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/main/runtime/rpc/methods/client-ui-schemas.ts` | `'initiative'` in `STATIC_RIGHT_SIDEBAR_TABS` | `ui-state-schema-parity-checks.ts` fails the typecheck when the ui.set schema's tab list is narrower than `RightSidebarTab`. |
 | `src/renderer/src/lib/worktree-activation-surface-caller-wiring.test.ts` | `reveal-folder-workspace.ts` in `SURFACE_PROVIDING_CALLERS` | The census fails when any file under `src/` mentions `providesInitialSurface`; Pod keeps a single mention in that helper (the main process opens the agent session, so activation must not seed a shell). |
 
+## Phase 2: dbt language, runner, CLI
+
+| Upstream file | Touch | Reason |
+|---|---|---|
+| `src/main/startup/cli-command-names.ts` | `'dbt'` in the sorted list | `orca dbt ...` top-level name. |
+| `src/cli/specs/index.ts`, `src/cli/handler-group-manifest.ts`, `src/main/runtime/rpc/methods/index.ts` | one import and one spread/group each | `orca dbt project\|list-models\|model-info\|lineage\|show\|compile\|parse` specs, handlers and RPC methods (Pod-owned `ae-dbt.ts` files, `src/cli/ae-dbt-format.ts`). |
+| `src/renderer/src/lib/monaco-setup.ts` | `registerJinjaSqlLanguage(monaco)` + import | Registers the TextMate `jinja-sql` language (Pod-owned `monaco-languages/register-jinja-sql.ts`; grammars and licences under `textmate-grammars/`). |
+| `src/renderer/src/lib/language-detect.ts` | `'.sql'` maps to `jinja-sql` instead of `sql` | Every .sql file gets the Jinja SQL grammar, which includes plain SQL, so dbt models need no discovery round trip at open time. |
+| `src/shared/keybindings/types.ts`, `src/shared/keybindings/definitions.ts` | `'dbt.runSelection' \| 'dbt.compileSelection'` in the action union; `...KEYBINDING_DEFINITION_AE` spread + import | Cmd+Enter and Cmd+Shift+Enter in Jinja SQL editors (Pod-owned `definitions-ae.ts`), rebindable in Settings like every other action. |
+| `src/renderer/src/components/editor/EditorEditFileSurface.tsx` | `<PodDbtDock activeFile />` after the editor surface + import | The results dock (Pod-owned `src/renderer/src/ae/dbt/`). A new editor tab mode was rejected: `'check-details'` is special-cased in 32 renderer files. |
+
+The dbt IPC (`ae:dbt:*`) registers from `registerAeDomainHandlers`, the dbt service installs there too, and the dock's store slice (`ae-dbt-results.ts`) is composed inside the Pod domains slice, so Phase 2 adds no new IPC or store touch.
+
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `docs/pod/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 

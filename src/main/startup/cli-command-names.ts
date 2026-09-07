@@ -16,6 +16,7 @@ export const CLI_COMMAND_NAMES = [
   'console',
   'cookie',
   'dblclick',
+  'dbt', // Pod
   'diagnostics',
   'dialog',
   'domain', // Pod

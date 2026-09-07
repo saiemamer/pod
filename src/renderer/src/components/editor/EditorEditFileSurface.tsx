@@ -1,4 +1,5 @@
 import { translate } from '@/i18n/i18n'
+import { PodDbtDock } from '@/ae/dbt/PodDbtDock' // Pod
 import type { MarkdownViewMode, OpenFile, PendingEditorReveal } from '@/store/slices/editor'
 import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
@@ -255,6 +256,7 @@ export function EditorEditFileSurface({
         />
       )}
       <div className="min-h-0 flex-1 relative">{editorSurface}</div>
+      <PodDbtDock activeFile={activeFile} /> {/* Pod */}
     </div>
   )
 }

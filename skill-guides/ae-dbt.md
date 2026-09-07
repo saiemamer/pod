@@ -20,6 +20,25 @@ The project is the nearest `dbt_project.yml` above the models you change; in som
 repos it sits one level down (for example `dbt/`). Run every dbt command from that
 directory.
 
+## Ask Pod before you guess
+
+Pod runs dbt for you with the domain's target, profile and env, from whichever
+directory you are in. Prefer these over reading `target/` by hand:
+
+```sh
+orca dbt project --json                      # project, binary, target, profiles dir, manifest state
+orca dbt list-models --filter <text> --json  # models from the manifest (parses first if needed)
+orca dbt model-info --model <name> --json    # file, columns, direct parents and children
+orca dbt lineage --model <name> --depth 2    # upstream and downstream nodes
+orca dbt compile --model <name>              # compiled SQL
+orca dbt show --model <name> --limit 20      # rows; this queries the warehouse and BigQuery bills it
+orca dbt parse                               # refresh target/manifest.json after adding models
+```
+
+`show` and `compile` also take `--sql "<jinja sql>"` for ad-hoc queries; `ref()` and
+`source()` work there. Pass `--refresh` to the manifest commands after you add or
+rename a model.
+
 ## Work in small, buildable steps
 
 ```sh

@@ -73,7 +73,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   '.ini': 'ini',
   '.cfg': 'ini',
   '.conf': 'ini',
-  '.sql': 'sql',
+  '.sql': 'jinja-sql', // Pod: dbt models are Jinja SQL, and that grammar includes plain SQL
   '.graphql': 'graphql',
   '.gql': 'graphql',
   '.dockerfile': 'dockerfile',

@@ -35,6 +35,11 @@ describe('detectAeRepoRole', () => {
     mkdirSync(join(withTopics, 'topics'))
     writeFileSync(join(withTopics, 'topics', 'orders.topic.yaml'), 'base_view: orders\n')
     expect(detectAeRepoRole(withTopics)).toBe('omni')
+    // Why two levels: omni-analytics keeps its model under omni/<model name>/.
+    const nested = repo()
+    mkdirSync(join(nested, 'omni', 'mol-analytics'), { recursive: true })
+    writeFileSync(join(nested, 'omni', 'mol-analytics', 'model.yaml'), 'connection: bq\n')
+    expect(detectAeRepoRole(nested)).toBe('omni')
   })
 
   it('falls back to other', () => {
