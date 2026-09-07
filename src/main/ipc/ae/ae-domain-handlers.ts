@@ -35,21 +35,19 @@ export function registerAeDomainHandlers(
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
-  const changed = (): void => {
+  // Why: the service emits for IPC, CLI RPC and launcher mutations alike, so the renderer refreshes when the main agent records a run.
+  service.onChanged(() => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send('ae:changed')
     }
-  }
+  })
 
   ipcMain.handle('ae:domains:list', (): AeDomainConfig[] => service.listDomains())
   ipcMain.handle('ae:domains:save', (_event, input: AeDomainSaveInput): AeDomainConfig => {
-    const saved = service.saveDomain(input)
-    changed()
-    return saved
+    return service.saveDomain(input)
   })
   ipcMain.handle('ae:domains:remove', (_event, args: { domainId: string }): void => {
     service.removeDomain(args.domainId)
-    changed()
   })
   ipcMain.handle('ae:domains:detectRoles', (_event, args: { groupId: string }) =>
     service.detectRoles(args.groupId)
@@ -58,27 +56,22 @@ export function registerAeDomainHandlers(
     'ae:domains:setSecret',
     (_event, args: { domainId: string; name: string; value: string }): void => {
       service.setSecret(args.domainId, args.name, args.value)
-      changed()
     }
   )
   ipcMain.handle(
     'ae:domains:removeSecret',
     (_event, args: { domainId: string; name: string }): void => {
       service.removeSecret(args.domainId, args.name)
-      changed()
     }
   )
   ipcMain.handle('ae:initiatives:list', (_event, args?: { domainId?: string }): AeInitiative[] =>
     service.listInitiatives(args?.domainId)
   )
   ipcMain.handle('ae:initiatives:save', (_event, input: AeInitiativeSaveInput): AeInitiative => {
-    const saved = service.saveInitiative(input)
-    changed()
-    return saved
+    return service.saveInitiative(input)
   })
   ipcMain.handle('ae:initiatives:remove', (_event, args: { initiativeId: string }): void => {
     service.removeInitiative(args.initiativeId)
-    changed()
   })
   ipcMain.handle(
     'ae:initiatives:launch',
@@ -92,17 +85,13 @@ export function registerAeDomainHandlers(
         repoIds?: string[]
       }
     ): Promise<AeInitiative> => {
-      const initiative = await launchAeInitiative(service, args)
-      changed()
-      return initiative
+      return launchAeInitiative(service, args)
     }
   )
   ipcMain.handle(
     'ae:domains:openMainAgent',
     async (_event, args: { domainId: string; agent?: TuiAgent }) => {
-      const result = await launchAeDomainAgent(service, args)
-      changed()
-      return result
+      return launchAeDomainAgent(service, args)
     }
   )
 }

@@ -22,10 +22,24 @@ export type AeDomainSaveInput = Partial<AeDomainConfig> & { id: string }
 export type AeInitiativeSaveInput = Partial<AeInitiative> & { domainId: string; title: string }
 
 export class AeDomainService {
+  private readonly listeners = new Set<() => void>()
+
   constructor(
     private readonly store: Store,
     private readonly runtime: OrcaRuntimeService
   ) {}
+
+  /** Fires after every mutation, whichever door it came through (IPC, CLI RPC, launchers). */
+  onChanged(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private emitChanged(): void {
+    for (const listener of this.listeners) {
+      listener()
+    }
+  }
 
   listDomains(): AeDomainConfig[] {
     return Object.values(this.store.getAeDomains()).sort((a, b) => a.name.localeCompare(b.name))
@@ -56,7 +70,9 @@ export class AeDomainService {
     if (!merged) {
       throw new Error('Invalid domain')
     }
-    return this.store.saveAeDomain(merged)
+    const saved = this.store.saveAeDomain(merged)
+    this.emitChanged()
+    return saved
   }
 
   removeDomain(domainId: string): void {
@@ -64,6 +80,7 @@ export class AeDomainService {
       this.store.removeAeDomainSecret(domainId, name)
     }
     this.store.removeAeDomain(domainId)
+    this.emitChanged()
   }
 
   reposInGroup(groupId: string): Repo[] {
@@ -105,6 +122,7 @@ export class AeDomainService {
     if (!domain.secretNames.includes(name)) {
       this.store.saveAeDomain({ ...domain, secretNames: [...domain.secretNames, name] })
     }
+    this.emitChanged()
   }
 
   removeSecret(domainId: string, name: string): void {
@@ -116,6 +134,7 @@ export class AeDomainService {
         secretNames: domain.secretNames.filter((entry) => entry !== name)
       })
     }
+    this.emitChanged()
   }
 
   /** Decrypted secrets for one domain; values never leave the main process except into an agent's env. */
@@ -157,7 +176,7 @@ export class AeDomainService {
     const folderPath =
       input.folderPath ?? existing?.folderPath ?? `${group?.parentPath ?? ''}/initiatives/${slug}`
     const now = Date.now()
-    return this.store.saveAeInitiative({
+    const saved = this.store.saveAeInitiative({
       id: existing?.id ?? input.id ?? randomUUID(),
       domainId: input.domainId,
       title: input.title,
@@ -180,10 +199,13 @@ export class AeDomainService {
         : {}),
       ...((input.runId ?? existing?.runId) ? { runId: input.runId ?? existing?.runId } : {})
     })
+    this.emitChanged()
+    return saved
   }
 
   removeInitiative(initiativeId: string): void {
     this.store.removeAeInitiative(initiativeId)
+    this.emitChanged()
   }
 
   get runtimeService(): OrcaRuntimeService {
