@@ -1,3 +1,4 @@
+import { POD_SHOW_ORCA_CLOUD_FEATURES } from '../../../shared/brand'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { getAccountsPaneSearchEntries } from '@/components/settings/accounts-search'
 import { getAgentsPaneSearchEntries } from '@/components/settings/agents-search'
@@ -126,7 +127,7 @@ export function buildSetupSettingsSections({
 }: SettingsNavigationBuildOptions): SettingsNavSection[] {
   const showDesktopOnlySettings = !isWebClient
   return [
-    ...(showDesktopOnlySettings
+    ...(showDesktopOnlySettings && POD_SHOW_ORCA_CLOUD_FEATURES // Pod
       ? [
           {
             id: 'orca-account',
@@ -196,7 +197,7 @@ export function buildSetupSettingsSections({
       searchEntries: getIntegrationsPaneSearchEntries(),
       group: 'setup'
     },
-    ...(showDesktopOnlySettings
+    ...(showDesktopOnlySettings && POD_SHOW_ORCA_CLOUD_FEATURES // Pod
       ? [
           {
             id: 'mobile',

@@ -19,3 +19,11 @@ export const POD_UPSTREAM_REPO = 'stablyai/orca'
  */
 export const POD_MAC_UPDATES_VIA_BREW = true
 export const POD_BREW_UPGRADE_COMMAND = 'brew upgrade --cask pod'
+/**
+ * Why: Orca Mobile, Orca Cloud accounts and Orca Relay are Stably-operated services that
+ * would only confuse Pod users today. Their code stays; this hides every entry point.
+ * Under vitest the flag is true so upstream tests keep exercising those surfaces.
+ * Flip the non-test value to true to bring them back.
+ */
+export const POD_SHOW_ORCA_CLOUD_FEATURES =
+  typeof process !== 'undefined' && process.env?.VITEST === 'true'

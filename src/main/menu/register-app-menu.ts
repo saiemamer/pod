@@ -1,3 +1,4 @@
+import { POD_SHOW_ORCA_CLOUD_FEATURES } from '../../shared/brand'
 import { BrowserWindow, Menu, app } from 'electron'
 import {
   formatKeybindingList,
@@ -254,12 +255,16 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
         checked: appearance.showAutomationsButton,
         click: () => onToggleAppearance('showAutomationsButton')
       },
-      {
-        label: translateMain('menu.showMobileButton', 'Show Orca Mobile Button'),
-        type: 'checkbox',
-        checked: appearance.showMobileButton,
-        click: () => onToggleAppearance('showMobileButton')
-      },
+      ...(POD_SHOW_ORCA_CLOUD_FEATURES // Pod
+        ? [
+            {
+              label: translateMain('menu.showMobileButton', 'Show Orca Mobile Button'),
+              type: 'checkbox' as const,
+              checked: appearance.showMobileButton,
+              click: () => onToggleAppearance('showMobileButton')
+            }
+          ]
+        : []),
       {
         label: translateMain('menu.showTitlebarAppName', 'Show Titlebar App Name'),
         type: 'checkbox',
