@@ -29,7 +29,8 @@ directory you are in. Prefer these over reading `target/` by hand:
 orca dbt project --json                      # project, binary, target, profiles dir, manifest state
 orca dbt list-models --filter <text> --json  # models from the manifest (parses first if needed)
 orca dbt model-info --model <name> --json    # file, columns, direct parents and children
-orca dbt lineage --model <name> --depth 2    # upstream and downstream nodes
+orca dbt lineage --model <name> --depth 2    # upstream and downstream nodes, with each node's columns
+orca dbt column-lineage --model <name> --column <col> --json   # which columns feed it and which it feeds
 orca dbt compile --model <name>              # compiled SQL
 orca dbt show --model <name> --limit 20      # rows; this queries the warehouse and BigQuery bills it
 orca dbt parse                               # refresh target/manifest.json after adding models
@@ -38,6 +39,13 @@ orca dbt parse                               # refresh target/manifest.json afte
 `show` and `compile` also take `--sql "<jinja sql>"` for ad-hoc queries; `ref()` and
 `source()` work there. Pass `--refresh` to the manifest commands after you add or
 rename a model.
+
+`column-lineage` reads the manifest, the catalog and the compiled SQL (or the model with
+its Jinja stripped) and never touches the warehouse. Each edge says `sqlglot` when the
+SQL was analysed or `name-match` when only the column name matched; the answer lists
+the models that fell back to name matching, so say so when you rely on those edges.
+Before renaming or dropping a column, run it and list the downstream columns in your
+report: the Omni worker after you needs them.
 
 ## Work in small, buildable steps
 

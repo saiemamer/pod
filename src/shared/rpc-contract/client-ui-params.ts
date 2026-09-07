@@ -46,7 +46,8 @@ export const STATIC_RIGHT_SIDEBAR_TABS = [
   'source-control',
   'checks',
   'ports',
-  'initiative' // Pod
+  'initiative', // Pod
+  'database' // Pod
 ] as const
 
 // Plugin panels are open-ended `plugin:<publisher>.<id>/<panel>` keys, so the

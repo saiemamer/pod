@@ -38,7 +38,22 @@ export const DBT_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca dbt lineage --model <name> [--depth <n>] [--refresh] [--project <dir>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'model', 'depth', 'refresh', 'project'],
     examples: ['orca dbt lineage --model fct_orders --depth 2 --json'],
-    notes: [PROJECT_NOTE, 'Column-level lineage arrives with the lineage canvas (Phase 3).']
+    notes: [
+      PROJECT_NOTE,
+      'Each node lists its columns (from the catalog, the manifest, the SQL, or its parents).'
+    ]
+  },
+  {
+    path: ['dbt', 'column-lineage'],
+    summary: 'Which upstream columns feed a column and which downstream columns it feeds',
+    usage:
+      'orca dbt column-lineage --model <name> --column <name> [--depth <n>] [--refresh] [--project <dir>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'model', 'column', 'depth', 'refresh', 'project'],
+    examples: ['orca dbt column-lineage --model fct_orders --column customer_id --json'],
+    notes: [
+      PROJECT_NOTE,
+      'Reads target/manifest.json, target/catalog.json and the compiled SQL; runs sqlglot through the python in Settings > Analytics Tools, or matches column names when sqlglot is missing. Nothing touches the warehouse.'
+    ]
   },
   {
     path: ['dbt', 'show'],

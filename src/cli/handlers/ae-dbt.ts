@@ -5,6 +5,7 @@ import {
   getOptionalStringFlag,
   getRequiredStringFlag
 } from '../flags'
+import type { DbtColumnLineageResult } from '../../shared/ae/dbt-graph-types'
 import type {
   DbtCompileResult,
   DbtContextSummary,
@@ -15,6 +16,7 @@ import type {
   DbtShowResult
 } from '../../shared/ae/dbt-types'
 import {
+  formatDbtColumnLineage,
   formatDbtCompile,
   formatDbtLineage,
   formatDbtListModels,
@@ -66,6 +68,16 @@ export const DBT_HANDLERS: Record<string, CommandHandler> = {
       refresh: refreshFlag(ctx)
     })
     printResult(result, ctx.json, formatDbtLineage)
+  },
+  'dbt column-lineage': async (ctx) => {
+    const result = await ctx.client.call<DbtColumnLineageResult>('dbt.columnLineage', {
+      ...baseParams(ctx),
+      model: getRequiredStringFlag(ctx.flags, 'model'),
+      column: getRequiredStringFlag(ctx.flags, 'column'),
+      depth: getOptionalPositiveIntegerFlag(ctx.flags, 'depth'),
+      refresh: refreshFlag(ctx)
+    })
+    printResult(result, ctx.json, formatDbtColumnLineage)
   },
   'dbt show': async (ctx) => {
     const result = await ctx.client.call<DbtShowResult>('dbt.show', {

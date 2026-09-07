@@ -6,12 +6,12 @@ Orca (onorca.dev, github.com/stablyai/orca) is an MIT-licensed Electron IDE for 
 
 Decisions already taken with Saiem (2026-09-07):
 
-| Decision | Choice |
-|---|---|
-| Fork depth | Thin fork tracking upstream stable tags, additive code, touchpoint register, upstream PRs for generic pieces |
-| dbt flavour, warehouse | dbt Core on BigQuery first; keep a `distribution: core | fusion` switch |
-| Distribution | Unsigned macOS DMG from GitHub Releases, auto-update from our own feed |
-| Name, home | **Pod**, repo `saiemamer/pod` (a pod is a family group of orcas) |
+| Decision               | Choice                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Fork depth             | Thin fork tracking upstream stable tags, additive code, touchpoint register, upstream PRs for generic pieces |
+| dbt flavour, warehouse | dbt Core on BigQuery first; keep a `distribution: core                                                       | fusion` switch |
+| Distribution           | Unsigned macOS DMG from GitHub Releases, auto-update from our own feed                                       |
+| Name, home             | **Pod**, repo `saiemamer/pod` (a pod is a family group of orcas)                                             |
 
 Research inputs: the Orca source at v1.4.197 and dbt-zed's `dbt` branch; Orca docs (worktrees, CLI reference, orchestration, skills, settings, ways-to-run); Omni CLI docs and the `@omni-co/model-local-editor` guide; dbt LSP docs; the j-clemons Go dbt language server; Saiem's ae-* skills pack and WORKFLOW.md.
 
@@ -37,13 +37,13 @@ Research inputs: the Orca source at v1.4.197 and dbt-zed's `dbt` branch; Orca do
 
 ### Vocabulary and how it maps to Orca objects
 
-| Pod term | Orca object | Pod addition |
-|---|---|---|
-| **Team** | `ProjectGroup` (created by importing a parent folder) | `aeTeams[groupId]`: member repos with role `dbt`, `omni` or `other`; default agent; tool env; secret references; dbt profile and target |
-| **Repo** | `Project` + `Repo` (kind `git`, `projectGroupId` = team) | none |
-| **Initiative** | one orchestration Run + a `FolderWorkspace` under the team folder that hosts the coordinator terminal | `aeInitiatives[]`: id, teamId, title, runId, repoIds, coordinator workspace key, status |
-| **Phase** | task DAG via `--deps` | task spec header names the target repo |
-| **Worktree** | managed worktree at `~/orca/workspaces/<repo>/<name>` | for `omni` repos the worktree name equals the git branch and the Omni model branch |
+| Pod term       | Orca object                                                                                           | Pod addition                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Team**       | `ProjectGroup` (created by importing a parent folder)                                                 | `aeTeams[groupId]`: member repos with role `dbt`, `omni` or `other`; default agent; tool env; secret references; dbt profile and target |
+| **Repo**       | `Project` + `Repo` (kind `git`, `projectGroupId` = team)                                              | none                                                                                                                                    |
+| **Initiative** | one orchestration Run + a `FolderWorkspace` under the team folder that hosts the coordinator terminal | `aeInitiatives[]`: id, teamId, title, runId, repoIds, coordinator workspace key, status                                                 |
+| **Phase**      | task DAG via `--deps`                                                                                 | task spec header names the target repo                                                                                                  |
+| **Worktree**   | managed worktree at `~/orca/workspaces/<repo>/<name>`                                                 | for `omni` repos the worktree name equals the git branch and the Omni model branch                                                      |
 
 On disk:
 
@@ -63,7 +63,6 @@ The initiative flow the `ae-initiative` skill encodes, using only CLI commands t
 4. `orca orchestration check --wait --types worker_done,escalation` until the dbt phase settles; the coordinator reviews diffs and opens MRs.
 5. Same for the omni repo, with the `ae-omni` skill: `omni models create-branch`, `yaml-create`, `validate`, `commit`; branch name equals worktree name.
 6. The Initiative panel (right sidebar, folder-only) shows tasks, dispatches and worktrees for the run.
-
 
 ### Phase 1 vocabulary decision (2026-09-07, Saiem)
 
@@ -86,6 +85,7 @@ Goal: `pnpm dev` runs Pod locally; CI produces an unsigned DMG that auto-updates
 Prerequisites on this Mac: Node 24 via fnm or nvm; `corepack enable && corepack prepare pnpm@12.0.0 --activate`; Xcode Command Line Tools; Python 3. Later: `dbt-core` + `dbt-bigquery` in a venv, the `omni` CLI, `sqlglot`.
 
 Add:
+
 - `FORK_TOUCHPOINTS.md`, `docs/pod/README.md` (what Pod is, install, sync procedure).
 - `src/shared/brand.ts`: product name, appId `io.github.saiemamer.pod`, release repo `saiemamer/pod`, feed URL, tap `saiemamer/homebrew-pod`, `UPSTREAM_BASE_TAG`.
 - `.github/workflows/pod-upstream-drift.yml` (cron; reuses `.github/actions/install-node-dependencies`).
@@ -93,6 +93,7 @@ Add:
 - `resources/app-icons/pod*.png`, `resources/build/icon.icns`, `Casks/pod.rb`.
 
 Touch (rebrand register, from the source review):
+
 - `config/electron-builder.config.cjs` lines 66 (appId), 153-154 (productName, protocols), 393 and 556 (executableName), 440/545/591/595/618 (artifactName), 462/559 (icon), 587 (maintainer), 641-643 (publish owner/repo), 498 (notarize gate), 512/526 (guard mac native extraResources behind `POD_SKIP_MAC_NATIVE` for local smoke builds).
 - `src/shared/release-channel.ts:22-25` (release repos), `src/main/updater/updater-release-feed.ts:206`, `src/main/updater-prerelease-feed.ts:5-6,13,156`, `src/shared/local-build-compatibility-contract.ts:3`, `src/main/macos-tcc-prompt-watch.ts:22-27`, `src/main/macos-press-and-hold-default.ts:45`, `src/shared/agent-feature-install-commands.ts:3` (skills install source), `src/shared/plugins/plugin-marketplace.ts:9-11,119`.
 - `.github/workflows/homebrew-bump.yml` (tap), `release-cut.yml` (owner/repo). Delete `cloud-*`, mobile, hourly, daily, adhoc workflows.
@@ -131,6 +132,7 @@ Spike results:
 Goal: a Team with two repos, an Initiative whose coordinator dispatches one worker into each repo, tool binaries configured in Settings.
 
 Add:
+
 - `src/shared/ae/team-types.ts` (`AeTeamConfig`, `AeInitiative`, repo roles), `src/shared/ae/dbt-settings-types.ts` (`AeDbtSettings`: `showLimit` 500, `target`, `profilesDir`, `projectDir`, `env`, `envFile`, `parseOnLoad` true, `lineageDepth` 4, `lineageTreeDepth` 8, `lineageMaxNodes` 500, `distribution` `core`, `coreAdapter` `bigquery`).
 - `src/main/persistence/loading-store/ae-team-persistence.ts` (new domain, normalises `aeTeams` and `aeInitiatives`).
 - `src/main/ipc/ae/ae-team-handlers.ts` modelled on `src/main/ipc/repos/project-group-handlers.ts:18-49`; `src/preload/api/ae-teams-bridge.ts`; `src/renderer/src/store/ae/ae-team-slice.ts`.
@@ -179,6 +181,7 @@ Still open after Phase 1: the folder-coordinator `worker-start --worktree new-to
 Goal: open a model in a dbt project, get Jinja-aware highlighting and LSP, press Cmd+Enter, see rows; agents can call the same operations through `orca dbt ...`.
 
 Add:
+
 - `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` + `textmate-grammars/jinja-sql.tmLanguage.json` (MIT grammar), registered via `registerTextMateLanguage`.
 - `src/main/ae/dbt/dbt-project-discovery.ts` (nearest ancestor `dbt_project.yml` within the worktree, `projectDir` override), `dbt-profiles-search.ts` (`local_profiles/`, `profiles/`, `.dbt/`, else let dbt resolve), `dbt-env-file.ts` (`.env`/`.env.local` from repo root down to project dir, real env wins, explicit `envFile` last, values never logged), `dbt-runner.ts` (`runProcess` from `src/shared/child-process/`, cwd = project root, `--target`, `--profiles-dir`, bounded output, timeout), `dbt-show-output.ts` (Core `{"show": [...]}` and Fusion bare array), `dbt-catalog-refresh.ts` (`dbt parse` then `dbt docs generate` for Core, `dbt compile --write-catalog` for Fusion, once per project per session when `parseOnLoad`).
 - `src/main/ae/dbt/dbt-lsp-bridge.ts` (spawns `dbt-language-server` for Core or `dbt lsp` for Fusion, `vscode-jsonrpc` framing, never sends `workspace/didChangeConfiguration`), `dbt-lsp-download.ts` (GitHub release asset for darwin-arm64/amd64, stored under userData, pruned).
@@ -223,6 +226,7 @@ Still open in Phase 2: Fusion output checked against a real binary (the `--fusio
 Goal: the lineage view from the zdbt screenshot, column click lights up the transformation path, plus a Database tree and a Connection tab.
 
 Add:
+
 - `src/shared/ae/dbt/manifest-graph.ts`: nodes from `manifest.json` (`model`, `seed`, `snapshot`, `source`), edges from `parent_map`, columns from `catalog.json` ordered by index, else manifest column docs, else parsed select list; nodes with no columns inherit parents' columns to a fixpoint (max 10 passes); cache keyed on manifest and catalog mtimes; stored in memory (no sqlitegraph).
 - `src/main/ae/dbt/column-lineage.ts`: primary engine is a Python sidecar `resources/ae/sqlglot_lineage.py` (sqlglot `lineage()` with `dialect="bigquery"`, upstream column lists passed as schema) run through `runProcess`; fallback is name matching on parsed select entries when Python or sqlglot is missing. Highlight propagation over the graph both directions, capped at 16 passes.
 - `src/renderer/src/ae/lineage/LineageCanvas.tsx` (`@xyflow/react`), `lineage-layout.ts` (`@dagrejs/dagre` left-to-right, rank by longest path, barycenter ordering), `LineageNode.tsx` (materialisation colour, column rows above zoom 0.55, collapse up/down, expand-depth handle), `LineageTree.tsx` (upstream/downstream tree with truncation flags), controls Upstream, Downstream, Columns, Arrange, zoom.
@@ -235,9 +239,26 @@ Risks: sqlglot coverage on real BigQuery models (STRUCT, UNNEST, QUALIFY) is the
 
 Verify: graph tests on fixture `manifest.json` and `catalog.json` (edges, three-phase columns); lineage fixtures with expected `(node, column)` pairs; layout snapshot tests; Playwright for collapse, depth expansion and column focus; manual on the 49-model OpenCX subgraph.
 
+### Phase 3 progress (2026-09-07 late night session)
+
+Built in this order: shared types and pure graph walks with tests, the catalog reader and graph service, the sqlglot sidecar and column-lineage engine, IPC, RPC and CLI, then the canvas, the Database panel and the Playwright smoke.
+
+- Graph: `src/main/ae/dbt/dbt-graph.ts` builds one in-memory graph per project from the manifest (models, seeds, snapshots, sources; edges from `parent_map`) and the catalog (`dbt-catalog.ts`, cached by mtime like the manifest). Columns come from the catalog first, the manifest's column docs second, the model's final SELECT third (`src/shared/ae/dbt-select-list.ts` strips Jinja and splits the list; the compiled file is preferred when dbt wrote one), and parents fourth (`inheritDbtColumns`, fixpoint, ten passes). The graph is rebuilt when either artifact's mtime moves. `selectDbtNeighbourhood` walks both directions one level at a time and admits parents and children alternately under the node cap, so a capped canvas still shows both sides; nodes with neighbours left out carry a count.
+- Column lineage: `sqlglot_lineage.py` travels as text (`?raw` import) and runs as `python -c` with the models on stdin, so nothing is packaged or written. Per model it gets the compiled SQL (relations keyed by the manifest's `relation_name` without quotes) or the model with Jinja stripped (refs as bare names, sources as `source__table`, everything else NULL), plus the parents' column lists as the schema. `DbtColumnLineageService` analyses every model in the neighbourhood in one Python call, caches answers by SQL hash, maps relation names back to node ids, and name-matches any model the engine could not read (sources and seeds are not analysed). `propagateDbtColumnLineage` follows column edges away from the focus, capped at 16 passes; the answer names the engine per edge, the models that fell back, and whether the cut hit. Python order: Settings > Analytics Tools, then `python3` on PATH; the probe is cached per interpreter and retried after 30 s when it failed.
+- Surface: `ae:dbt:graph`, `columnLineage`, `catalogTree`, `lineageEngine`; RPC `dbt.columnLineage`; `orca dbt column-lineage --model --column [--depth]`, and `orca dbt lineage` now prints each node's columns. The `ae-dbt` guide explains when to run it.
+- Canvas (`src/renderer/src/ae/lineage/`): React Flow 12 with dagre (left to right, longest-path ranking) as the dock's Lineage tab, loaded lazily. Nodes show a materialisation-tinted header, column rows above zoom 0.55 (cap 14, then "+n more"), and side buttons that hide a side, restore it, or load one more level around that node (merged into the loaded graph). A column click asks main for column lineage and lights the path: lit columns, dimmed nodes off the path, column-to-column edges (dashed when name-matched), node edges when columns are hidden by zoom. Toolbar: upstream and downstream depth, Columns, the upstream/downstream list (`PodLineageTree`, single click centres, double click opens), Arrange, reload, and the engine label. Double-click opens the model. `Cmd+Alt+L` (`dbt.showLineage`) opens the dock on the tab without running a query; `openAeDbtView` in the slice creates the dock state for it.
+- Database explorer: `PodDbtExplorerPanel.tsx` is the right sidebar's Database tab (git worktrees only): database, schema, relation, column with types, a filter that keeps matching relations and columns with their ancestors, Refresh catalog, a "Generate catalog" empty state, and per-relation "Show lineage", which opens the model and the dock's Lineage tab. The Connection tab gained a Column lineage row naming the engine and interpreter.
+- Catalog refresh now runs again when `target/` vanished after this session's refresh (the smoke found it: a wiped target left the Lineage tab on its empty state).
+- Verified: unit tests for the select-list parser, graph walks, catalog reader, graph service, sidecar (fake python and, gated on `POD_SQLGLOT_PYTHON`, the real script through sqlglot 30.18), column-lineage service, canvas state and layout, explorer rows; `docs/pod/smoke/ui-lineage-smoke.mjs` against `pnpm dev` with the four-node stand-in manifest (see the smoke README).
+
+Fusion, checked on this Mac against `dbt-fusion 2.0.0-preview.220` (x86_64 tarball from `public.cdn.getdbt.com/fs/cli/`): `dbt parse` writes a v12 manifest Pod's reader accepts (1.2 s on the smoke project); `compile --write-catalog` writes `catalog.json` and the compiled files without warehouse credentials (the catalog is empty, with the credential error under `errors`), so Pod's Fusion catalog command holds; `--log-format json compile --select` emits no `CompiledNode` event, so the compiled-file fallback serves model compiles, while `--inline` does emit one. The language server under `--fusion` publishes diagnostics only on `textDocument/didSave` and published an empty list for a missing `ref()` that Fusion's own parse reports (`DependencyNotFound`), and it looks for `~/.dbt/profiles.yml` unless `DBT_PROFILES_DIR` is set; Pod sends no `didSave`, so Fusion diagnostics stay off until the server catches up with Fusion. Left as recorded facts, no code change.
+
+Still open in Phase 3: manual on the 49-model OpenCX subgraph (needs the work MacBook); layout snapshot tests beyond the ordering assertions; `select *` beside named columns keeps only the named ones.
+
 ## Phase 4: Omni panel, company distribution, upstream PRs
 
 Add:
+
 - `src/main/ae/omni/omni-runner.ts` (binary from `toolCmdOverrides.omni`, env from team secrets), `omni-branches.ts` (`omni models list`, `create-branch`, `validate`, `commit`, JSON output), `src/renderer/src/ae/omni/OmniPanel.tsx` (model branches for the worktree, validate output, topic browser via `list-topics`/`get-topic`), CLI `orca omni validate | branch | commit --json`.
 - Optional standalone `packages/pod-dbt-mcp` (same six tools over `@modelcontextprotocol/sdk`) for agents outside Pod; registered through `agentDefaultArgs.claude` `--mcp-config <userData>/pod-mcp.json`, never by writing into worktrees.
 - Homebrew tap repo `saiemamer/homebrew-pod`; `docs/pod/install.md` with the right-click-Open first-launch note; `docs/pod/sync.md`.
@@ -270,11 +291,11 @@ Windows and Linux builds; signed macOS builds (add when a Developer ID exists: `
 ## Rough effort
 
 | Phase | Estimate (part-time, Claude Code assisted) |
-|---|---|
-| 0 | 1 week |
-| 1 | 2 weeks |
-| 2 | 2-3 weeks |
-| 3 | 2-3 weeks |
-| 4 | 1-2 weeks |
+| ----- | ------------------------------------------ |
+| 0     | 1 week                                     |
+| 1     | 2 weeks                                    |
+| 2     | 2-3 weeks                                  |
+| 3     | 2-3 weeks                                  |
+| 4     | 1-2 weeks                                  |
 
 Estimates, not commitments; Phase 2 and 3 carry the most unknowns (LSP client, sqlglot coverage).

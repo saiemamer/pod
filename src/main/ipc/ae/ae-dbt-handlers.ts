@@ -3,6 +3,14 @@ import { ipcMain } from 'electron'
 import type { AeDbtService } from '../../ae/dbt/dbt-service'
 import { ensureDbtCatalog, exportDbtCsv, resolveDbtRefRequest } from '../../ae/dbt/dbt-artifact-ops'
 import type { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
+import {
+  dbtCatalogTreeRequest,
+  dbtColumnLineageRequest,
+  dbtGraphRequest,
+  dbtLineageEngineRequest,
+  type DbtLineageServices
+} from '../../ae/dbt/dbt-lineage-ops'
+import type { DbtColumnLineageRequest, DbtGraphRequest } from '../../../shared/ae/dbt-graph-types'
 import type {
   DbtLspChangeRequest,
   DbtLspDocumentRequest,
@@ -33,6 +41,10 @@ export const AE_DBT_IPC_CHANNELS = [
   'ae:dbt:ensureCatalog',
   'ae:dbt:resolveRef',
   'ae:dbt:exportCsv',
+  'ae:dbt:graph',
+  'ae:dbt:columnLineage',
+  'ae:dbt:catalogTree',
+  'ae:dbt:lineageEngine',
   'ae:dbt:lsp:status',
   'ae:dbt:lsp:open',
   'ae:dbt:lsp:change',
@@ -50,6 +62,7 @@ export const AE_DBT_LSP_EVENT_CHANNEL = 'ae:dbt:lsp:event'
 export function registerAeDbtHandlers(
   service: AeDbtService,
   lsp: DbtLspService,
+  lineage: DbtLineageServices,
   _mainWindow: BrowserWindow
 ): void {
   for (const channel of AE_DBT_IPC_CHANNELS) {
@@ -72,6 +85,18 @@ export function registerAeDbtHandlers(
   )
   ipcMain.handle('ae:dbt:exportCsv', (_event, args: DbtExportCsvRequest) =>
     exportDbtCsv(service, args)
+  )
+  ipcMain.handle('ae:dbt:graph', (_event, args: DbtGraphRequest) =>
+    dbtGraphRequest(service, lineage, args)
+  )
+  ipcMain.handle('ae:dbt:columnLineage', (_event, args: DbtColumnLineageRequest) =>
+    dbtColumnLineageRequest(service, lineage, args)
+  )
+  ipcMain.handle('ae:dbt:catalogTree', (_event, args: DbtPathRequest) =>
+    dbtCatalogTreeRequest(service, args)
+  )
+  ipcMain.handle('ae:dbt:lineageEngine', (_event, args: DbtPathRequest) =>
+    dbtLineageEngineRequest(service, lineage, args)
   )
   ipcMain.handle('ae:dbt:lsp:status', (_event, args: DbtLspDocumentRequest) => lsp.status(args))
   ipcMain.handle('ae:dbt:lsp:open', (_event, args: DbtLspOpenRequest) => lsp.open(args))

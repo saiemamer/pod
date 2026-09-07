@@ -41,7 +41,10 @@ afterEach(() => {
 function service(settings: Record<string, unknown> = {}): AeDbtService {
   return new AeDbtService({
     store: {
-      getSettings: () => ({ toolCmdOverrides: { dbt: join(root, 'dbt') }, aeDbt: settings })
+      getSettings: () => ({
+        toolCmdOverrides: { dbt: join(root, 'dbt') },
+        aeDbt: settings
+      })
     } as unknown as Store,
     runtime: {
       showManagedWorktree: async () => {
@@ -74,6 +77,12 @@ describe('catalog refresh through the service', () => {
     const forced = await ensureDbtCatalog(service(), { path, force: true }, ledger)
     expect(forced.outcome).toBe('refreshed')
     expect(calls()).toHaveLength(4)
+    // Why: a target/ wiped after the refresh (dbt clean, a fresh clone) must be rebuilt.
+    rmSync(join(project, 'target'), { recursive: true, force: true })
+    const rebuilt = await ensureDbtCatalog(service(), { path }, ledger)
+    expect(rebuilt.outcome).toBe('refreshed')
+    expect(rebuilt.manifest.exists).toBe(true)
+    expect(calls()).toHaveLength(6)
   })
 
   it('skips when parseOnLoad is off', async () => {
@@ -91,7 +100,10 @@ describe('ref resolution through the service', () => {
   it('uses the manifest to pick between files with the same name', async () => {
     const path = join(project, 'models', 'marts', 'orders.sql')
     await ensureDbtCatalog(service(), { path }, new DbtCatalogSessionLedger())
-    const resolved = await resolveDbtRefRequest(service(), { path, name: 'orders' })
+    const resolved = await resolveDbtRefRequest(service(), {
+      path,
+      name: 'orders'
+    })
     expect(resolved.file).toBe(join(project, 'models', 'marts', 'orders.sql'))
     expect(resolved.alternatives).toEqual([join(project, 'models', 'legacy', 'orders.sql')])
   })

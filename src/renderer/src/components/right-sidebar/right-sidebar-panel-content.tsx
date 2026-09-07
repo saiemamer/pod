@@ -14,6 +14,7 @@ const FolderWorkspacePrChecksPanel = lazy(() => import('./FolderWorkspacePrCheck
 const PluginPanel = lazy(() => import('./PluginPanel'))
 const NativeChatVisualPanel = lazy(() => import('../native-chat/NativeChatVisualPanel'))
 const PodInitiativePanel = lazy(() => import('@/ae/PodInitiativePanel')) // Pod
+const PodDbtExplorerPanel = lazy(() => import('@/ae/dbt/PodDbtExplorerPanel')) // Pod
 
 type RightSidebarPanelContentProps = {
   effectiveTab: ActiveRightSidebarTab
@@ -54,6 +55,7 @@ export function RightSidebarPanelContent({
         {effectiveTab === 'vault' && <AiVaultPanel />}
         {effectiveTab === 'workspaces' && <FolderWorkspaceWorktreesPanel />}
         {effectiveTab === 'initiative' && <PodInitiativePanel />} {/* Pod */}
+        {effectiveTab === 'database' && <PodDbtExplorerPanel />} {/* Pod */}
         {effectiveTab === 'pr-checks' && (
           <FolderWorkspacePrChecksPanel
             isVisible={rightSidebarOpen && effectiveTab === 'pr-checks'}
