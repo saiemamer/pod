@@ -17,6 +17,15 @@ export const aeApi = {
     remove: (args) => ipcRenderer.invoke('ae:initiatives:remove', args),
     launch: (args) => ipcRenderer.invoke('ae:initiatives:launch', args)
   },
+  dbt: {
+    project: (args) => ipcRenderer.invoke('ae:dbt:project', args),
+    show: (args) => ipcRenderer.invoke('ae:dbt:show', args),
+    compile: (args) => ipcRenderer.invoke('ae:dbt:compile', args),
+    parse: (args) => ipcRenderer.invoke('ae:dbt:parse', args),
+    listModels: (args) => ipcRenderer.invoke('ae:dbt:listModels', args),
+    modelInfo: (args) => ipcRenderer.invoke('ae:dbt:modelInfo', args),
+    lineage: (args) => ipcRenderer.invoke('ae:dbt:lineage', args)
+  },
   onChanged: (callback: () => void): (() => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('ae:changed', listener)

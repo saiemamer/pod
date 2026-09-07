@@ -9,6 +9,8 @@ import {
   type AeInitiativeSaveInput
 } from '../../ae/domain-service'
 import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-launch'
+import { installAeDbtService } from '../../ae/dbt/dbt-service'
+import { registerAeDbtHandlers } from './ae-dbt-handlers'
 import type { TuiAgent } from '../../../shared/tui-agent'
 
 export const AE_DOMAIN_IPC_CHANNELS = [
@@ -32,6 +34,7 @@ export function registerAeDomainHandlers(
   runtime: OrcaRuntimeService
 ): void {
   const service = installAeDomainService(store, runtime)
+  registerAeDbtHandlers(installAeDbtService({ store, runtime, domains: service }))
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }

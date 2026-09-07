@@ -196,6 +196,18 @@ Risks: `monaco-languageclient` couples to a vscode-api shim and Orca pins `monac
 
 Verify: unit tests for discovery order, profiles search, `.env` precedence, show-output fixtures for Core and Fusion; CLI parity tests; Playwright with a fixture dbt project and a stub `dbt` script that prints canned JSON; manual on dbt-analytics-2 with a BigQuery profile.
 
+### Phase 2 progress (2026-09-07)
+
+First slice built and verified, in this order: language, discovery and runner with unit tests, CLI, then UI.
+
+- `jinja-sql` is a TextMate language (`register-jinja-sql.ts`, grammars from samuelcolvin/jinjahtml-vscode and microsoft/vscode-mssql, both MIT). Every `.sql` file uses it: the grammar includes plain SQL, so outside dbt the file still reads as SQL and no discovery round trip is needed when a tab opens.
+- `src/main/ae/dbt/`: discovery walks up from the file to the worktree root, then one level down (some repos keep the project in a subfolder), with a settings or domain override; profiles come from settings, `DBT_PROFILES_DIR`, the project or repo (`local_profiles/`, `profiles/`, `.dbt/`, or `profiles.yml` beside the project), `~/.dbt`, else dbt resolves them; `.env` and `.env.local` apply from the repo root down to the project, the real environment beats them, and what someone typed into Pod (domain env, secrets, dbt settings env) beats both. The runner goes through `runProcess` with `--quiet`, colours off, a ten-minute timeout and a 16 MB output cap, serialised per project because dbt Core writes `target/` while it works. `show` parses Core's `{"show": [...]}` and Fusion's bare array; `compile` reads the `CompiledNode` event from `--log-format json`, falling back to the text banner and the compiled file. The manifest reader keeps models, sources and the edge maps in memory, keyed by file mtime, and leaves compiled code on disk.
+- `AeDbtService` sits behind IPC (`ae:dbt:*`, registered with the domain handlers) and RPC (`dbt.*`); `orca dbt project|list-models|model-info|lineage|show|compile|parse` is in the `ae-dbt` guide. `column-lineage` waits for the Phase 3 graph rather than shipping as a stub.
+- The results dock lives under Jinja SQL editors (`PodDbtDock.tsx`): Cmd+Enter runs the selection inline or the model by file name through `dbt show --output json` with the limit capped at 500, Cmd+Shift+Enter compiles, and the Table, Compiled and Connection tabs share one state per open file in the Pod store slice. Both shortcuts are keybinding definitions (`definitions-ae.ts`), so they show in Settings and can be rebound. A new editor tab mode was rejected: `'check-details'` is special-cased in 32 renderer files, while the dock is one line in `EditorEditFileSurface.tsx`.
+- Verified with unit tests for every module (a shell script stands in for dbt in the service test) and with `docs/pod/smoke/ui-dbt-smoke.mjs` against `pnpm dev`, which drove all three tabs with the stand-in `dbt-stub.sh`. No real dbt or warehouse exists on this Mac, so the BigQuery run against dbt-analytics is still to do.
+
+Still open in Phase 2: the LSP bridge and download; `parseOnLoad` and `dbt docs generate` for the catalog; Cmd-click `ref()` navigation; grid sort, search, hide, resize and CSV export; a drag handle for the dock height; Fusion output checked against a real binary; the ae-dbt skill's `orca dbt` commands exercised by a worker.
+
 ## Phase 3: lineage canvas, column lineage, database explorer
 
 Goal: the lineage view from the zdbt screenshot, column click lights up the transformation path, plus a Database tree and a Connection tab.
