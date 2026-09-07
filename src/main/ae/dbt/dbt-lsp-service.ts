@@ -1,4 +1,3 @@
-import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { dirname } from 'node:path'
 import type { ProcessSpec } from '../../../shared/child-process/process-spec'
 import {
@@ -15,7 +14,7 @@ import {
   type DbtLspStatus
 } from '../../../shared/ae/dbt-lsp-types'
 import type { DbtContext } from './dbt-context'
-import { DbtLspServer } from './dbt-lsp-bridge'
+import { DbtLspServer, type DbtLspChild } from './dbt-lsp-bridge'
 import { resolveDbtLspBinary, type DbtLspBinary } from './dbt-lsp-binary'
 import type { AeDbtService } from './dbt-service'
 
@@ -29,7 +28,7 @@ export type DbtLspServiceDeps = {
   userData: () => string
   fetch: (url: string) => Promise<Response>
   emit: (event: DbtLspEvent) => void
-  spawn?: (spec: ProcessSpec) => ChildProcessWithoutNullStreams
+  launch?: (spec: ProcessSpec) => DbtLspChild
   platform?: NodeJS.Platform
   arch?: string
   idleStopMs?: number
@@ -229,7 +228,7 @@ export class DbtLspService {
       args,
       projectDir: entry.projectDir,
       env: context.env,
-      spawn: this.deps.spawn,
+      launch: this.deps.launch,
       onDiagnostics: (uri, diagnostics) => {
         const path = dbtLspUriToPath(uri)
         if (path) {
