@@ -8,7 +8,7 @@ Orca is excellent at parallel work inside one repository. Pod adds what analytic
 - **dbt, natively.** Jinja-aware SQL, a dbt language server, Cmd+Enter results from `dbt show`, compiled SQL, a column-level lineage canvas, project and profile discovery, and six dbt tools agents can call through `orca dbt ...`.
 - **Omni.** The Omni CLI workflow (model branch, YAML, validate, commit) taught to agents as a skill, with the `omni` binary and credentials configured in Settings.
 
-Pod tracks upstream Orca stable releases. Every Pod addition lives in `ae/` directories; every edit to an upstream file is listed in [`FORK_TOUCHPOINTS.md`](./FORK_TOUCHPOINTS.md).
+Orca Mobile, Orca Cloud accounts and Orca Relay are hidden in Pod (one flag, `POD_SHOW_ORCA_CLOUD_FEATURES`, brings them back). Pod tracks upstream Orca stable releases. Every Pod addition lives in `ae/` directories; every edit to an upstream file is listed in [`FORK_TOUCHPOINTS.md`](./FORK_TOUCHPOINTS.md).
 
 ## Status
 

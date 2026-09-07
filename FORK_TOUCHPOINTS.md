@@ -27,6 +27,11 @@ Rules:
 | `src/shared/update-status-types.ts` | optional `podBrewUpgradeScript` on the available state | Additive optional field, wire-compatible. |
 | `src/renderer/src/components/maintenance/update-card/UpdateCardStateContent.tsx` | passes `brewUpgradeScript` to both content components | See `UpdateAvailableCardContent.tsx`. |
 | `resources/logo.svg` | replaced | Pod mark, used by the landing page, the sidebar help menu and the settings icon. Upstream's file is a wholesale replacement, so a rebase keeps ours unless upstream edits it. |
+| `src/renderer/src/components/sidebar/SidebarNav.tsx` | `shouldShowMobileButton` also requires `POD_SHOW_ORCA_CLOUD_FEATURES` | Hides the Orca Mobile sidebar item and its page. |
+| `src/renderer/src/hooks/settings-navigation-capability-sections.ts` | `orca-account` and `mobile` sections require the flag | Hides the Orca Account and Mobile settings pages; the settings framework drops a pane whose entry is gone, deep links included. |
+| `src/renderer/src/hooks/settings-navigation-remote-sections.ts` | `servers` section is a conditional spread on the flag | Hides Remote Orca Servers (Orca Relay). SSH Hosts stays. |
+| `src/renderer/src/components/settings/AppearanceWindowSidebarSection.tsx` | "Show Orca Mobile Button" toggle wrapped in the flag | Appearance settings. |
+| `src/main/menu/register-app-menu.ts` | "Show Orca Mobile Button" menu item is a conditional spread on the flag | App menu. |
 | `src/main/updater/updater-release-feed.ts` | fallback feed URL built from `POD_RELEASES_URL` | electron-updater fallback feed. |
 | `src/main/updater-prerelease-feed.ts` | atom URL, download base, tag regex, asset-host check built from `POD_RELEASES_URL` | Prerelease fallback feed. |
 | `src/shared/local-build-compatibility-contract.ts` | `appId` from `POD_APP_ID` | Local-build contract keyed by bundle id. |
