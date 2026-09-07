@@ -1,16 +1,18 @@
+import { POD_RELEASES_URL } from '../shared/brand'
 import { net } from 'electron'
 import { parse } from 'yaml'
 import { compareVersions, isPrereleaseVersion, isValidVersion } from './updater-fallback'
 
-const ATOM_FEED_URL = 'https://github.com/stablyai/orca/releases.atom'
-const RELEASES_DOWNLOAD_BASE = 'https://github.com/stablyai/orca/releases/download'
+const ATOM_FEED_URL = `${POD_RELEASES_URL}.atom`
+const RELEASES_DOWNLOAD_BASE = `${POD_RELEASES_URL}/download`
 const FETCH_TIMEOUT_MS = 5000
 const MAX_MANIFEST_PROBE_CANDIDATES = 6
 
 // Why: GitHub's atom feed lists every release (prerelease or stable) in a
 // single flat list. Each entry has a /releases/tag/<tag> URL we can mine
 // without any channel filtering.
-const TAG_HREF_RE = /href="https:\/\/github\.com\/stablyai\/orca\/releases\/tag\/([^"]+)"/g
+const RELEASE_TAG_HREF_PREFIX = `${POD_RELEASES_URL}/tag/`.replace(/[./]/g, '\\$&')
+const TAG_HREF_RE = new RegExp(`href="${RELEASE_TAG_HREF_PREFIX}([^"]+)"`, 'g')
 
 export function getReleaseDownloadUrl(tag: string): string {
   return `${RELEASES_DOWNLOAD_BASE}/${encodeURIComponent(tag)}`
@@ -153,7 +155,7 @@ async function getReleaseAssetReadiness(tag: string, assetName: string): Promise
   const isGitHubReleaseAsset =
     process.platform === 'win32' &&
     (isRelativeAsset ||
-      /^https:\/\/github\.com\/stablyai\/orca\/releases\/download\//i.test(assetName))
+      assetName.toLowerCase().startsWith(`${RELEASES_DOWNLOAD_BASE}/`.toLowerCase()))
   const assetUrl = isRelativeAsset
     ? getReleaseAssetUrl(tag, assetName.split('/').findLast(Boolean) ?? assetName)
     : assetName

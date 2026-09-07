@@ -30,6 +30,7 @@
     "lint:react-doctor:changed": "node config/scripts/lint-react-doctor-changed.mjs",
     "prepare": "husky",
     "test": "node config/scripts/ensure-native-runtime.mjs --runtime=node && node config/scripts/run-vitest.mjs run --config config/vitest.config.ts",
+    "test:pod": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.pod.config.ts",
     "test:node": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.config.ts",
     "test:node-server": "node config/scripts/run-node-server-tests.mjs",
     "test:skill-sharing:release": "vitest run --config config/vitest.config.ts src/main/skills src/main/runtime/rpc/methods/skills.test.ts src/relay/skill-install-handler.test.ts src/shared/skill-bundle-install-contract.test.ts src/shared/skill-install-contract.test.ts src/shared/skill-install-failure.test.ts src/shared/skill-package-manifest.test.ts",

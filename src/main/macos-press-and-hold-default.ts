@@ -1,3 +1,4 @@
+import { POD_APP_ID } from '../shared/brand'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { runProcessSync, type ProcessResult } from '../shared/child-process/run-process'
@@ -42,7 +43,7 @@ const DEFAULTS_TIMEOUT_MS = 5_000
 /** Why: `defaults` exits 1 for "does not exist"; anything else means the probe itself failed. */
 const DEFAULTS_MISSING_STATUS = 1
 
-const ORCA_BUNDLE_ID = 'com.stablyai.orca'
+const ORCA_BUNDLE_ID = POD_APP_ID
 
 export type PressAndHoldDecision =
   /** Not macOS — nothing is read or written. */
