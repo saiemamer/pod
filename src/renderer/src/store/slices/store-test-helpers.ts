@@ -3,6 +3,7 @@ import type { AppState } from '../types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { createRepoSlice } from './repos'
 import { createSparsePresetsSlice } from './sparse-presets'
+import { createAeDomainsSlice } from './ae-domains' // Pod
 import { createWorktreeSlice } from './worktrees'
 import { createTerminalSlice } from './terminals'
 import { createTabsSlice } from './tabs'
@@ -64,6 +65,7 @@ export function createTestStore() {
   return create<AppState>()((...a) => ({
     ...createRepoSlice(...a),
     ...createSparsePresetsSlice(...a),
+    ...createAeDomainsSlice(...a), // Pod
     ...createWorktreeSlice(...a),
     ...createTerminalSlice(...a),
     ...createTabsSlice(...a),

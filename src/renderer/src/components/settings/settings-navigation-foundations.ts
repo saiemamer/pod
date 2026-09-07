@@ -14,6 +14,7 @@ export const SETTINGS_NAV_GROUPS = [
     titleDefault: 'AI Capabilities'
   },
   { id: 'setup', titleKey: 'auto.components.settings.Settings.9abb9be3bc', titleDefault: 'Set Up' },
+  { id: 'tools', titleKey: 'pod.settings.groups.tools', titleDefault: 'Analytics Tools' }, // Pod
   {
     id: 'workflows',
     titleKey: 'auto.components.settings.Settings.e1578cd4bc',

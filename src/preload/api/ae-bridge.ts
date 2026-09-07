@@ -8,12 +8,14 @@ export const aeApi = {
     remove: (args) => ipcRenderer.invoke('ae:domains:remove', args),
     detectRoles: (args) => ipcRenderer.invoke('ae:domains:detectRoles', args),
     setSecret: (args) => ipcRenderer.invoke('ae:domains:setSecret', args),
-    removeSecret: (args) => ipcRenderer.invoke('ae:domains:removeSecret', args)
+    removeSecret: (args) => ipcRenderer.invoke('ae:domains:removeSecret', args),
+    openMainAgent: (args) => ipcRenderer.invoke('ae:domains:openMainAgent', args)
   },
   initiatives: {
     list: (args) => ipcRenderer.invoke('ae:initiatives:list', args),
     save: (input) => ipcRenderer.invoke('ae:initiatives:save', input),
-    remove: (args) => ipcRenderer.invoke('ae:initiatives:remove', args)
+    remove: (args) => ipcRenderer.invoke('ae:initiatives:remove', args),
+    launch: (args) => ipcRenderer.invoke('ae:initiatives:launch', args)
   },
   onChanged: (callback: () => void): (() => void) => {
     const listener = (): void => callback()

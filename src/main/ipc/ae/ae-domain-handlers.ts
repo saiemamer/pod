@@ -8,6 +8,8 @@ import {
   type AeDomainSaveInput,
   type AeInitiativeSaveInput
 } from '../../ae/domain-service'
+import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-launch'
+import type { TuiAgent } from '../../../shared/tui-agent'
 
 export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:list',
@@ -18,7 +20,9 @@ export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:removeSecret',
   'ae:initiatives:list',
   'ae:initiatives:save',
-  'ae:initiatives:remove'
+  'ae:initiatives:remove',
+  'ae:initiatives:launch',
+  'ae:domains:openMainAgent'
 ] as const
 
 /** Pod: domain and initiative IPC. Also installs the domain service, since this is where store and runtime meet. */
@@ -76,4 +80,29 @@ export function registerAeDomainHandlers(
     service.removeInitiative(args.initiativeId)
     changed()
   })
+  ipcMain.handle(
+    'ae:initiatives:launch',
+    async (
+      _event,
+      args: {
+        domainId: string
+        title: string
+        stakeholderTeam?: string
+        agent?: TuiAgent
+        repoIds?: string[]
+      }
+    ): Promise<AeInitiative> => {
+      const initiative = await launchAeInitiative(service, args)
+      changed()
+      return initiative
+    }
+  )
+  ipcMain.handle(
+    'ae:domains:openMainAgent',
+    async (_event, args: { domainId: string; agent?: TuiAgent }) => {
+      const result = await launchAeDomainAgent(service, args)
+      changed()
+      return result
+    }
+  )
 }
