@@ -3,11 +3,21 @@ import type { AppState } from '../types'
 import type { AeDomainConfig, AeDomainRepo, AeInitiative } from '../../../../shared/ae/domain-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 
+/** Which Pod dialog the project group menu opened; dialogs mount outside the Radix menu, which unmounts on select. */
+export type AeDialogState = {
+  kind: 'domain-settings' | 'new-initiative'
+  groupId: string
+  label: string
+}
+
 /** Pod: domains and initiatives, fetched lazily and refreshed on the main process's `ae:changed`. */
 export type AeDomainsSlice = {
   aeDomains: Record<string, AeDomainConfig>
   aeInitiatives: AeInitiative[]
   aeLoaded: boolean
+  aeDialog: AeDialogState | null
+  openAeDialog: (dialog: AeDialogState) => void
+  closeAeDialog: () => void
   fetchAeDomains: () => Promise<void>
   saveAeDomain: (input: Partial<AeDomainConfig> & { id: string }) => Promise<AeDomainConfig>
   removeAeDomain: (domainId: string) => Promise<void>
@@ -53,6 +63,9 @@ export const createAeDomainsSlice: StateCreator<AppState, [], [], AeDomainsSlice
     aeDomains: {},
     aeInitiatives: [],
     aeLoaded: false,
+    aeDialog: null,
+    openAeDialog: (dialog) => set({ aeDialog: dialog }),
+    closeAeDialog: () => set({ aeDialog: null }),
     fetchAeDomains: async () => {
       const api = aeApi()
       if (api && !subscribed) {
