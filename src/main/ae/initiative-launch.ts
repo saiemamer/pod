@@ -54,7 +54,7 @@ export function renderInitiativeMarkdown(
     'orca orchestration run-create --objective "<goal>"',
     'orca domain initiative-update --initiative "$POD_INITIATIVE_ID" --run <run> --status running',
     'orca orchestration task-create --run <run> --task-title "<part>" --spec "..." [--deps <task>]',
-    'orca worktree create --repo id:<repo> --parent-worktree "$POD_WORKSPACE_KEY" --name <slug>-<part> --agent claude --json',
+    'orca worktree create --repo id:<repo> --parent-worktree "$POD_WORKSPACE_KEY" --name <slug>-<part> --json',
     'orca orchestration worker-start --task <task> --worktree id:<worktree_id> --agent claude',
     'orca orchestration check --wait --types worker_done,escalation',
     '```',
