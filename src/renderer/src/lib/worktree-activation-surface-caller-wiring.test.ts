@@ -19,7 +19,8 @@ const SURFACE_PROVIDING_CALLERS = [
   'src/renderer/src/lib/launch-work-item-direct.ts',
   'src/renderer/src/lib/worktree-creation-structured-session.ts',
   'src/renderer/src/lib/workspace-port-actions.ts',
-  'src/renderer/src/lib/onboarding-folder-agent-launch.ts'
+  'src/renderer/src/lib/onboarding-folder-agent-launch.ts',
+  'src/renderer/src/ae/reveal-folder-workspace.ts' // Pod
 ]
 
 // The activation seam itself: declares the option and forwards it into the tombstone gate.

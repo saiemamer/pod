@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
+import { revealPodFolderWorkspace } from './reveal-folder-workspace'
 
 /** Pod: name an initiative, pick its repos, and open the main agent in the new initiative folder. */
 export function NewInitiativeDialog({
@@ -30,7 +30,6 @@ export function NewInitiativeDialog({
   const fetchAeDomains = useAppStore((s) => s.fetchAeDomains)
   const saveAeDomain = useAppStore((s) => s.saveAeDomain)
   const launchAeInitiative = useAppStore((s) => s.launchAeInitiative)
-  const fetchFolderWorkspaces = useAppStore((s) => s.fetchFolderWorkspaces)
   const repos = useAppStore((s) => s.repos)
   const groupRepos = useMemo(
     () => repos.filter((repo) => repo.projectGroupId === groupId),
@@ -81,13 +80,7 @@ export function NewInitiativeDialog({
         stakeholderTeam: team.trim() || undefined,
         repoIds
       })
-      const workspaceId = initiative.coordinatorWorkspaceKey?.replace(/^folder:/, '')
-      if (workspaceId) {
-        if (!activateAndRevealFolderWorkspace(workspaceId, { providesInitialSurface: true })) {
-          await fetchFolderWorkspaces()
-          activateAndRevealFolderWorkspace(workspaceId, { providesInitialSurface: true })
-        }
-      }
+      await revealPodFolderWorkspace(initiative.coordinatorWorkspaceKey)
       onOpenChange(false)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
