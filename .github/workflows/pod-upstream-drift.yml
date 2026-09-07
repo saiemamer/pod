@@ -1,0 +1,123 @@
+name: Pod upstream drift
+
+# Why: Orca cuts a stable release most days. This rehearses the rebase of Pod's
+# main onto the newest upstream stable tag in a throwaway branch and typechecks
+# it, so a conflict or a broken touchpoint shows up as an issue the same day
+# instead of during a release. It never pushes.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Rehearse against this upstream tag (v1.4.200) or branch (main) instead of the newest stable tag
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find newest upstream stable tag
+        id: upstream
+        shell: bash
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          base="$(node -p "require('./config/pod-brand.cjs').upstreamBaseTag")"
+          newest="${TAG_INPUT:-$(git ls-remote --tags https://github.com/stablyai/orca.git 'refs/tags/v*' \
+            | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+          echo "Pod base: $base, rehearsing against: $newest"
+
+      - name: Rehearse rebase
+        id: rebase
+        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
+        shell: bash
+        env:
+          BASE: ${{ steps.upstream.outputs.base }}
+          NEWEST: ${{ steps.upstream.outputs.newest }}
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/stablyai/orca.git
+          # Why: a branch name lets a manual run rehearse a forward rebase before the next tag exists.
+          case "$NEWEST" in
+            v[0-9]*) target_spec="refs/tags/$NEWEST:refs/tags/$NEWEST"; target_ref="$NEWEST" ;;
+            *) target_spec="refs/heads/$NEWEST:refs/remotes/upstream/$NEWEST"; target_ref="upstream/$NEWEST" ;;
+          esac
+          git fetch --no-tags --filter=blob:none upstream "refs/tags/$BASE:refs/tags/$BASE" "$target_spec"
+          git config user.name pod-drift
+          git config user.email pod-drift@users.noreply.github.com
+          # Why: README.md is Pod's front page; .gitattributes routes it to this driver, which
+          # keeps the version from the commit being replayed (Pod's) during a rebase.
+          git config merge.pod-keep.driver 'cp %B %A'
+          git checkout -B drift main
+          if git rebase --onto "$target_ref" "$BASE"; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            git diff --name-only --diff-filter=U | tee conflicts.txt
+            git rebase --abort
+          fi
+
+      - name: Setup pnpm
+        if: steps.rebase.outputs.conflict == 'false'
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        if: steps.rebase.outputs.conflict == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install and typecheck the rebased tree
+        id: verify
+        if: steps.rebase.outputs.conflict == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm tc
+          pnpm run test:pod src/shared/brand src/shared/release-channel src/main/updater
+
+      - name: Open or update the drift issue
+        if: always() && steps.upstream.outputs.newest != steps.upstream.outputs.base && (steps.rebase.outputs.conflict == 'true' || steps.verify.outcome == 'failure')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEWEST: ${{ steps.upstream.outputs.newest }}
+          CONFLICT: ${{ steps.rebase.outputs.conflict }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="Upstream drift: rebase onto $NEWEST needs attention"
+          if [[ "$CONFLICT" == "true" ]]; then
+            body="$(printf 'Rebasing main onto %s hit conflicts in:\n\n%s\n\nRun: %s' "$NEWEST" "$(sed 's/^/- /' conflicts.txt)" "$RUN_URL")"
+          else
+            body="$(printf 'Rebase onto %s applied cleanly but typecheck or tests failed.\n\nRun: %s' "$NEWEST" "$RUN_URL")"
+          fi
+          # Why REST: gh's GraphQL createIssue is refused for GITHUB_TOKEN on this repo.
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=upstream-drift&per_page=50" \
+            --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
+          if [[ -n "$existing" ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/$existing/comments" -f body="$body" --silent
+            echo "Commented on #$existing"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -f body="$body" -f 'labels[]=upstream-drift' --jq '"Opened #" + (.number|tostring)'
+          fi
