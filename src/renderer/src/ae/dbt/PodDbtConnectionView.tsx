@@ -41,8 +41,8 @@ export function PodDbtConnectionView({
       const result = await window.api.ae.dbt.parse({ path: filePath })
       setParseState('done')
       setParseMessage(
-        translate('pod.dbt.connection.parsed', '{{count}} nodes in {{seconds}}s', {
-          count: String(result.manifest.nodeCount ?? 0),
+        translate('pod.dbt.connection.parsed', '{{nodes}} nodes in {{seconds}}s', {
+          nodes: String(result.manifest.nodeCount ?? 0),
           seconds: String(Math.round(result.durationMs / 1000))
         })
       )
@@ -97,9 +97,9 @@ export function PodDbtConnectionView({
         {manifest.exists
           ? translate(
               'pod.dbt.connection.manifestState',
-              '{{count}} nodes, dbt {{version}}, generated {{at}}',
+              '{{nodes}} nodes, dbt {{version}}, generated {{at}}',
               {
-                count: String(manifest.nodeCount ?? 0),
+                nodes: String(manifest.nodeCount ?? 0),
                 version: manifest.dbtVersion ?? '?',
                 at: manifest.generatedAt ?? '?'
               }
