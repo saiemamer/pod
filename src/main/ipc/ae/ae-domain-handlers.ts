@@ -10,7 +10,10 @@ import {
 } from '../../ae/domain-service'
 import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-launch'
 import { installAeDbtService } from '../../ae/dbt/dbt-service'
-import { registerAeDbtHandlers } from './ae-dbt-handlers'
+import { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
+import { AE_DBT_LSP_EVENT_CHANNEL, registerAeDbtHandlers } from './ae-dbt-handlers'
+import { getAppEnvironment } from '../../../shared/app-environment'
+import { getMainHttpClient } from '../../network/http-client'
 import type { TuiAgent } from '../../../shared/tui-agent'
 
 export const AE_DOMAIN_IPC_CHANNELS = [
@@ -34,7 +37,20 @@ export function registerAeDomainHandlers(
   runtime: OrcaRuntimeService
 ): void {
   const service = installAeDomainService(store, runtime)
-  registerAeDbtHandlers(installAeDbtService({ store, runtime, domains: service }))
+  const dbt = installAeDbtService({ store, runtime, domains: service })
+  const lsp = new DbtLspService({
+    dbt,
+    userData: () => getAppEnvironment().getPath('userData'),
+    fetch: (url) => getMainHttpClient().fetch(url),
+    emit: (event) => {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(AE_DBT_LSP_EVENT_CHANNEL, event)
+      }
+    }
+  })
+  // Why: a language server left behind keeps a dbt project's files open after Pod quits.
+  getAppEnvironment().onWillQuit(() => void lsp.stopAll())
+  registerAeDbtHandlers(dbt, lsp, mainWindow)
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }

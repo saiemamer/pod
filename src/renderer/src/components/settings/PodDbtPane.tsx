@@ -32,7 +32,8 @@ export function PodDbtPane({ settings, updateSettings }: PodDbtPaneProps): React
     distribution,
     parseOnLoad,
     lineageDepth,
-    lineageMaxNodes
+    lineageMaxNodes,
+    lspEnabled
   ] = getPodDbtSearchEntries()
   const save = (patch: Partial<AeDbtSettings>): void => {
     void updateSettings({ aeDbt: normalizeAeDbtSettings({ ...dbt, ...patch }) })
@@ -144,6 +145,14 @@ export function PodDbtPane({ settings, updateSettings }: PodDbtPaneProps): React
           description={parseOnLoad.description}
           checked={dbt.parseOnLoad}
           onChange={() => save({ parseOnLoad: !dbt.parseOnLoad })}
+        />
+      </SearchableSetting>
+      <SearchableSetting {...lspEnabled}>
+        <SettingsSwitchRow
+          label={lspEnabled.title}
+          description={lspEnabled.description}
+          checked={dbt.lspEnabled}
+          onChange={() => save({ lspEnabled: !dbt.lspEnabled })}
         />
       </SearchableSetting>
       <SearchableSetting {...lineageDepth}>

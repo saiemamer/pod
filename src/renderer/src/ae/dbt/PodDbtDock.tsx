@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Play, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { translate } from '@/i18n/i18n'
@@ -7,17 +8,22 @@ import { useAppStore } from '@/store'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { detectLanguage } from '@/lib/language-detect'
 import { JINJA_SQL_LANGUAGE_ID } from '@/lib/monaco-languages/register-jinja-sql'
-import type { PodDbtDockView, PodDbtResultState } from '@/store/slices/ae-dbt-results'
+import {
+  clampPodDbtDockHeight,
+  POD_DBT_DOCK_HEIGHT_DEFAULT,
+  type PodDbtDockView,
+  type PodDbtResultState
+} from '@/store/slices/ae-dbt-results'
 import { PodDbtConnectionView } from './PodDbtConnectionView'
 import { PodDbtResultsGrid } from './PodDbtResultsGrid'
+import { ensurePodDbtLanguageClient } from './dbt-lsp-client'
 import { startPodDbtRun } from './pod-dbt-run'
+import { podDbtErrorMessage } from './pod-dbt-run-target'
 import { usePodDbtShortcuts } from './use-pod-dbt-shortcuts'
 
 type PodDbtDockProps = {
   activeFile: { id: string; filePath: string; language: string }
 }
-
-const DOCK_HEIGHT_PX = 288
 
 function statusText(state: PodDbtResultState): string {
   if (state.status === 'running') {
@@ -63,7 +69,10 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
   const setAeDbtView = useAppStore((store) => store.setAeDbtView)
   const toggleAeDbtCollapsed = useAppStore((store) => store.toggleAeDbtCollapsed)
   const closeAeDbtResults = useAppStore((store) => store.closeAeDbtResults)
+  const dockHeight = useAppStore((store) => store.aeDbtDockHeight ?? POD_DBT_DOCK_HEIGHT_DEFAULT)
+  const setAeDbtDockHeight = useAppStore((store) => store.setAeDbtDockHeight)
   const runShortcut = useShortcutLabel('dbt.runSelection')
+  usePodDbtProjectWarmup(isJinjaSql ? activeFile.filePath : null)
   // Why a pane ref: the shortcut fires only when focus is in this pane's editor, and the
   // dock is not mounted until the first run, so the ref is taken from a zero-size anchor.
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -77,6 +86,43 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
   }
   if (!state) {
     return <div ref={anchorRef} hidden />
+  }
+  const exportCsv = async (columns: string[], rows: unknown[][]): Promise<void> => {
+    try {
+      const result = await window.api.ae.dbt.exportCsv({
+        path: activeFile.filePath,
+        label: state.label,
+        columns,
+        rows
+      })
+      toast.success(
+        translate('pod.dbt.grid.exported', 'Wrote {{rows}} rows to {{file}}', {
+          rows: String(result.rowCount),
+          file: result.file
+        })
+      )
+    } catch (error) {
+      toast.error(podDbtErrorMessage(error))
+    }
+  }
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = dockHeight
+    const handle = event.currentTarget
+    handle.setPointerCapture(event.pointerId)
+    const onMove = (move: PointerEvent): void => {
+      // Why upward-positive: the handle sits on the dock's top edge, so dragging up grows it.
+      setAeDbtDockHeight(
+        clampPodDbtDockHeight(startHeight + (startY - move.clientY), window.innerHeight)
+      )
+    }
+    const onUp = (): void => {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onUp)
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onUp)
   }
   const body = (): React.ReactNode => {
     if (state.view === 'connection') {
@@ -112,7 +158,13 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
       )
     }
     if (state.show) {
-      return <PodDbtResultsGrid columns={state.show.columns} rows={state.show.rows} />
+      return (
+        <PodDbtResultsGrid
+          columns={state.show.columns}
+          rows={state.show.rows}
+          onExport={exportCsv}
+        />
+      )
     }
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -128,9 +180,19 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     <div
       ref={anchorRef}
       data-testid="pod-dbt-dock"
-      className="flex shrink-0 flex-col border-t border-border/60 bg-background"
-      style={{ height: state.collapsed ? undefined : DOCK_HEIGHT_PX }}
+      className="relative flex shrink-0 flex-col border-t border-border/60 bg-background"
+      style={{ height: state.collapsed ? undefined : dockHeight }}
     >
+      {!state.collapsed && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={translate('pod.dbt.dock.resize', 'Resize results')}
+          data-testid="pod-dbt-dock-handle"
+          className="absolute -top-1 left-0 z-20 h-2 w-full cursor-row-resize hover:bg-primary/30"
+          onPointerDown={startDrag}
+        />
+      )}
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border/60 px-2">
         <Tabs
           value={state.view}
@@ -197,4 +259,18 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
       )}
     </div>
   )
+}
+
+/**
+ * Once per Jinja SQL file: start the language client and, when parseOnLoad is on, bring
+ * the manifest and catalog up to date. Main dedupes the catalog run per project.
+ */
+function usePodDbtProjectWarmup(filePath: string | null): void {
+  useEffect(() => {
+    if (!filePath || typeof window === 'undefined' || !window.api?.ae?.dbt?.lsp) {
+      return
+    }
+    void ensurePodDbtLanguageClient()
+    void window.api.ae.dbt.ensureCatalog({ path: filePath }).catch(() => undefined)
+  }, [filePath])
 }

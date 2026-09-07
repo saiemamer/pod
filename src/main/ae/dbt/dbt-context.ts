@@ -6,14 +6,20 @@ import type { AeDomainService } from '../domain-service'
 import {
   normalizeAeDbtSettings,
   normalizeAeToolCmdOverrides,
-  type AeDbtSettings
+  type AeDbtSettings,
+  type AeToolCmdOverrides
 } from '../../../shared/ae/dbt-settings-types'
-import type { DbtContextSummary, DbtPathRequest } from '../../../shared/ae/dbt-types'
+import type {
+  DbtContextSummary,
+  DbtManifestSummary,
+  DbtPathRequest
+} from '../../../shared/ae/dbt-types'
 import { discoverDbtProject, type DbtProjectInfo } from './dbt-project-discovery'
 import { findDbtProfilesDir, type DbtProfilesLocation } from './dbt-profiles-search'
 import { loadDbtEnvFiles } from './dbt-env-file'
 import { resolveDbtBinary, type DbtBinary } from './dbt-runner'
 import { dbtManifestPath, loadDbtManifest } from './dbt-manifest'
+import { summarizeDbtCatalog } from './dbt-catalog-refresh'
 
 /**
  * Pod: everything a dbt command needs, resolved from one path. Settings, the domain
@@ -32,6 +38,7 @@ export type DbtContext = {
   /** The child environment. Stays in the main process. */
   env: NodeJS.ProcessEnv
   settings: AeDbtSettings
+  toolOverrides: AeToolCmdOverrides
 }
 
 export type DbtContextDeps = {
@@ -100,14 +107,27 @@ export async function resolveDbtContext(
     }),
     envFiles: files.files,
     env,
-    settings
+    settings,
+    toolOverrides: overrides
   }
+}
+
+export function summarizeDbtManifest(project: DbtProjectInfo): DbtManifestSummary {
+  const file = dbtManifestPath(project)
+  const manifest = loadDbtManifest(file)
+  return manifest
+    ? {
+        file,
+        exists: true,
+        generatedAt: manifest.generatedAt,
+        dbtVersion: manifest.dbtVersion,
+        nodeCount: manifest.nodes.size
+      }
+    : { file, exists: false }
 }
 
 /** What leaves the main process: no env values, plus what the manifest on disk says. */
 export function summarizeDbtContext(context: DbtContext): DbtContextSummary {
-  const file = dbtManifestPath(context.project)
-  const manifest = loadDbtManifest(file)
   return {
     project: { ...context.project },
     repoRoot: context.repoRoot,
@@ -119,15 +139,10 @@ export function summarizeDbtContext(context: DbtContext): DbtContextSummary {
     envFiles: context.envFiles,
     distribution: context.settings.distribution,
     showLimit: context.settings.showLimit,
-    manifest: manifest
-      ? {
-          file,
-          exists: true,
-          generatedAt: manifest.generatedAt,
-          dbtVersion: manifest.dbtVersion,
-          nodeCount: manifest.nodes.size
-        }
-      : { file, exists: false }
+    parseOnLoad: context.settings.parseOnLoad,
+    lspEnabled: context.settings.lspEnabled,
+    catalog: summarizeDbtCatalog(context.project),
+    manifest: summarizeDbtManifest(context.project)
   }
 }
 

@@ -13,7 +13,8 @@ type PodToolsPaneProps = {
 const TOOLS: { key: keyof AeToolCmdOverrides; placeholder: string }[] = [
   { key: 'dbt', placeholder: 'dbt' },
   { key: 'omni', placeholder: 'omni' },
-  { key: 'python', placeholder: 'python3' }
+  { key: 'python', placeholder: 'python3' },
+  { key: 'dbtLsp', placeholder: 'dbt-language-server' }
 ]
 
 /** Pod: where the analytics tools live. Empty means the agent's PATH decides. */
