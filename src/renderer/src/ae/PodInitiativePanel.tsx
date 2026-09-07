@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import { folderWorkspaceKey, parseWorkspaceKey } from '../../../shared/workspace-scope'
@@ -19,6 +18,7 @@ import {
   type AeInitiativeStatus
 } from '../../../shared/ae/domain-types'
 import { taskLabel, useInitiativeRunTasks } from './use-initiative-run-tasks'
+import { revealPodFolderWorkspace } from './reveal-folder-workspace'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -199,30 +199,23 @@ function DomainView({ domain }: { domain: AeDomainConfig }): React.JSX.Element {
             </p>
           ) : (
             <ul className="space-y-1">
-              {mine.map((initiative) => {
-                const workspaceId = initiative.coordinatorWorkspaceKey?.replace(/^folder:/, '')
-                return (
-                  <li key={initiative.id}>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-md border border-border px-2 py-1 text-left text-xs hover:bg-muted/50"
-                      disabled={!workspaceId}
-                      onClick={() => {
-                        if (workspaceId) {
-                          activateAndRevealFolderWorkspace(workspaceId, {
-                            providesInitialSurface: true
-                          })
-                        }
-                      }}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{initiative.title}</span>
-                      <span className="font-mono text-[11px] text-muted-foreground">
-                        {initiative.status}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
+              {mine.map((initiative) => (
+                <li key={initiative.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md border border-border px-2 py-1 text-left text-xs hover:bg-muted/50"
+                    disabled={!initiative.coordinatorWorkspaceKey}
+                    onClick={() =>
+                      void revealPodFolderWorkspace(initiative.coordinatorWorkspaceKey)
+                    }
+                  >
+                    <span className="min-w-0 flex-1 truncate">{initiative.title}</span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {initiative.status}
+                    </span>
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
         </div>
