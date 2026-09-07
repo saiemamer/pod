@@ -21,8 +21,8 @@ import {
 // Why cwd: vitest runs from the repo root, and this file compiles to CommonJS, where
 // import.meta is not allowed.
 const repoRoot = process.cwd()
-const require = createRequire(resolve(repoRoot, 'package.json'))
-const podBrand = require(resolve(repoRoot, 'config/pod-brand.cjs')) as {
+const requireFromRepo = createRequire(resolve(repoRoot, 'package.json'))
+const podBrand = requireFromRepo(resolve(repoRoot, 'config/pod-brand.cjs')) as {
   productName: string
   appId: string
   releaseOwner: string
