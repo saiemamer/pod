@@ -208,6 +208,24 @@ log('lit columns:', litText.join(', '))
 await sleep(400)
 await page.screenshot({ path: `${OUT}/lineage-2-column.png` })
 
+// 4b. the tab underline is one element that slides: its offset changes between tabs
+const indicator = dock.locator('[data-testid="pod-dbt-tab-indicator"]')
+const indicatorX = async () => (await indicator.boundingBox())?.x ?? -1
+const atLineage = await indicatorX()
+await dock.getByRole('tab', { name: 'Connection' }).click()
+await sleep(400)
+const atConnection = await indicatorX()
+await dock.getByRole('tab', { name: 'Lineage' }).click()
+await sleep(400)
+log(
+  'tab indicator x: lineage',
+  atLineage,
+  '-> connection',
+  atConnection,
+  '-> lineage',
+  await indicatorX()
+)
+
 // 5b. the same canvas in dark mode: swap the theme classes the app toggles (the live
 // window retheme runs from the renderer's settings store, not from the settings file)
 await page.evaluate(() => {
