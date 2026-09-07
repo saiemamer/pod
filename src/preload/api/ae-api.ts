@@ -12,6 +12,14 @@ import type {
   DbtLspStatus
 } from '../../shared/ae/dbt-lsp-types'
 import type {
+  DbtCatalogTree,
+  DbtColumnLineageRequest,
+  DbtColumnLineageResult,
+  DbtGraphRequest,
+  DbtGraphResult,
+  DbtLineageEngineStatus
+} from '../../shared/ae/dbt-graph-types'
+import type {
   DbtCatalogRequest,
   DbtCatalogResult,
   DbtCompileRequest,
@@ -74,6 +82,11 @@ export type AeApi = {
     ensureCatalog: (args: DbtCatalogRequest) => Promise<DbtCatalogResult>
     resolveRef: (args: DbtResolveRefRequest) => Promise<DbtResolveRefResult>
     exportCsv: (args: DbtExportCsvRequest) => Promise<DbtExportCsvResult>
+    /** Lineage graph around a model, from manifest and catalog on disk. */
+    graph: (args: DbtGraphRequest) => Promise<DbtGraphResult>
+    columnLineage: (args: DbtColumnLineageRequest) => Promise<DbtColumnLineageResult>
+    catalogTree: (args: DbtPathRequest) => Promise<DbtCatalogTree>
+    lineageEngine: (args: DbtPathRequest) => Promise<DbtLineageEngineStatus>
     /** dbt-language-server, one per project; documents are keyed by absolute path. */
     lsp: {
       status: (args: DbtLspDocumentRequest) => Promise<DbtLspStatus>

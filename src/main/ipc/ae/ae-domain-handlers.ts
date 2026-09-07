@@ -11,6 +11,7 @@ import {
 import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-launch'
 import { installAeDbtService } from '../../ae/dbt/dbt-service'
 import { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
+import { installDbtLineageServices } from '../../ae/dbt/dbt-lineage-ops'
 import { AE_DBT_LSP_EVENT_CHANNEL, registerAeDbtHandlers } from './ae-dbt-handlers'
 import { getAppEnvironment } from '../../../shared/app-environment'
 import { getMainHttpClient } from '../../network/http-client'
@@ -50,7 +51,7 @@ export function registerAeDomainHandlers(
   })
   // Why: a language server left behind keeps a dbt project's files open after Pod quits.
   getAppEnvironment().onWillQuit(() => void lsp.stopAll())
-  registerAeDbtHandlers(dbt, lsp, mainWindow)
+  registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), mainWindow)
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }

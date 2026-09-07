@@ -155,6 +155,7 @@
     "repro:live-remote-realistic-freeze": "node config/scripts/live-remote-realistic-freeze-repro.mjs"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.1",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@floating-ui/dom": "1.7.6",
@@ -162,6 +163,7 @@
     "@parcel/watcher": "^2.5.6",
     "@xterm/addon-serialize": "0.15.0-beta.300",
     "@xterm/headless": "6.1.0-beta.302",
+    "@xyflow/react": "12.11.6",
     "agent-browser": "~0.27.0",
     "electron-updater": "^6.8.9",
     "i18next": "^26.3.1",

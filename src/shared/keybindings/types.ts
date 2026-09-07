@@ -88,7 +88,8 @@ export type KeybindingActionId =
   | 'editor.save'
   | 'editor.markdownPreview'
   | 'dbt.runSelection'
-  | 'dbt.compileSelection' // Pod
+  | 'dbt.compileSelection'
+  | 'dbt.showLineage' // Pod
   | 'editor.toggleWordWrap'
   | 'editor.copyContext'
   | 'editor.previousChange'

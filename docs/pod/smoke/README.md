@@ -24,7 +24,7 @@ For the orchestration half (run-create, task-create, two-step dispatch, `check -
 S=~/Projects/pod-smoke
 mkdir -p $S/bin $S/dbt-demo/models/marts && cp docs/pod/smoke/dbt-stub.sh $S/bin/dbt && chmod +x $S/bin/dbt
 cd $S/dbt-demo && git init -q && printf 'name: demo\nprofile: demo\n' > dbt_project.yml
-printf "{{ config(materialized='table') }}\n\nwith source as (\n    select * from {{ ref('stg_orders') }}\n),\n\nfinal as (\n    select\n        order_id,\n        status\n    from source\n    where status != 'cancelled'\n)\n\nselect * from final\n" > models/marts/orders.sql
+printf "{{ config(materialized='table') }}\n\nwith source as (\n    select * from {{ ref('stg_orders') }}\n),\n\nfinal as (\n    select\n        order_id,\n        status,\n        amount\n    from source\n    where status != 'cancelled'\n)\n\nselect * from final\n" > models/marts/orders.sql
 printf "select 1 as order_id, 'paid' as status\n" > models/stg_orders.sql && git add -A && git commit -qm init
 
 cd ~/Projects/pod
@@ -34,6 +34,18 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-dbt-smoke.mjs   # against pnpm dev on 
 The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its own data directory), imports the group if missing, and activates the `master` row under `dbt-demo`. Ten screenshots: editor, model rows, inline rows, compiled SQL, connection, completion popup, the opened `stg_orders.sql`, grid tools, export toast, resized dock. Re-runs are fine: the dock height persists, so the script restores it, and the previous rows stay visible while a rerun is in flight, so waits key on the status text.
 
 Before pushing, run the full check with a bigger heap: `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web` (about four minutes cold, twenty seconds once `config/tsconfig.tc.web.tsbuildinfo` exists). Node's default 2 GB heap dies on this 8 GB Mac even with the cache warm. `pnpm typecheck:pod` checks only the changed files and their imports in about half a minute, for quick loops.
+
+## Lineage canvas and Database explorer (Phase 3)
+
+`ui-lineage-smoke.mjs` adds a source and a downstream model to the smoke repo (`models/sources.yml`, `models/marts/order_summary.sql`, and a `stg_orders.sql` that reads the source), opens `orders.sql`, presses Cmd+Alt+L for the Lineage tab, clicks the `status` column and reads which columns lit up, opens the upstream/downstream list, collapses and restores one side, then switches the right sidebar to the Database tab, expands `orders`, filters on `status`, and uses "Show lineage" on `order_summary`. Five screenshots. The stand-in `dbt` now writes a four-node manifest (source, `stg_orders`, `orders`, `order_summary`) and a catalog with columns, so copy it again if yours predates Phase 3.
+
+```sh
+cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
+python3 -m venv /tmp/sqlglot-venv && /tmp/sqlglot-venv/bin/pip install sqlglot   # optional
+POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/smoke/ui-lineage-smoke.mjs
+```
+
+`POD_SMOKE_PYTHON` is written into the dev instance's `toolCmdOverrides.python`; leave it out and column lineage falls back to name matching, which the toolbar's engine label shows. The same venv runs the gated unit test: `POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python pnpm test:pod src/main/ae/dbt/dbt-column-lineage.test.ts`.
 
 ## Domain setup on a real machine
 

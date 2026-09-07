@@ -24,18 +24,23 @@ export function usePodDbtShortcuts(
         return
       }
       const platform = getShortcutPlatform()
-      const kind = keybindingMatchesAction('dbt.runSelection', event, platform, keybindings)
-        ? 'show'
-        : keybindingMatchesAction('dbt.compileSelection', event, platform, keybindings)
-          ? 'compile'
-          : null
+      const action = (
+        ['dbt.runSelection', 'dbt.compileSelection', 'dbt.showLineage'] as const
+      ).find((id) => keybindingMatchesAction(id, event, platform, keybindings))
       // Why the focus check: a terminal or another pane keeps its own Enter.
-      if (!kind || !podDbtEditorHasFocus(paneRef.current)) {
+      if (!action || !podDbtEditorHasFocus(paneRef.current)) {
         return
       }
       event.preventDefault()
       event.stopPropagation()
-      void startPodDbtRun({ id: fileId, filePath }, kind)
+      if (action === 'dbt.showLineage') {
+        useAppStore.getState().openAeDbtView(fileId, filePath, 'lineage')
+        return
+      }
+      void startPodDbtRun(
+        { id: fileId, filePath },
+        action === 'dbt.runSelection' ? 'show' : 'compile'
+      )
     }
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })

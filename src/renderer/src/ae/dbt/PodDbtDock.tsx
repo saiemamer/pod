@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Play, X } from 'lucide-react'
+import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -21,13 +22,18 @@ import { startPodDbtRun } from './pod-dbt-run'
 import { podDbtErrorMessage } from './pod-dbt-run-target'
 import { usePodDbtShortcuts } from './use-pod-dbt-shortcuts'
 
+// Why lazy: React Flow and dagre only load for editors that open the Lineage tab.
+const PodDbtLineageView = lazy(() => import('@/ae/lineage/PodDbtLineageView'))
+
 type PodDbtDockProps = {
   activeFile: { id: string; filePath: string; language: string }
 }
 
 function statusText(state: PodDbtResultState): string {
   if (state.status === 'running') {
-    return translate('pod.dbt.dock.running', 'Running {{label}}…', { label: state.label })
+    return translate('pod.dbt.dock.running', 'Running {{label}}…', {
+      label: state.label
+    })
   }
   if (state.status === 'error') {
     return state.error ?? translate('pod.dbt.dock.failed', 'dbt failed')
@@ -125,6 +131,19 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     handle.addEventListener('pointerup', onUp)
   }
   const body = (): React.ReactNode => {
+    if (state.view === 'lineage') {
+      return (
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
+          <PodDbtLineageView fileId={activeFile.id} filePath={activeFile.filePath} />
+        </Suspense>
+      )
+    }
     if (state.view === 'connection') {
       return (
         <PodDbtConnectionView
@@ -204,6 +223,9 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
             </TabsTrigger>
             <TabsTrigger value="compiled" className="h-5 px-2 text-[11px]">
               {translate('pod.dbt.dock.compiled.tab', 'Compiled')}
+            </TabsTrigger>
+            <TabsTrigger value="lineage" className="h-5 px-2 text-[11px]">
+              {translate('pod.dbt.dock.lineage', 'Lineage')}
             </TabsTrigger>
             <TabsTrigger value="connection" className="h-5 px-2 text-[11px]">
               {translate('pod.dbt.dock.connection', 'Connection')}

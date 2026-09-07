@@ -42,7 +42,9 @@ export async function ensureDbtCatalog(
     manifest: service.manifestSummary(context),
     catalog: summarizeDbtCatalog(context.project)
   })
-  if (!request.force && (!context.settings.parseOnLoad || ledger.has(projectDir))) {
+  // Why check the file: a target/ wiped after this session's refresh must be rebuilt.
+  const done = ledger.has(projectDir) && service.manifestSummary(context).exists
+  if (!request.force && (!context.settings.parseOnLoad || done)) {
     return summarize([], 0, 'skipped')
   }
   const inFlight = ledger.inFlight(projectDir)

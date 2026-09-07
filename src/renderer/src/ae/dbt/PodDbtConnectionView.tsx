@@ -4,6 +4,7 @@ import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { DbtContextSummary } from '../../../../shared/ae/dbt-types'
 import type { DbtLspStatus } from '../../../../shared/ae/dbt-lsp-types'
+import type { DbtLineageEngineStatus } from '../../../../shared/ae/dbt-graph-types'
 import { podDbtErrorMessage } from './pod-dbt-run-target'
 
 type PodDbtConnectionViewProps = {
@@ -35,11 +36,20 @@ export function PodDbtConnectionView({
   const [parseMessage, setParseMessage] = useState('')
   const [catalogState, setCatalogState] = useState<'idle' | 'running' | 'error'>('idle')
   const [catalogMessage, setCatalogMessage] = useState('')
+  const [engine, setEngine] = useState<DbtLineageEngineStatus | null>(null)
   useEffect(() => {
     if (!project) {
       void loadAeDbtProject(fileId, filePath)
     }
   }, [fileId, filePath, loadAeDbtProject, project])
+  useEffect(() => {
+    if (project) {
+      void window.api.ae.dbt
+        .lineageEngine({ path: filePath })
+        .then(setEngine)
+        .catch(() => setEngine(null))
+    }
+  }, [filePath, project])
   useEffect(() => {
     // Why: the dock may open before any status event arrived; ask once.
     if (project && !lsp) {
@@ -69,7 +79,10 @@ export function PodDbtConnectionView({
     setCatalogState('running')
     setCatalogMessage('')
     try {
-      const result = await window.api.ae.dbt.ensureCatalog({ path: filePath, force: true })
+      const result = await window.api.ae.dbt.ensureCatalog({
+        path: filePath,
+        force: true
+      })
       setCatalogState('idle')
       setCatalogMessage(
         translate('pod.dbt.connection.catalogRefreshed', '{{commands}} in {{seconds}}s', {
@@ -153,6 +166,9 @@ export function PodDbtConnectionView({
       <Row label={translate('pod.dbt.connection.lsp', 'Language server')}>
         <span data-testid="pod-dbt-lsp-status">{lspText(lsp, project.lspEnabled)}</span>
       </Row>
+      <Row label={translate('pod.dbt.connection.lineageEngine', 'Column lineage')}>
+        <span data-testid="pod-dbt-lineage-engine">{engineText(engine)}</span>
+      </Row>
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -198,6 +214,16 @@ export function PodDbtConnectionView({
       </div>
     </div>
   )
+}
+
+function engineText(status: DbtLineageEngineStatus | null): string {
+  if (!status) {
+    return translate('pod.dbt.connection.engineUnknown', 'checking…')
+  }
+  if (status.engine === 'sqlglot') {
+    return `sqlglot ${status.sqlglotVersion ?? ''} · ${status.python ?? ''} (${status.pythonSource ?? '?'})`
+  }
+  return `${translate('pod.dbt.connection.engineNameMatch', 'name matching')}${status.note ? ` · ${status.note}` : ''}`
 }
 
 function lspText(status: DbtLspStatus | undefined, enabled: boolean): string {

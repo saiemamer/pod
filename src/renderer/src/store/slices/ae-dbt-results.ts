@@ -7,6 +7,7 @@ import type {
 } from '../../../../shared/ae/dbt-types'
 import type { DbtLspStatus } from '../../../../shared/ae/dbt-lsp-types'
 import {
+  dbtModelNameFromPath,
   podDbtErrorMessage,
   podDbtRunLabel,
   type PodDbtRunTarget
@@ -17,7 +18,7 @@ import {
  * dock under that editor shows them. Kept out of OpenFile: every editor mode there is
  * special-cased in dozens of places, and this state only matters to the dock.
  */
-export type PodDbtDockView = 'table' | 'compiled' | 'connection'
+export type PodDbtDockView = 'table' | 'compiled' | 'connection' | 'lineage'
 
 export type PodDbtResultState = {
   fileId: string
@@ -47,6 +48,8 @@ export type AeDbtResultsSlice = {
   aeDbtResults: Record<string, PodDbtResultState>
   runAeDbt: (args: PodDbtRunArgs) => Promise<void>
   setAeDbtView: (fileId: string, view: PodDbtDockView) => void
+  /** Opens the dock on a view without running anything (Lineage, Connection). */
+  openAeDbtView: (fileId: string, filePath: string, view: PodDbtDockView) => void
   toggleAeDbtCollapsed: (fileId: string) => void
   closeAeDbtResults: (fileId: string) => void
   loadAeDbtProject: (fileId: string, filePath: string) => Promise<void>
@@ -94,7 +97,12 @@ export const createAeDbtResultsSlice: StateCreator<AppState, [], [], AeDbtResult
     if (!current) {
       return
     }
-    set({ aeDbtResults: { ...get().aeDbtResults, [fileId]: { ...current, ...update } } })
+    set({
+      aeDbtResults: {
+        ...get().aeDbtResults,
+        [fileId]: { ...current, ...update }
+      }
+    })
   }
   return {
     aeDbtResults: {},
@@ -145,6 +153,29 @@ export const createAeDbtResultsSlice: StateCreator<AppState, [], [], AeDbtResult
       }
     },
     setAeDbtView: (fileId, view) => patch(fileId, { view }),
+    openAeDbtView: (fileId, filePath, view) => {
+      const current = get().aeDbtResults[fileId]
+      if (current) {
+        patch(fileId, { view, collapsed: false })
+        return
+      }
+      set({
+        aeDbtResults: {
+          ...get().aeDbtResults,
+          [fileId]: {
+            fileId,
+            filePath,
+            runId: 0,
+            status: 'done',
+            kind: 'show',
+            label: podDbtRunLabel({ model: dbtModelNameFromPath(filePath) }),
+            startedAt: Date.now(),
+            view,
+            collapsed: false
+          }
+        }
+      })
+    },
     toggleAeDbtCollapsed: (fileId) => {
       const current = get().aeDbtResults[fileId]
       if (current) {

@@ -18,5 +18,13 @@ export const KEYBINDING_DEFINITION_AE: readonly KeybindingDefinition[] = [
     scope: 'editor',
     searchKeywords: ['dbt', 'sql', 'compile', 'jinja', 'pod'],
     defaultBindings: platformBindings(['Mod+Shift+Enter'])
+  },
+  {
+    id: 'dbt.showLineage',
+    title: 'dbt: Show Lineage',
+    group: 'Editors',
+    scope: 'editor',
+    searchKeywords: ['dbt', 'lineage', 'graph', 'columns', 'upstream', 'downstream', 'pod'],
+    defaultBindings: platformBindings(['Mod+Alt+L'])
   }
 ]
