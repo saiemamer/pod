@@ -17,11 +17,11 @@ Phase 0 of 4: bootstrap, rebrand, release pipeline. The full plan is in [`docs/p
 ## Install (macOS)
 
 ```sh
-brew install --cask saiemamer/pod/pod   # Pod.app plus the orca CLI
-brew upgrade --cask pod                 # later, to update
+brew install --cask --no-quarantine saiemamer/pod/pod   # Pod.app plus the orca CLI
+brew upgrade --cask --no-quarantine pod                 # later, to update
 ```
 
-Builds are not yet signed: on first launch, right-click Pod in Applications and choose Open. Pod shows new releases inside the app, but macOS only lets a signed app replace itself, so `brew upgrade --cask pod` is the update path until Pod ships with a Developer ID. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest).
+Builds are not yet signed. `--no-quarantine` keeps macOS from refusing to open Pod ("the developer cannot be verified"); if you installed without it, right-click Pod in Applications and choose Open once. Pod shows new releases inside the app, but macOS only lets a signed app replace itself, so `brew upgrade` is the update path until Pod ships with a Developer ID. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest).
 
 Pod and stock Orca both register a CLI named `orca` and share `~/.orca` and `~/Library/Application Support/orca`. Install one or the other on a machine, not both.
 
