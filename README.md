@@ -16,7 +16,7 @@ Phase 0 of 4: bootstrap, rebrand, release pipeline. The full plan is in [`docs/p
 
 ## Install (macOS)
 
-Download the DMG from the [latest release](https://github.com/saiemamer/pod/releases/latest) and drag Pod to Applications. Builds are not yet signed: on first launch, right-click the app and choose Open. Pod updates itself from the same releases page afterwards.
+Download the DMG from the [latest release](https://github.com/saiemamer/pod/releases/latest) and drag Pod to Applications. Builds are not yet signed: on first launch, right-click the app and choose Open. Pod checks the same releases page for updates and shows them in the app, but macOS only lets a signed app install an update in place (a Squirrel.Mac requirement), so until Pod ships with a Developer ID, install new versions from the DMG or with `brew upgrade --cask pod`.
 
 Pod and stock Orca both register a CLI named `orca` and share `~/.orca` and `~/Library/Application Support/orca`. Install one or the other on a machine, not both.
 

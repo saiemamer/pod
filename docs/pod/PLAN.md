@@ -108,7 +108,7 @@ Built as planned with four changes of approach, each forced by a rebase rehearsa
 - `README.md` is kept by the `pod-keep` merge driver declared in `.gitattributes`, which has to sit in the first Pod commit because git reads attributes from the tree being rebased onto.
 - The skills-repository URL touch is deferred to Phase 1; it cost seven excluded test files for no Phase 0 benefit.
 
-A local forward rebase onto upstream `main`, 405 commits past v1.4.197, applied all touchpoints cleanly. Pod CI runs `src/**` tests only through `config/vitest.pod.config.ts`; the excluded upstream files are listed there with reasons.
+A local forward rebase onto upstream `main`, 405 commits past v1.4.197, applied all touchpoints cleanly. Releases 0.1.0 to 0.1.3 built in about eight minutes each; 0.1.0 and 0.1.1 shipped with a second hardcoded updater feed (Orca's) and a CLI wrapper that assumed an executable named Orca, both fixed in 0.1.2 and now guarded by `src/shared/brand.test.ts` and a packaged-app check in `pod-release.yml`. Unsigned builds can see and download updates but macOS will not install them in place (Electron: "Your application must be signed for automatic updates on macOS"), so company-wide auto-update needs a Developer ID before Phase 4. Pod CI runs `src/**` tests only through `config/vitest.pod.config.ts`; the excluded upstream files are listed there with reasons.
 
 Spike results:
 
