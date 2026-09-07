@@ -20,6 +20,7 @@ import {
   stopRepoHeaderKeyboardToggle,
   stopRepoHeaderMenuEvent
 } from './header-event-guards'
+import { PodProjectGroupMenuItems } from '@/ae/PodProjectGroupMenuItems' // Pod
 
 export function ProjectGroupHeaderMenu({
   groupId,
@@ -74,6 +75,7 @@ export function ProjectGroupHeaderMenu({
         <DropdownMenuItem variant="destructive" onSelect={() => onDelete(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.902115cdbe', 'Delete group')}
         </DropdownMenuItem>
+        <PodProjectGroupMenuItems groupId={groupId} label={label} /> {/* Pod */}
       </DropdownMenuContent>
     </DropdownMenu>
   )

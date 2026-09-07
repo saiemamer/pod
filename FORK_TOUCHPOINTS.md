@@ -72,6 +72,13 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/cli/specs/index.ts`, `src/cli/handler-group-manifest.ts`, `src/main/runtime/rpc/methods/index.ts` | one import and one spread/group each | `orca domain list|show` specs, handlers and RPC methods (Pod-owned `ae-domain.ts` files). |
 | `config/scripts/generate-bundled-skill-guides.mjs` | `ae-dbt`, `ae-initiative`, `ae-omni` in the three lists | Bundled skills served by `orca skills get`; the guides and stubs are Pod-owned files under `skill-guides/`, `skill-stubs/` and `skills/`. |
 | `src/cli/bundled-skill-guides.ts`, `resources/skills/current-manifest.json`, `resources/skills/snapshot-registry.json` | regenerated | Generated from the lists above; after a rebase run `pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`. |
+| `src/renderer/src/components/sidebar/worktree-list/rows/project-group-header-actions.tsx` | `<PodProjectGroupMenuItems groupId label />` after the Delete group item + import | "Domain settings…" and "New initiative…" in the project group menu. The items only set store state; the dialogs mount elsewhere because Radix unmounts menu content on select. |
+| `src/renderer/src/components/sidebar/worktree-list/rows/ProjectGroupDialogs.tsx` | `<PodProjectGroupDialogHost />` in the fragment + import | Mounts `DomainSettingsDialog` or `NewInitiativeDialog` from `aeDialog` in the store. |
+| `src/shared/ui-chrome-types.ts` | `'initiative'` in `RightSidebarTab` | The Initiative tab key. |
+| `src/renderer/src/store/right-sidebar-route.ts` | `tab === 'initiative'` in the accepted list | Persisted route survives restart instead of falling back to Explorer. |
+| `src/renderer/src/components/right-sidebar/right-sidebar-panel-content.tsx` | lazy import + `{effectiveTab === 'initiative' && <PodInitiativePanel />}` | Renders the panel. |
+| `src/renderer/src/components/right-sidebar/use-right-sidebar-activity-items.ts` | `...podInitiativeActivityItems()` after the Ports item + import | Adds the folder-only Initiative tab before plugin tabs, so plugin positions stay stable. |
+| `src/main/runtime/rpc/methods/client-ui-schemas.ts` | `'initiative'` in `STATIC_RIGHT_SIDEBAR_TABS` | `ui-state-schema-parity-checks.ts` fails the typecheck when the ui.set schema's tab list is narrower than `RightSidebarTab`. |
 
 ## Pod-owned files outside `ae/`
 
