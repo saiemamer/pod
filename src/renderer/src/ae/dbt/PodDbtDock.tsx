@@ -231,7 +231,7 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
               <TabsTrigger
                 key={value}
                 value={value}
-                className="h-full px-2 text-[11px] font-medium after:bottom-0"
+                className="h-full px-2 text-[11px] font-medium group-data-[orientation=horizontal]/tabs:after:inset-x-2 group-data-[orientation=horizontal]/tabs:after:bottom-[-2px]"
               >
                 {label}
               </TabsTrigger>

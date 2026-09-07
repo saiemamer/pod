@@ -133,19 +133,20 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
       }}
       onDoubleClick={() => data.onOpen(id)}
     >
+      {/* Why 20px: the header is 40px tall, so node edges meet the box at the title row. */}
       <Handle
         type="target"
         position={Position.Left}
         id="in"
         className="!size-2 !border-0"
-        style={{ background: color }}
+        style={{ background: color, top: 20 }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="out"
         className="!size-2 !border-0"
-        style={{ background: color }}
+        style={{ background: color, top: 20 }}
       />
       <SideButton side="up" data={data} id={id} color={color} />
       <SideButton side="down" data={data} id={id} color={color} />
@@ -182,7 +183,9 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
         </span>
       </div>
       {rows.length > 0 && (
-        <div className="py-0.5">
+        // Why clip here: the rounded corners belong to the border; a row's hover wash
+        // must stop at them, and the side buttons outside the box must stay visible.
+        <div className="overflow-hidden rounded-b-[5px] py-0.5">
           {rows.map((column) => {
             const isLit = lit.has(column.name.toLowerCase())
             const isFocusColumn =
@@ -236,11 +239,11 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
               })}
             </div>
           )}
-        </div>
-      )}
-      {data.nameMatched && data.showColumns && (
-        <div className="border-t border-border px-2.5 text-[10px] leading-4 text-muted-foreground">
-          {translate('pod.lineage.node.nameMatched', 'columns matched by name')}
+          {data.nameMatched && (
+            <div className="mt-0.5 border-t border-border px-2.5 text-[10px] leading-4 text-muted-foreground">
+              {translate('pod.lineage.node.nameMatched', 'columns matched by name')}
+            </div>
+          )}
         </div>
       )}
     </div>
