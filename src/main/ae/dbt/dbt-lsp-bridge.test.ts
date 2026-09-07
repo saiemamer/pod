@@ -1,21 +1,17 @@
-import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DbtLspServer } from './dbt-lsp-bridge'
+import { DbtLspServer, type DbtLspServerOptions } from './dbt-lsp-bridge'
 import { hoverText, toCompletionItem, toLocation } from './dbt-lsp-convert'
-import type { ProcessSpec } from '../../../shared/child-process/process-spec'
 
 const FAKE_SERVER = join(__dirname, '__fixtures__', 'fake-dbt-language-server.mjs')
 
-// Why a local spawn: the bridge's spawn dependency is the seam; the fake server is Node.
-function spawnFake(extraArgs: string[] = []) {
-  return (spec: ProcessSpec) =>
-    spawn(process.execPath, [FAKE_SERVER, ...extraArgs, ...(spec.args ?? [])], {
-      cwd: spec.cwd,
-      env: spec.env,
-      stdio: ['pipe', 'pipe', 'pipe']
-    }) as ReturnType<typeof spawn> & { stdin: NodeJS.WritableStream }
+// Why node as the binary: the fake server is a script, and the bridge spawns whatever
+// binary it is given through Orca's chokepoint, so no test-only spawn seam is needed.
+function fake(
+  extraArgs: string[] = []
+): Pick<DbtLspServerOptions, 'binary' | 'args' | 'projectDir'> {
+  return { binary: process.execPath, args: [FAKE_SERVER, ...extraArgs], projectDir: tmpdir() }
 }
 
 describe('DbtLspServer', () => {
@@ -23,9 +19,7 @@ describe('DbtLspServer', () => {
     const diagnostics: { uri: string; count: number }[] = []
     const exits: (number | null)[] = []
     const server = new DbtLspServer({
-      binary: 'fake',
-      projectDir: tmpdir(),
-      spawn: spawnFake() as never,
+      ...fake(),
       onDiagnostics: (uri, list) => diagnostics.push({ uri, count: list.length }),
       onExit: (code) => exits.push(code)
     })
@@ -63,9 +57,7 @@ describe('DbtLspServer', () => {
   it('reports a server that dies on start with its stderr', async () => {
     const exits: { code: number | null; stderr: string }[] = []
     const server = new DbtLspServer({
-      binary: 'fake',
-      projectDir: tmpdir(),
-      spawn: spawnFake(['--crash-on-start']) as never,
+      ...fake(['--crash-on-start']),
       requestTimeoutMs: 2_000,
       onExit: (code, stderr) => exits.push({ code, stderr })
     })
@@ -77,12 +69,7 @@ describe('DbtLspServer', () => {
   })
 
   it('rejects a request the server never answers', async () => {
-    const server = new DbtLspServer({
-      binary: 'fake',
-      projectDir: tmpdir(),
-      spawn: spawnFake() as never,
-      requestTimeoutMs: 100
-    })
+    const server = new DbtLspServer({ ...fake(), requestTimeoutMs: 100 })
     await server.start()
     // Why: the fake answers unknown requests with null, so use an unknown notification-only path
     // by asking hover after stop, which the bridge rejects immediately.

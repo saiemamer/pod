@@ -1,4 +1,3 @@
-import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import {
   createMessageConnection,
   StreamMessageReader,
@@ -31,6 +30,9 @@ import {
  * shim Orca's Monaco does not carry. Never sends workspace/didChangeConfiguration: the
  * server reads dbt_project.yml itself.
  */
+/** What Orca's spawn chokepoint hands back, named here so this module needs no Node process types. */
+export type DbtLspChild = ReturnType<typeof spawnProcess>
+
 export type DbtLspServerOptions = {
   binary: string
   args?: string[]
@@ -38,7 +40,8 @@ export type DbtLspServerOptions = {
   env?: NodeJS.ProcessEnv
   onDiagnostics?: (uri: string, diagnostics: DbtLspDiagnostic[]) => void
   onExit?: (code: number | null, stderrTail: string) => void
-  spawn?: (spec: ProcessSpec) => ChildProcessWithoutNullStreams
+  /** Defaults to spawnProcess; tests hand in their own. */
+  launch?: (spec: ProcessSpec) => DbtLspChild
   requestTimeoutMs?: number
 }
 
@@ -46,7 +49,7 @@ export const DBT_LSP_REQUEST_TIMEOUT_MS = 10_000
 const STDERR_TAIL_LINES = 20
 
 export class DbtLspServer {
-  private child: ChildProcessWithoutNullStreams | null = null
+  private child: DbtLspChild | null = null
   private connection: MessageConnection | null = null
   private stderrTail: string[] = []
   private readonly openUris = new Set<string>()
@@ -64,8 +67,8 @@ export class DbtLspServer {
   }
 
   async start(): Promise<void> {
-    const spawn = this.options.spawn ?? spawnProcess
-    const child = spawn({
+    const launch = this.options.launch ?? spawnProcess
+    const child = launch({
       program: this.options.binary,
       args: this.options.args ?? [],
       cwd: this.options.projectDir,
