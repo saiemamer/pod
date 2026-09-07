@@ -219,7 +219,7 @@ function ExplorerRow({
   const canOpen = row.kind === 'relation' && Boolean(row.relation?.path)
   return (
     <div
-      className="group flex h-6 items-center gap-1 pr-1 text-xs hover:bg-accent hover:text-accent-foreground"
+      className="group flex h-6 items-center gap-1 pr-2 text-xs hover:bg-accent hover:text-accent-foreground"
       style={{ paddingLeft: 6 + row.depth * 12 }}
       data-testid={`pod-dbt-explorer-${row.kind}`}
     >
@@ -255,25 +255,29 @@ function ExplorerRow({
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{row.meta}</span>
         )}
       </button>
-      {canOpen && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label={translate('pod.dbt.explorer.lineage', 'Show lineage')}
-              onClick={onLineage}
-            >
-              <GitFork />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={4}>
-            {translate('pod.dbt.explorer.lineage', 'Show lineage')}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {/* Why a fixed slot: every row reserves the action's width, so the right-hand
+          column lines up whether or not the row can show lineage. */}
+      <span className="flex w-6 shrink-0 justify-center">
+        {canOpen && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                aria-label={translate('pod.dbt.explorer.lineage', 'Show lineage')}
+                onClick={onLineage}
+              >
+                <GitFork />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4}>
+              {translate('pod.dbt.explorer.lineage', 'Show lineage')}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </span>
     </div>
   )
 }
