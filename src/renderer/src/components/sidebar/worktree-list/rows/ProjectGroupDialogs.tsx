@@ -8,6 +8,7 @@ import { ProjectGroupDeleteDialog } from '../../ProjectGroupDeleteDialog'
 import SuppressExternalWorktreeInboxDialog from '../../SuppressExternalWorktreeInboxDialog'
 import type { NewExternalWorktreesInboxActionState } from '../../new-external-worktrees-inbox-actions'
 import type { ProjectGroupDialogs } from './use-project-group-dialogs'
+import { PodProjectGroupDialogHost } from '@/ae/PodProjectGroupDialogHost' // Pod
 
 export function SidebarWorktreeListDialogs({
   dialogs,
@@ -113,6 +114,7 @@ export function SidebarWorktreeListDialogs({
         }}
         onConfirm={dialogs.handleConfirmDeleteProjectGroup}
       />
+      <PodProjectGroupDialogHost /> {/* Pod */}
     </>
   )
 }
