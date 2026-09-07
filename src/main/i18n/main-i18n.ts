@@ -1,3 +1,4 @@
+import { rebrandProductName } from '../../shared/pod/brand-text'
 import { app } from 'electron'
 import i18next, {
   type BackendModule,
@@ -126,6 +127,7 @@ export function translateMain(key: string, fallback: string, options?: TOptions)
   // Why: menu registration can run before async init finishes in tests; fall back
   // to the English default instead of returning undefined from an uninitialized i18n.
   const raw = initialized ? mainI18n.t(key, { defaultValue: fallback, ...options }) : fallback
-  const value = typeof raw === 'string' && raw.length > 0 ? raw : fallback
+  const resolved = typeof raw === 'string' && raw.length > 0 ? raw : fallback
+  const value = process.env.VITEST ? resolved : rebrandProductName(resolved) // Pod
   return isPseudoLocalizationLocale(mainI18n.language) ? pseudoLocalizeString(value) : value
 }

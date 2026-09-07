@@ -1,3 +1,4 @@
+import { rebrandProductName } from '../../../shared/pod/brand-text'
 import i18next, {
   type BackendModule,
   type i18n as I18nInstance,
@@ -82,7 +83,8 @@ void i18n
   })
 
 export function translate(key: string, fallback: string, options?: TOptions): string {
-  const value = i18n.t(key, { defaultValue: fallback, ...options })
+  const resolved = i18n.t(key, { defaultValue: fallback, ...options })
+  const value = import.meta.env.MODE === 'test' ? resolved : rebrandProductName(resolved) // Pod
   return isPseudoLocalizationLocale(i18n.language) ? pseudoLocalizeString(value) : value
 }
 

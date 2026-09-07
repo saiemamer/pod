@@ -17,12 +17,11 @@ Phase 0 of 4: bootstrap, rebrand, release pipeline. The full plan is in [`docs/p
 ## Install (macOS)
 
 ```sh
-brew install --cask saiemamer/pod/pod                  # Pod.app plus the orca CLI
-xattr -dr com.apple.quarantine /Applications/Pod.app   # unsigned build: let macOS open it
-brew upgrade --cask pod                                # later, to update (then the xattr line again)
+brew install --cask saiemamer/pod/pod   # Pod.app plus the orca CLI
+brew upgrade --cask pod                 # later, to update (or click the button in the app)
 ```
 
-Builds are not yet signed, so macOS refuses to open a fresh download ("the developer cannot be verified") until the quarantine attribute is removed with the `xattr` line, or by right-clicking Pod in Applications and choosing Open once. Pod shows new releases inside the app, but macOS only lets a signed app replace itself, so `brew upgrade` is the update path until Pod ships with a Developer ID. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest).
+Builds are not yet signed; the cask clears macOS's quarantine attribute after install and upgrade, so Pod opens normally. When a new release is out, Pod shows a card with an "Update with Homebrew" button that opens Terminal and runs the upgrade; quit and reopen Pod afterwards. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest).
 
 Pod and stock Orca both register a CLI named `orca` and share `~/.orca` and `~/Library/Application Support/orca`. Install one or the other on a machine, not both.
 
