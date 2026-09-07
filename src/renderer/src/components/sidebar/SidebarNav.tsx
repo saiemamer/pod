@@ -1,3 +1,4 @@
+import { POD_SHOW_ORCA_CLOUD_FEATURES } from '../../../../shared/brand'
 import React from 'react'
 import { BookOpen, CalendarClock, EyeOff, Files, Search, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +20,7 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 export function shouldShowMobileButton(
   settings: Partial<Pick<GlobalSettings, 'showMobileButton'>> | null | undefined
 ): boolean {
-  return settings?.showMobileButton !== false
+  return POD_SHOW_ORCA_CLOUD_FEATURES && settings?.showMobileButton !== false // Pod
 }
 
 export function shouldShowAutomationsButton(
