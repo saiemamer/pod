@@ -46,7 +46,7 @@ export function renderInitiativeMarkdown(
     '',
     '## How this runs',
     '',
-    'The main agent works in this folder with the `ae-initiative` skill. It creates an orchestration run,',
+    'The main agent works in this folder following `orca skills get ae-initiative`. It creates an orchestration run,',
     'one task per part, and dispatches workers into worktrees of the right repo:',
     '',
     '```sh',
@@ -57,7 +57,7 @@ export function renderInitiativeMarkdown(
     'orca orchestration check --wait --types worker_done,escalation',
     '```',
     '',
-    'Workers in the dbt repo use the `ae-dbt` skill; workers in the Omni repo use `ae-omni`.',
+    'Workers in the dbt repo follow `orca skills get ae-dbt`; workers in the Omni repo follow `orca skills get ae-omni`.',
     '',
     '## Notes',
     ''
@@ -70,7 +70,7 @@ function initiativePrompt(domain: AeDomainConfig, initiative: AeInitiative): str
   const audience = initiative.stakeholderTeam ? ` for the ${initiative.stakeholderTeam} team` : ''
   return [
     `You are the main agent of the ${domain.name} domain, starting the initiative "${initiative.title}"${audience}.`,
-    'Read INITIATIVE.md in this folder and load the ae-initiative skill before doing anything else.',
+    'Read INITIATIVE.md in this folder, then run `orca skills get ae-initiative` and follow that guide.',
     `Run \`orca domain show --domain ${domain.id} --json\` to see the repos and their roles (dbt, omni, other).`,
     'Then ask me for the goal if INITIATIVE.md does not have one yet, write the plan into INITIATIVE.md as parts with the repo each touches, and stop for my review before dispatching any worker.'
   ].join(' ')
@@ -79,7 +79,7 @@ function initiativePrompt(domain: AeDomainConfig, initiative: AeInitiative): str
 function domainAgentPrompt(domain: AeDomainConfig): string {
   return [
     `You are the standing main agent of the ${domain.name} domain.`,
-    `Run \`orca domain show --domain ${domain.id} --json\` to see the repos, their roles and the initiatives so far, and load the ae-initiative skill.`,
+    `Run \`orca skills get ae-initiative\` and follow it, then \`orca domain show --domain ${domain.id} --json\` to see the repos, their roles and the initiatives so far.`,
     'When I describe a piece of work, turn it into an initiative folder under initiatives/ with an INITIATIVE.md, plan it as parts per repo, and wait for my review before dispatching workers.',
     'Tell me what you found and ask what we are working on.'
   ].join(' ')

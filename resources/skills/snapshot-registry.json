@@ -1794,6 +1794,60 @@
           }
         ]
       }
+    ],
+    "ae-dbt": [
+      {
+        "releaseRevision": 1,
+        "packageDigest": "86ed4b0325c02ec0fc4a6d6803c5aff966314e1bfae375254454eaaaaf1148f6",
+        "gitTreeSha": "4c641af50111875619e09867be65c59be0e98da4",
+        "files": [
+          {
+            "path": "SKILL.md",
+            "size": 755,
+            "executable": false,
+            "classification": "text",
+            "exactSha256": "be932f0b34185f1da2e434ec7eab91a890230ffef0085eecf03004e5c1e97010",
+            "textNormalizedSha256": "be932f0b34185f1da2e434ec7eab91a890230ffef0085eecf03004e5c1e97010",
+            "identitySha256": "be932f0b34185f1da2e434ec7eab91a890230ffef0085eecf03004e5c1e97010"
+          }
+        ]
+      }
+    ],
+    "ae-initiative": [
+      {
+        "releaseRevision": 1,
+        "packageDigest": "3767a913b3f638fd127f6fa069efd501bebb32386672ab4c9cb8519b33ce76de",
+        "gitTreeSha": "51fe66165d2edf61816e4a6d39b27498fe635b0d",
+        "files": [
+          {
+            "path": "SKILL.md",
+            "size": 994,
+            "executable": false,
+            "classification": "text",
+            "exactSha256": "ebeebd767527fc4b3c440bc6c322189049fa9f6ddbf0f80609223f27d9d179cc",
+            "textNormalizedSha256": "ebeebd767527fc4b3c440bc6c322189049fa9f6ddbf0f80609223f27d9d179cc",
+            "identitySha256": "ebeebd767527fc4b3c440bc6c322189049fa9f6ddbf0f80609223f27d9d179cc"
+          }
+        ]
+      }
+    ],
+    "ae-omni": [
+      {
+        "releaseRevision": 1,
+        "packageDigest": "5d7f2808100e2cbe26458208894b770762dae10b7dd74f43c9bdaab6552e420d",
+        "gitTreeSha": "05429055be3000640a7de9f963785afdd4a57593",
+        "files": [
+          {
+            "path": "SKILL.md",
+            "size": 775,
+            "executable": false,
+            "classification": "text",
+            "exactSha256": "8c0dc4de790719b75b8a992ae9cc0173725741350f414f31f0c621d56efee102",
+            "textNormalizedSha256": "8c0dc4de790719b75b8a992ae9cc0173725741350f414f31f0c621d56efee102",
+            "identitySha256": "8c0dc4de790719b75b8a992ae9cc0173725741350f414f31f0c621d56efee102"
+          }
+        ]
+      }
     ]
   }
 }

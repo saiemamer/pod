@@ -70,6 +70,8 @@ Left deliberately untouched: the app data directory (`~/Library/Application Supp
 | `src/main/runtime/orca-runtime-create-agent-session.ts` | same, from `workspace` | Structured agent sessions, which the initiative launcher uses. |
 | `src/main/startup/cli-command-names.ts` | `'domain'` in the sorted list | `orca domain ...` top-level name. |
 | `src/cli/specs/index.ts`, `src/cli/handler-group-manifest.ts`, `src/main/runtime/rpc/methods/index.ts` | one import and one spread/group each | `orca domain list|show` specs, handlers and RPC methods (Pod-owned `ae-domain.ts` files). |
+| `config/scripts/generate-bundled-skill-guides.mjs` | `ae-dbt`, `ae-initiative`, `ae-omni` in the three lists | Bundled skills served by `orca skills get`; the guides and stubs are Pod-owned files under `skill-guides/`, `skill-stubs/` and `skills/`. |
+| `src/cli/bundled-skill-guides.ts`, `resources/skills/current-manifest.json`, `resources/skills/snapshot-registry.json` | regenerated | Generated from the lists above; after a rebase run `pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`. |
 
 ## Pod-owned files outside `ae/`
 

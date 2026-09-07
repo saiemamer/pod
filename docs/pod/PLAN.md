@@ -64,6 +64,11 @@ The initiative flow the `ae-initiative` skill encodes, using only CLI commands t
 5. Same for the omni repo, with the `ae-omni` skill: `omni models create-branch`, `yaml-create`, `validate`, `commit`; branch name equals worktree name.
 6. The Initiative panel (right sidebar, folder-only) shows tasks, dispatches and worktrees for the run.
 
+
+### Phase 1 vocabulary decision (2026-09-07, Saiem)
+
+"Team" in the table above becomes **Domain**: a folder of repos opened and named once (for Saiem, `~/saiemamer` named "MEX"), holding dbt, Omni and other repos with a role each. A Domain has one standing **main agent** (a Claude Code session in the domain folder with the initiative skill) that turns a request into an **Initiative** (an orchestration run with a folder under `initiatives/`), tagged with the stakeholder team it serves (Support Optimisation, Channels, Customer IAM, App Engagement, Dev-rel), and dispatches workers with a role (dbt, omni, infra) into worktrees of the right repo. "Project" keeps Orca's meaning (one repo). Code names follow: `aeDomains`, `AeDomainConfig`, `orca domain ...`, `AeDomainSettingsDialog`, `AeNewInitiativeDialog`.
+
 ### Code layout and fork discipline
 
 - All Pod code lives in additive directories: `src/main/ae/`, `src/renderer/src/ae/`, `src/shared/ae/`, `src/cli/specs/ae-*.ts`, `src/cli/handlers/ae-*.ts`, `skills/ae-*`, `skill-guides/ae-*.md`, `skill-stubs/ae-*.md`, `docs/pod/`.
