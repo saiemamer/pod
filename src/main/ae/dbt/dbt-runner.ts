@@ -20,8 +20,25 @@ export type DbtBinary = {
 export const DEFAULT_DBT_TIMEOUT_MS = 10 * 60_000
 export const DEFAULT_DBT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
-/** Where pipx and Homebrew put dbt when the login shell PATH did not reach the main process. */
-const FALLBACK_BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', join(homedir(), '.local/bin')]
+/**
+ * Where pipx and Homebrew put dbt when the login shell PATH did not reach the main process.
+ * Computed on demand: this module sits on the repo IPC import chain, and upstream tests
+ * there mock node:os with a homedir that returns nothing.
+ */
+function fallbackBinDirs(): string[] {
+  const dirs = ['/opt/homebrew/bin', '/usr/local/bin']
+  const home = safeHomedir()
+  return home ? [...dirs, join(home, '.local/bin')] : dirs
+}
+
+export function safeHomedir(): string | null {
+  try {
+    const home = homedir()
+    return typeof home === 'string' && home.length > 0 ? home : null
+  } catch {
+    return null
+  }
+}
 
 export function resolveDbtBinary(
   override: string | undefined,
@@ -39,7 +56,7 @@ export function findOnPath(name: string, pathValue: string | undefined): string 
   if (isAbsolute(name)) {
     return isExecutable(name) ? name : null
   }
-  const dirs = [...(pathValue ?? '').split(delimiter).filter(Boolean), ...FALLBACK_BIN_DIRS]
+  const dirs = [...(pathValue ?? '').split(delimiter).filter(Boolean), ...fallbackBinDirs()]
   for (const dir of dirs) {
     const candidate = join(dir, name)
     if (isExecutable(candidate)) {
