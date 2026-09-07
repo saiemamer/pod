@@ -23,6 +23,10 @@ export type DbtManifestNode = {
   database?: string
   schema?: string
   alias?: string
+  /** Sources name their table with `identifier`; models use `alias`. */
+  identifier?: string
+  /** The warehouse name dbt renders, quotes included, e.g. `proj`.`dbt`.`orders`. */
+  relationName?: string
   description?: string
   materialized?: string
   tags: string[]
@@ -160,7 +164,12 @@ export function walkDbtLineage(
         if (!node || !DBT_LINEAGE_NODE_TYPES.has(node.resourceType)) {
           continue
         }
-        out.push({ uniqueId: neighbour, name: node.name, resourceType: node.resourceType, depth })
+        out.push({
+          uniqueId: neighbour,
+          name: node.name,
+          resourceType: node.resourceType,
+          depth
+        })
         next.push(neighbour)
       }
     }
@@ -190,6 +199,8 @@ function toNode(uniqueId: string, entry: unknown): DbtManifestNode | null {
     database: optionalString(entry.database),
     schema: optionalString(entry.schema),
     alias: optionalString(entry.alias),
+    identifier: optionalString(entry.identifier),
+    relationName: optionalString(entry.relation_name),
     description: optionalString(entry.description),
     materialized: optionalString(config.materialized),
     tags: stringArray(entry.tags),

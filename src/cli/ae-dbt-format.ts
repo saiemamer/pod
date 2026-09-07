@@ -1,3 +1,4 @@
+import type { DbtColumnLineageEdge, DbtColumnLineageResult } from '../shared/ae/dbt-graph-types'
 import type {
   DbtCompileResult,
   DbtContextSummary,
@@ -56,14 +57,40 @@ export function formatDbtModelInfo(result: DbtModelInfo): string {
   return lines.join('\n')
 }
 
-export function formatDbtLineage(result: DbtLineageResult): string {
+export function formatDbtLineage(
+  result: DbtLineageResult & { columns?: Record<string, string[]> }
+): string {
+  const line = (entry: DbtLineageEntry): string => {
+    const columns = result.columns?.[entry.uniqueId]
+    return `${lineageLine(entry)}${columns && columns.length > 0 ? `  [${columns.join(', ')}]` : ''}`
+  }
   return [
     `${result.model.name} (depth ${result.depth})`,
     `upstream (${result.upstream.length}):`,
-    ...result.upstream.map(lineageLine),
+    ...result.upstream.map(line),
     `downstream (${result.downstream.length}):`,
-    ...result.downstream.map(lineageLine)
+    ...result.downstream.map(line)
   ].join('\n')
+}
+
+export function formatDbtColumnLineage(result: DbtColumnLineageResult): string {
+  const name = (id: string): string => id.split('.').slice(2).join('.') || id
+  const edge = (entry: DbtColumnLineageEdge): string =>
+    `  ${name(entry.from.uniqueId)}.${entry.from.column} -> ${name(entry.to.uniqueId)}.${entry.to.column} (${entry.engine}${entry.sqlSource ? `, ${entry.sqlSource}` : ''})`
+  const lines = [
+    `${name(result.focus.uniqueId)}.${result.focus.column} via ${result.engine}${result.engineNote ? ` (${result.engineNote})` : ''}`,
+    `upstream (${result.upstream.length}):`,
+    ...result.upstream.map(edge),
+    `downstream (${result.downstream.length}):`,
+    ...result.downstream.map(edge)
+  ]
+  if (result.nameMatchedNodes.length > 0) {
+    lines.push(`name-matched: ${result.nameMatchedNodes.map(name).join(', ')}`)
+  }
+  if (result.truncated) {
+    lines.push('(cut at the depth or node cap; raise --depth or the lineage node cap)')
+  }
+  return lines.join('\n')
 }
 
 export function formatDbtShow(result: DbtShowResult): string {

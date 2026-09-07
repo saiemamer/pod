@@ -176,6 +176,7 @@
     "sync:anti-slop-plugin": "node config/scripts/sync-anti-slop-plugin.mjs"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.1",
     "@anthropic-ai/claude-agent-sdk": "0.3.251",
     "@electron-toolkit/utils": "^4.0.0",
     "@floating-ui/dom": "1.8.0",
@@ -184,6 +185,7 @@
     "@streamparser/json": "0.0.26",
     "@xterm/addon-serialize": "0.15.0-beta.300",
     "@xterm/headless": "6.1.0-beta.302",
+    "@xyflow/react": "12.11.6",
     "agent-browser": "~0.27.0",
     "electron-updater": "^6.8.9",
     "i18next": "^26.3.1",

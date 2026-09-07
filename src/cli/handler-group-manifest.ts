@@ -71,6 +71,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
       'dbt list-models',
       'dbt model-info',
       'dbt lineage',
+      'dbt column-lineage',
       'dbt show',
       'dbt compile',
       'dbt parse'

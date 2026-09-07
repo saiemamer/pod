@@ -29,6 +29,10 @@ export const aeApi = {
     ensureCatalog: (args) => ipcRenderer.invoke('ae:dbt:ensureCatalog', args),
     resolveRef: (args) => ipcRenderer.invoke('ae:dbt:resolveRef', args),
     exportCsv: (args) => ipcRenderer.invoke('ae:dbt:exportCsv', args),
+    graph: (args) => ipcRenderer.invoke('ae:dbt:graph', args),
+    columnLineage: (args) => ipcRenderer.invoke('ae:dbt:columnLineage', args),
+    catalogTree: (args) => ipcRenderer.invoke('ae:dbt:catalogTree', args),
+    lineageEngine: (args) => ipcRenderer.invoke('ae:dbt:lineageEngine', args),
     lsp: {
       status: (args) => ipcRenderer.invoke('ae:dbt:lsp:status', args),
       open: (args) => ipcRenderer.invoke('ae:dbt:lsp:open', args),
