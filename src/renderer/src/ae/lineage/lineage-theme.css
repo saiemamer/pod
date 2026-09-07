@@ -1,0 +1,26 @@
+/*
+ * Pod: materialisation colours for the lineage canvas, one hue per kind so a source,
+ * a view and a table read apart at a glance. Values come from the Tailwind palette
+ * main.css already loads; the dark theme takes the lighter shade of the same hue.
+ */
+:root {
+  --pod-lineage-source: var(--color-rose-500);
+  --pod-lineage-view: var(--color-violet-500);
+  --pod-lineage-table: var(--color-emerald-500);
+  --pod-lineage-incremental: var(--color-amber-500);
+  --pod-lineage-seed: var(--color-sky-500);
+  --pod-lineage-snapshot: var(--color-sky-500);
+  --pod-lineage-ephemeral: var(--color-slate-400);
+  --pod-lineage-other: var(--color-slate-400);
+}
+
+.dark {
+  --pod-lineage-source: var(--color-rose-400);
+  --pod-lineage-view: var(--color-violet-400);
+  --pod-lineage-table: var(--color-emerald-400);
+  --pod-lineage-incremental: var(--color-amber-400);
+  --pod-lineage-seed: var(--color-sky-400);
+  --pod-lineage-snapshot: var(--color-sky-400);
+  --pod-lineage-ephemeral: var(--color-slate-500);
+  --pod-lineage-other: var(--color-slate-500);
+}

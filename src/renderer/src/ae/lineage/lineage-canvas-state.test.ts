@@ -4,6 +4,8 @@ import {
   highlightedColumnNames,
   lineageColumnsVisible,
   lineageHighlightFrom,
+  lineageKind,
+  lineageKindsIn,
   lineageSideCounts,
   mergeLineageGraphs,
   visibleLineageNodeIds
@@ -119,6 +121,24 @@ describe('lineageHighlightFrom', () => {
   })
 })
 
+describe('lineageKind', () => {
+  it('maps resource types and materialisations to a colour family', () => {
+    expect(lineageKind({ resourceType: 'source' })).toBe('source')
+    expect(lineageKind({ resourceType: 'seed', materialized: 'seed' })).toBe('seed')
+    expect(lineageKind({ resourceType: 'model', materialized: 'table' })).toBe('table')
+    expect(lineageKind({ resourceType: 'model', materialized: 'materialized_view' })).toBe('view')
+    expect(lineageKind({ resourceType: 'model' })).toBe('view')
+    expect(lineageKind({ resourceType: 'model', materialized: 'dynamic_table' })).toBe('other')
+    expect(
+      lineageKindsIn([
+        { ...node('a'), materialized: 'table' },
+        { ...node('b'), resourceType: 'source' },
+        { ...node('c'), materialized: 'table' }
+      ])
+    ).toEqual(['source', 'table'])
+  })
+})
+
 describe('layoutLineage', () => {
   it('places parents left of children and sizes nodes by their columns', () => {
     const placed = layoutLineage(
@@ -159,11 +179,11 @@ describe('layoutLineage', () => {
       )
     ).toMatchInlineSnapshot(`
       {
-        "a": "420,33 232x66",
-        "b": "724,80 232x86",
-        "c": "1028,80 232x40",
+        "a": "444,33 232x66",
+        "b": "772,82 232x86",
+        "c": "1100,82 232x40",
         "raw": "116,33 232x66",
-        "x": "420,127 232x66",
+        "x": "444,131 232x66",
       }
     `)
   })

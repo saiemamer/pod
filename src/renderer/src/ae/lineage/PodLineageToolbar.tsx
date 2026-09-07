@@ -1,3 +1,4 @@
+import { useReactFlow, useStore } from '@xyflow/react'
 import {
   Columns3,
   ListTree,
@@ -13,11 +14,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import type { DbtLineageEngineStatus } from '../../../../shared/ae/dbt-graph-types'
+import type { LineageKind } from './lineage-canvas-state'
 
 export type PodLineageToolbarProps = {
-  focusName: string
-  shownNodes: number
-  totalNodes: number
   truncated: boolean
   upstreamDepth: number
   downstreamDepth: number
@@ -25,6 +24,7 @@ export type PodLineageToolbarProps = {
   showTree: boolean
   loading: boolean
   engine: DbtLineageEngineStatus | null
+  kinds: LineageKind[]
   onDepthChange: (side: 'up' | 'down', delta: number) => void
   onToggleColumns: () => void
   onToggleTree: () => void
@@ -68,72 +68,94 @@ function IconAction({
   )
 }
 
-function DepthControl({
+function Stepper({
   label,
   value,
-  side,
-  onDepthChange
+  lessLabel,
+  moreLabel,
+  testId,
+  onChange
 }: {
   label: string
-  value: number
-  side: 'up' | 'down'
-  onDepthChange: PodLineageToolbarProps['onDepthChange']
+  value: string
+  lessLabel: string
+  moreLabel: string
+  testId: string
+  onChange: (delta: number) => void
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-      <span>{label}</span>
-      <IconAction
-        label={translate('pod.lineage.toolbar.less', 'One level less')}
-        onClick={() => onDepthChange(side, -1)}
-      >
+      <span className="mr-0.5">{label}</span>
+      <IconAction label={lessLabel} onClick={() => onChange(-1)}>
         <Minus />
       </IconAction>
       <span
-        className="w-3 text-center font-mono text-foreground"
-        data-testid={`pod-lineage-depth-${side}`}
+        className="min-w-6 text-center font-mono tabular-nums text-foreground"
+        data-testid={testId}
       >
         {value}
       </span>
-      <IconAction
-        label={translate('pod.lineage.toolbar.more', 'One level more')}
-        onClick={() => onDepthChange(side, 1)}
-      >
+      <IconAction label={moreLabel} onClick={() => onChange(1)}>
         <Plus />
       </IconAction>
     </div>
   )
 }
 
+function kindLabel(kind: LineageKind): string {
+  switch (kind) {
+    case 'source':
+      return translate('pod.lineage.kind.source', 'source')
+    case 'view':
+      return translate('pod.lineage.kind.view', 'view')
+    case 'table':
+      return translate('pod.lineage.kind.table', 'table')
+    case 'incremental':
+      return translate('pod.lineage.kind.incremental', 'incremental')
+    case 'seed':
+      return translate('pod.lineage.kind.seed', 'seed')
+    case 'snapshot':
+      return translate('pod.lineage.kind.snapshot', 'snapshot')
+    case 'ephemeral':
+      return translate('pod.lineage.kind.ephemeral', 'ephemeral')
+    default:
+      return translate('pod.lineage.kind.other', 'other')
+  }
+}
+
+/** Second row of the dock on the Lineage tab: depth, view toggles, zoom, legend, engine. */
 export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Element {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const zoom = useStore((state) => state.transform[2])
+  // Why short: the toolbar shares one row with the legend; the version and the reason
+  // for a fallback live in the tooltip and on the Connection tab.
   const engineText = !props.engine
     ? ''
     : props.engine.engine === 'sqlglot'
-      ? `sqlglot ${props.engine.sqlglotVersion ?? ''}`.trim()
-      : translate('pod.lineage.toolbar.nameMatch', 'name matching')
+      ? 'sqlglot'
+      : translate('pod.lineage.toolbar.nameMatch', 'name match')
+  const engineTitle = !props.engine
+    ? ''
+    : props.engine.engine === 'sqlglot'
+      ? `sqlglot ${props.engine.sqlglotVersion ?? ''} · ${props.engine.python ?? ''}`.trim()
+      : (props.engine.note ?? '')
   return (
-    <div className="flex h-7 shrink-0 items-center gap-3 border-b border-border/60 px-2 text-xs">
-      <span className="min-w-0 truncate font-medium" title={props.focusName}>
-        {props.focusName}
-      </span>
-      <span className="shrink-0 text-[11px] text-muted-foreground" data-testid="pod-lineage-count">
-        {translate('pod.lineage.toolbar.count', '{{shown}} of {{total}} nodes', {
-          shown: String(props.shownNodes),
-          total: String(props.totalNodes)
-        })}
-        {props.truncated &&
-          ` · ${translate('pod.lineage.toolbar.truncated', 'cut at the node cap')}`}
-      </span>
-      <DepthControl
+    <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border px-2 text-xs">
+      <Stepper
         label={translate('pod.lineage.toolbar.upstream', 'Upstream')}
-        value={props.upstreamDepth}
-        side="up"
-        onDepthChange={props.onDepthChange}
+        value={String(props.upstreamDepth)}
+        lessLabel={translate('pod.lineage.toolbar.less', 'One level less')}
+        moreLabel={translate('pod.lineage.toolbar.more', 'One level more')}
+        testId="pod-lineage-depth-up"
+        onChange={(delta) => props.onDepthChange('up', delta)}
       />
-      <DepthControl
+      <Stepper
         label={translate('pod.lineage.toolbar.downstream', 'Downstream')}
-        value={props.downstreamDepth}
-        side="down"
-        onDepthChange={props.onDepthChange}
+        value={String(props.downstreamDepth)}
+        lessLabel={translate('pod.lineage.toolbar.less', 'One level less')}
+        moreLabel={translate('pod.lineage.toolbar.more', 'One level more')}
+        testId="pod-lineage-depth-down"
+        onChange={(delta) => props.onDepthChange('down', delta)}
       />
       <div className="flex items-center gap-0.5">
         <IconAction
@@ -160,7 +182,7 @@ export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Elem
         </IconAction>
         <IconAction
           label={translate('pod.lineage.toolbar.fit', 'Fit to view')}
-          onClick={props.onArrange}
+          onClick={() => void fitView({ padding: 0.15, duration: 200 })}
         >
           <Maximize2 />
         </IconAction>
@@ -171,13 +193,47 @@ export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Elem
           {props.loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
         </IconAction>
       </div>
-      <span
-        className="ml-auto shrink-0 text-[11px] text-muted-foreground"
-        data-testid="pod-lineage-engine"
-        title={props.engine?.note}
-      >
-        {engineText}
-      </span>
+      <Stepper
+        label=""
+        value={`${Math.round(zoom * 100)}%`}
+        lessLabel={translate('pod.lineage.toolbar.zoomOut', 'Zoom out')}
+        moreLabel={translate('pod.lineage.toolbar.zoomIn', 'Zoom in')}
+        testId="pod-lineage-zoom"
+        onChange={(delta) =>
+          void (delta > 0 ? zoomIn({ duration: 150 }) : zoomOut({ duration: 150 }))
+        }
+      />
+      {props.truncated && (
+        <span className="text-[11px] text-muted-foreground">
+          {translate('pod.lineage.toolbar.truncated', 'cut at the node cap')}
+        </span>
+      )}
+      <div className="ml-auto flex min-w-0 items-center gap-3">
+        <div
+          className="flex min-w-0 items-center gap-2 overflow-hidden"
+          data-testid="pod-lineage-legend"
+        >
+          {props.kinds.map((kind) => (
+            <span
+              key={kind}
+              className="flex items-center gap-1 whitespace-nowrap text-[10px] text-muted-foreground"
+            >
+              <span
+                className="size-2 rounded-full"
+                style={{ background: `var(--pod-lineage-${kind})` }}
+              />
+              {kindLabel(kind)}
+            </span>
+          ))}
+        </div>
+        <span
+          className="shrink-0 text-[10px] text-muted-foreground"
+          data-testid="pod-lineage-engine"
+          title={engineTitle}
+        >
+          {engineText}
+        </span>
+      </div>
     </div>
   )
 }
