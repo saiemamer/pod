@@ -99,6 +99,19 @@ Risks: Swift 6 helper cannot build on Ventura (CI-only packaging); GitHub macOS 
 
 Verify: `pnpm install`, `pnpm dev` opens Pod with the new name and icon; `pnpm tc`; `pnpm test src/shared/release-channel*.test.ts`; drift job passes on the current tag; DMG from CI installs, then publishing `0.1.1` triggers an in-app update.
 
+### Phase 0 outcome (2026-09-07)
+
+Built as planned with four changes of approach, each forced by a rebase rehearsal:
+
+- `package.json` keeps upstream's `name` and `version`. Upstream bumps the version line in every release, so a committed Pod version conflicted on every rebase; `pod-release.yml` stamps `0.x.y` from the tag at build time instead.
+- Upstream workflows are moved to `.github/workflows-upstream/`, not deleted, so their frequent upstream edits apply through rename detection. `src/shared/brand.test.ts` fails when a rebase drops a new upstream workflow into the live folder.
+- `README.md` is kept by the `pod-keep` merge driver declared in `.gitattributes`, which has to sit in the first Pod commit because git reads attributes from the tree being rebased onto.
+- The skills-repository URL touch is deferred to Phase 1; it cost seven excluded test files for no Phase 0 benefit.
+
+A local forward rebase onto upstream `main`, 405 commits past v1.4.197, applied all touchpoints cleanly. Pod CI runs `src/**` tests only through `config/vitest.pod.config.ts`; the excluded upstream files are listed there with reasons.
+
+Spike results: Orca builds and runs with `pnpm dev` on macOS 13 using the Node 24 tarball, without the Swift helper. j-clemons/dbt-language-server v0.4.2 publishes raw binaries named `dbt-language-server-darwin-arm64`, `dbt-language-server-darwin-amd64` and `dbt-language-server-linux-amd64`. The folder-coordinator and sqlglot spikes are still open.
+
 ## Phase 1: settings, team model, cross-repo orchestration
 
 Goal: a Team with two repos, an Initiative whose coordinator dispatches one worker into each repo, tool binaries configured in Settings.
