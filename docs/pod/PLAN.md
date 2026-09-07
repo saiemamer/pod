@@ -148,6 +148,30 @@ Risks: whether `showManagedWorktree('id:<folderWorkspaceId>')` throws for a fold
 
 Verify: vitest round-trip of `aeTeams`/`aeInitiatives` through the loader; RPC harness test (`rpc-test-harness.ts`) creating a run from a folder terminal and dispatching into two fixture repos; Playwright: team header → New initiative → coordinator terminal opens with the prefilled prompt; manual: Claude Code in the initiative folder runs the playbook end to end on two throwaway repos.
 
+### Phase 1 outcome (2026-09-07)
+
+Built as planned, with the vocabulary decision applied (`Domain`, `orca domain ...`, `aeDomains`) and three changes of shape:
+
+- No `initiative-service` hooks on `runtime.onWorktreeLifecycle` or an `orchestration.runCreate` observer. The main agent records its run with `orca domain initiative-update --initiative "$POD_INITIATIVE_ID" --run <run_id>`, and `AeDomainService` emits a change event that the IPC layer forwards as `ae:changed`, so the panel refreshes whichever door the write came through (IPC, CLI RPC, launchers).
+- Secrets live in the persisted store as base64 `safeStorage` ciphertext (`aeDomainSecrets`) rather than in `electron-secret-store`; names only leave the main process.
+- The Domain settings and New initiative dialogs mount from store state (`aeDialog`) outside the Radix menu, because `DropdownMenuContent` unmounts on select.
+
+Touch count for Phase 1: 24 upstream files, all one line where the file allowed it (`FORK_TOUCHPOINTS.md`, Phase 1 table). Two of them exist only to satisfy upstream ratchets: `client-ui-schemas.ts` (the ui.set tab schema is type-checked against `RightSidebarTab`) and the `providesInitialSurface` census test (every file under `src/` that mentions the flag must be listed, so Pod keeps one mention in `reveal-folder-workspace.ts`).
+
+End to end, run on 2026-09-07 against `pnpm dev` with two throwaway repos in `~/Projects/pod-smoke` (`dbt-demo` with `dbt_project.yml`, `omni-demo` with `model.yaml`), scripted with Playwright over the dev instance's CDP port (`docs/pod/smoke/ui-smoke.mjs`):
+
+1. Import the folder as a project group, open Domain settings from the group menu, Detect roles (dbt, omni), Save. New initiative "Smoke initiative" for Channels: `initiatives/smoke-initiative/INITIATIVE.md` written, folder workspace created under the group, Claude Code opened there with the drafted prompt, Initiative tab showing title, status, repos, folder and run.
+2. As the main agent (commands issued with `--from <coordinator handle>` from a shell; inside the Orca terminal `ORCA_TERMINAL_HANDLE` supplies it): `run-create`, `initiative-update --run`, two `task-create` with the Omni task depending on the dbt task, two-step dispatch (`worktree create --parent-worktree folder:<id>`, then `worker-start --worktree id:<wt> --agent claude`), `check --wait --types worker_done,escalation`. Three Claude Code workers completed their tasks (commits on `smoke-dbt`, `smoke-omni`, `smoke-dbt-2`), the Omni task turned `ready` on its own when the dbt task completed, and the Initiative panel listed the tasks with status and worker handle.
+
+What the run taught, now in the `ae-initiative` guide:
+
+- `worker-start --agent claude` opens the worker's own terminal, waits for readiness and delivers the task. Passing `--agent` to `worktree create` as well leaves a second Claude sitting at its trust prompt; the guide creates the worktree without an agent.
+- `check --wait` returns the oldest unacknowledged batch until `--ack <deliveryId>` is passed.
+- Claude Code keys its trust prompt to the repo's main worktree path, so it appears once per repo (and the bypass-permissions acceptance once per machine); later worktrees start clean.
+- On a machine with Pod installed from Homebrew, a `pnpm dev` worker's `orca` resolves to the installed build, which at 0.1.6 predates the `ae-*` skills. `orca-dev` is the dev wrapper. Irrelevant once 0.1.7 ships.
+
+Still open after Phase 1: the folder-coordinator `worker-start --worktree new-top-level` fix upstream (the two-step path is the documented one); signing (deferred by decision); a Playwright check in CI (the smoke script runs by hand against a dev instance).
+
 ## Phase 2: dbt language, LSP, results, compiled SQL, discovery, agent tools
 
 Goal: open a model in a dbt project, get Jinja-aware highlighting and LSP, press Cmd+Enter, see rows; agents can call the same operations through `orca dbt ...`.
