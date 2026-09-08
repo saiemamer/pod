@@ -90,6 +90,23 @@ jobs:
         env:
           ORCA_BUILD_IDENTITY: stable
 
+      # Why: electron-builder publishes the x64 and arm64 targets in parallel and
+      # each created its own release when none existed, so every tag carried two
+      # releases and the DMGs sat on whichever came second (0.1.10's download URL
+      # 404ed). One draft made here is what both targets attach to.
+      - name: Create the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --json id >/dev/null 2>&1; then
+            echo "release $TAG exists"
+          else
+            gh release create "$TAG" --draft --title "${TAG#v}" --notes "Pod ${TAG#v}"
+          fi
+
       - name: Package and publish (unsigned)
         uses: nick-fields/retry@v3
         with:
@@ -101,6 +118,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Why: no Developer ID yet. Unsigned apps open via right-click, Open.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          count="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=20" --jq "[.[] | select(.tag_name == \"$TAG\")] | length")"
+          test "$count" = "1" || { echo "::error::$count releases carry tag $TAG"; exit 1; }
+          gh release edit "$TAG" --draft=false --latest
+          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q '^pod-macos-x64.dmg$'
+          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q '^pod-macos-arm64.dmg$'
 
       # Why: the 0.1.0 build shipped with Orca's feed and a CLI wrapper that could not
       # find the Pod binary; both are only visible in the packaged bundle.
