@@ -70,34 +70,30 @@ function SideButton({
         })
       : translate('pod.lineage.node.collapse', 'Hide {{side}}', { side: what })
   const text = collapsed ? '+' : more > 0 ? `+${more}` : '−'
+  // Why a native title: two styled tooltips per node were a visible share of a large
+  // first render; the label still reaches screen readers through aria-label.
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          data-testid={`pod-lineage-side-${side}`}
-          className={cn(
-            'nodrag absolute top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border bg-card px-1 text-[10px] leading-none text-muted-foreground shadow-xs hover:text-foreground',
-            side === 'up' ? '-left-2.5' : '-right-2.5'
-          )}
-          style={{ borderColor: color }}
-          onClick={(event) => {
-            event.stopPropagation()
-            if (!collapsed && more > 0) {
-              data.onExpand(id, side)
-            } else {
-              data.onToggleCollapse(id, side)
-            }
-          }}
-        >
-          {text}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={4}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      data-testid={`pod-lineage-side-${side}`}
+      className={cn(
+        'nodrag absolute top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border bg-card px-1 text-[10px] leading-none text-muted-foreground shadow-xs hover:text-foreground',
+        side === 'up' ? '-left-2.5' : '-right-2.5'
+      )}
+      style={{ borderColor: color }}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (!collapsed && more > 0) {
+          data.onExpand(id, side)
+        } else {
+          data.onToggleCollapse(id, side)
+        }
+      }}
+    >
+      {text}
+    </button>
   )
 }
 
@@ -211,24 +207,28 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
                   data.onColumnClick(id, column.name)
                 }}
               >
-                <Handle
-                  type="target"
-                  position={Position.Left}
-                  id={`in:${column.name}`}
-                  className="!left-0 !size-1.5 !border-0 !bg-transparent"
-                />
+                {isLit && (
+                  <Handle
+                    type="target"
+                    position={Position.Left}
+                    id={`in:${column.name}`}
+                    className="!left-0 !size-1.5 !border-0 !bg-transparent"
+                  />
+                )}
                 <span className="min-w-0 flex-1 truncate">{column.name}</span>
                 {column.dataType && (
                   <span className="shrink-0 truncate font-mono text-[10px] text-muted-foreground">
                     {column.dataType.toLowerCase()}
                   </span>
                 )}
-                <Handle
-                  type="source"
-                  position={Position.Right}
-                  id={`out:${column.name}`}
-                  className="!right-0 !size-1.5 !border-0 !bg-transparent"
-                />
+                {isLit && (
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id={`out:${column.name}`}
+                    className="!right-0 !size-1.5 !border-0 !bg-transparent"
+                  />
+                )}
               </button>
             )
           })}

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight, Database, GitFork, Loader2, RefreshCw, Table2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,6 +72,16 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
     () => (tree ? flattenCatalogTree(tree, expanded, filter) : []),
     [tree, expanded, filter]
   )
+
+  // Why virtualise: a warehouse with a thousand relations is a thousand rows, and the
+  // panel must open and filter without rendering them all.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 24,
+    overscan: 12
+  })
 
   const toggle = useCallback((id: string) => {
     setExpanded((current) => {
@@ -147,7 +158,7 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
           />
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto scrollbar-sleek py-1">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto scrollbar-sleek py-1">
         {!worktreePath && (
           <Empty
             text={translate(
@@ -164,25 +175,40 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
             </Button>
           </Empty>
         )}
-        {rows.map((row) => (
-          <ExplorerRow
-            key={row.id}
-            row={row}
-            onToggle={toggle}
-            onOpen={() => {
-              const target = targetFor(row)
-              if (target) {
-                openPodDbtFile(target)
-              }
-            }}
-            onLineage={() => {
-              const target = targetFor(row)
-              if (target) {
-                openPodDbtLineageFor(target)
-              }
-            }}
-          />
-        ))}
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const row = rows[item.index]
+            return (
+              <div
+                key={row.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${item.start}px)`
+                }}
+              >
+                <ExplorerRow
+                  row={row}
+                  onToggle={toggle}
+                  onOpen={() => {
+                    const target = targetFor(row)
+                    if (target) {
+                      openPodDbtFile(target)
+                    }
+                  }}
+                  onLineage={() => {
+                    const target = targetFor(row)
+                    if (target) {
+                      openPodDbtLineageFor(target)
+                    }
+                  }}
+                />
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
