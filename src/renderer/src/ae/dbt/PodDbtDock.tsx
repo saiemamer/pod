@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Play, X } from 'lucide-react'
 import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { toast } from 'sonner'
@@ -25,6 +25,8 @@ import { POD_DBT_DOCK_VIEWS, usePodDbtDockMotion } from './use-pod-dbt-dock-moti
 
 // Why lazy: React Flow and dagre only load for editors that open the Lineage tab.
 const PodDbtLineageView = lazy(() => import('@/ae/lineage/PodDbtLineageView'))
+/** Header row plus the top border. */
+const POD_DBT_DOCK_COLLAPSED_HEIGHT = 33
 
 type PodDbtDockProps = {
   activeFile: { id: string; filePath: string; language: string }
@@ -102,6 +104,19 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
   })
   usePodDbtShortcuts(isJinjaSql ? activeFile : null, paneRef)
   const motion = usePodDbtDockMotion(state?.view)
+  const [lineageOpened, setLineageOpened] = useState(false)
+  const [resizing, setResizing] = useState(false)
+  const hasState = state !== undefined
+  // Why during render: the Lineage view must exist in the same pass that shows it.
+  if (state?.view === 'lineage' && !lineageOpened) {
+    setLineageOpened(true)
+  }
+  // Why warm the chunk: the first click on Lineage should not wait for React Flow to load.
+  useEffect(() => {
+    if (hasState) {
+      void import('@/ae/lineage/PodDbtLineageView')
+    }
+  }, [hasState])
   if (!isJinjaSql) {
     return null
   }
@@ -138,7 +153,9 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
         clampPodDbtDockHeight(startHeight + (startY - move.clientY), window.innerHeight)
       )
     }
+    setResizing(true)
     const onUp = (): void => {
+      setResizing(false)
       handle.removeEventListener('pointermove', onMove)
       handle.removeEventListener('pointerup', onUp)
     }
@@ -146,19 +163,6 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     handle.addEventListener('pointerup', onUp)
   }
   const body = (): React.ReactNode => {
-    if (state.view === 'lineage') {
-      return (
-        <Suspense
-          fallback={
-            <div className="flex h-full items-center justify-center">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          }
-        >
-          <PodDbtLineageView fileId={activeFile.id} filePath={activeFile.filePath} />
-        </Suspense>
-      )
-    }
     if (state.view === 'connection') {
       return (
         <PodDbtConnectionView
@@ -214,8 +218,14 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     <div
       ref={anchorRef}
       data-testid="pod-dbt-dock"
-      className="relative flex shrink-0 flex-col border-t border-border/60 bg-background"
-      style={{ height: state.collapsed ? undefined : dockHeight }}
+      // Why the classes: the dock rises into place when it first appears, and its height
+      // eases when collapsed or expanded; a drag resize follows the pointer directly.
+      className={`relative flex shrink-0 flex-col border-t border-border/60 bg-background animate-in fade-in-0 slide-in-from-bottom-2 duration-200 motion-reduce:animate-none ${
+        resizing
+          ? ''
+          : 'transition-[height] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none'
+      }`}
+      style={{ height: state.collapsed ? POD_DBT_DOCK_COLLAPSED_HEIGHT : dockHeight }}
     >
       {!state.collapsed && (
         <div
@@ -309,7 +319,22 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
           ref={motion.bodyRef}
           className={`min-h-0 flex-1 ${state.status === 'running' ? 'opacity-60' : ''}`}
         >
-          {body()}
+          {/* Why kept mounted: the canvas holds its graph and viewport, so coming back
+              is instant and in place instead of a spinner and a jump. */}
+          {lineageOpened && (
+            <div className="h-full" hidden={state.view !== 'lineage'}>
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  </div>
+                }
+              >
+                <PodDbtLineageView fileId={activeFile.id} filePath={activeFile.filePath} />
+              </Suspense>
+            </div>
+          )}
+          {state.view !== 'lineage' && body()}
         </div>
       )}
     </div>

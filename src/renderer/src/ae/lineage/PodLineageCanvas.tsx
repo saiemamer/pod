@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
   MarkerType,
   ReactFlow,
   applyNodeChanges,
+  useNodesInitialized,
   useReactFlow,
   useStore,
   type Edge,
@@ -22,6 +23,7 @@ import {
   type LineageHighlight
 } from './lineage-canvas-state'
 import { layoutLineage } from './lineage-layout'
+import { useTweenedPositions } from './use-tweened-positions'
 import { PodLineageNode, type PodLineageNodeData, type PodLineageNodeType } from './PodLineageNode'
 
 export type PodLineageCanvasProps = {
@@ -54,14 +56,19 @@ const FLOW_THEME = {
 
 /**
  * The graph itself. Sits inside the view's ReactFlowProvider so the toolbar can drive
- * zoom; opens at 100 percent centred on the focused model, where the reader came from.
+ * zoom. Stays invisible until the nodes are measured and the viewport sits at 100
+ * percent on the focused model, then fades in already in place; layout changes tween
+ * the nodes to their new spots so edges travel with them.
  */
 export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Element {
   const { graph, collapse, highlight, showColumns, arrangeKey, selectedNodeId } = props
   const zoom = useStore((state) => state.transform[2])
   const columnsVisible = lineageColumnsVisible(showColumns, zoom)
   const { fitView } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
   const [dragged, setDragged] = useState<Record<string, { x: number; y: number }>>({})
+  const [ready, setReady] = useState(false)
+  const pendingFit = useRef<string | null>(null)
 
   const visible = useMemo(() => visibleLineageNodeIds(graph, collapse), [graph, collapse])
   const sides = useMemo(() => lineageSideCounts(graph, visible), [graph, visible])
@@ -81,16 +88,20 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
       ),
     [visibleNodes, graph.edges, columnsVisible]
   )
+  const positions = useTweenedPositions(placed)
 
   const computedNodes = useMemo<PodLineageNodeType[]>(
     () =>
       visibleNodes.map((node) => ({
         id: node.uniqueId,
         type: 'pod',
-        position: dragged[node.uniqueId] ?? {
-          x: placed[node.uniqueId].x,
-          y: placed[node.uniqueId].y
-        },
+        // Why the class: the node's own mount animation, see lineage-theme.css.
+        className: 'pod-lineage-enter',
+        position: dragged[node.uniqueId] ??
+          positions[node.uniqueId] ?? {
+            x: placed[node.uniqueId].x,
+            y: placed[node.uniqueId].y
+          },
         selected: node.uniqueId === selectedNodeId,
         data: {
           node,
@@ -115,6 +126,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     [
       visibleNodes,
       dragged,
+      positions,
       placed,
       selectedNodeId,
       graph,
@@ -161,6 +173,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
         sourceHandle,
         targetHandle,
         zIndex: 10,
+        className: 'pod-lineage-enter',
         style: {
           stroke: 'var(--primary)',
           strokeWidth: 2,
@@ -193,16 +206,27 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     setNodes((current) => applyNodeChanges(changes, current))
   }, [])
 
-  useEffect(() => {
+  // Why gate on measurement: fitting before the nodes have a size centres on nothing,
+  // and showing them before the fit is the zoom-out-then-in the reader would notice.
+  // Why during render: a new focus or an Arrange must reset the view in the same pass.
+  const fitKey = `${graph.focus}|${arrangeKey}`
+  const [fitFor, setFitFor] = useState<string | null>(null)
+  if (fitFor !== fitKey) {
+    setFitFor(fitKey)
     setDragged({})
-    // Why the focus at full size: fitting everything shrinks a wide graph below the zoom
-    // at which columns show; the reader starts at the model they opened and pans.
-    const handle = window.setTimeout(
-      () => void fitView({ nodes: [{ id: graph.focus }], minZoom: 1, maxZoom: 1, duration: 0 }),
-      60
+    setReady(false)
+    pendingFit.current = graph.focus
+  }
+  useEffect(() => {
+    const target = pendingFit.current
+    if (!target || !nodesInitialized) {
+      return
+    }
+    pendingFit.current = null
+    void fitView({ nodes: [{ id: target }], minZoom: 1, maxZoom: 1, duration: 0 }).then(() =>
+      setReady(true)
     )
-    return () => window.clearTimeout(handle)
-  }, [graph.focus, arrangeKey, fitView])
+  }, [nodesInitialized, fitView, nodes])
 
   useEffect(() => {
     if (selectedNodeId && visible.has(selectedNodeId)) {
@@ -211,20 +235,27 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
   }, [selectedNodeId, visible, fitView])
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      onNodesChange={onNodesChange}
-      nodesConnectable={false}
-      elementsSelectable
-      minZoom={0.15}
-      maxZoom={2.5}
-      proOptions={{ hideAttribution: false }}
-      style={FLOW_THEME}
-      className="bg-card text-foreground"
+    <div
+      data-testid="pod-lineage-canvas"
+      data-ready={ready ? 'true' : 'false'}
+      className="h-full w-full transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+      style={{ opacity: ready ? 1 : 0 }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-    </ReactFlow>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        nodesConnectable={false}
+        elementsSelectable
+        minZoom={0.15}
+        maxZoom={2.5}
+        proOptions={{ hideAttribution: false }}
+        style={FLOW_THEME}
+        className="bg-card text-foreground"
+      >
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+      </ReactFlow>
+    </div>
   )
 }
