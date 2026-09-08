@@ -118,6 +118,26 @@ jobs:
           test "$cli_version" = "${TAG#v}" || { echo "::error::Bundled CLI reports $cli_version, tag is $TAG"; exit 1; }
           echo "Packaged app updates from saiemamer/pod; bundled CLI reports $cli_version"
 
+      # Why: 0.1.8 and 0.1.9 packaged fine and exited at startup on a missing
+      # main-process dependency; only launching the built app catches that.
+      - name: Verify the packaged app starts
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find dist -maxdepth 2 -name 'Pod.app' -type d | head -1)"
+          log="$RUNNER_TEMP/pod-launch.log"
+          "$app/Contents/MacOS/Pod" > "$log" 2>&1 &
+          pid=$!
+          sleep 20
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "::error::Pod exited within 20 s of launch"; cat "$log"; exit 1
+          fi
+          if grep -q 'fatal-exit' "$log"; then
+            echo "::error::Pod reported a fatal exit"; cat "$log"; exit 1
+          fi
+          kill "$pid" || true
+          echo "Packaged app stayed up for 20 s"
+
       - name: Summary
         shell: bash
         env:
