@@ -24,3 +24,38 @@
   --pod-lineage-ephemeral: var(--color-slate-500);
   --pod-lineage-other: var(--color-slate-500);
 }
+
+/* Nodes and highlight edges settle in rather than pop; a layout change tweens
+   positions in JavaScript so the edges travel with their nodes. */
+@keyframes pod-lineage-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.react-flow__node.pod-lineage-enter {
+  animation: pod-lineage-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.react-flow__edge.pod-lineage-enter .react-flow__edge-path {
+  animation: pod-lineage-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.react-flow__edge-path {
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    stroke 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node.pod-lineage-enter,
+  .react-flow__edge.pod-lineage-enter .react-flow__edge-path {
+    animation: none;
+  }
+  .react-flow__edge-path {
+    transition: none;
+  }
+}

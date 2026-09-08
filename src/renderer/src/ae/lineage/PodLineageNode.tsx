@@ -197,7 +197,7 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
                 data-testid="pod-lineage-column"
                 data-lit={isLit ? 'true' : undefined}
                 className={cn(
-                  'nodrag relative flex h-5 w-full items-center gap-1 px-2.5 text-left text-[11px] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,var(--card))]',
+                  'nodrag relative flex h-5 w-full items-center gap-1 px-2.5 text-left text-[11px] transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--foreground)_8%,var(--card))] motion-reduce:transition-none',
                   isLit && 'font-medium text-primary',
                   isFocusColumn && 'bg-accent'
                 )}

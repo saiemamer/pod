@@ -219,7 +219,7 @@ function ExplorerRow({
   const canOpen = row.kind === 'relation' && Boolean(row.relation?.path)
   return (
     <div
-      className="group flex h-6 items-center gap-1 pr-2 text-xs hover:bg-accent hover:text-accent-foreground"
+      className="group flex h-6 items-center gap-1 pr-2 text-xs animate-in fade-in-0 duration-150 hover:bg-accent hover:text-accent-foreground motion-reduce:animate-none"
       style={{ paddingLeft: 6 + row.depth * 12 }}
       data-testid={`pod-dbt-explorer-${row.kind}`}
     >
@@ -265,7 +265,7 @@ function ExplorerRow({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                className="opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
                 aria-label={translate('pod.dbt.explorer.lineage', 'Show lineage')}
                 onClick={onLineage}
               >
