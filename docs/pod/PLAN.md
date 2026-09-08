@@ -274,6 +274,8 @@ Saiem compared the Lineage tab with dbt-zed's canvas and asked for a consistent 
 
 Both react-doctor warnings (a mutation inside the drag updater, storage written inside the columns-toggle updater) are gone. Merged with `--ff-only` and released as v0.1.9 the same evening.
 
+Packaging defect found when 0.1.9 was installed: the packaged app exited at startup with `Cannot find module 'vscode-jsonrpc/node'`. The build copies main-process dependencies into `Resources/node_modules` from the hard-coded root list in `config/packaged-runtime-node-modules.cjs`, and the language-server bridge's dependency (Phase 2) was never added, so 0.1.8 and 0.1.9 could not open a window; nobody had launched an installed build since 0.1.7 because every check ran against `pnpm dev`. Fixed by one entry on that list (registered), a Pod-owned test (`src/main/pod/packaged-runtime-deps.test.ts`) that fails when Pod's main-process code imports a dependency the packaged closure does not carry, and a release-workflow step that launches the packaged app and fails the release if it exits or prints a fatal exit within twenty seconds. Shipped as v0.1.10.
+
 ## Phase 4: Omni panel, company distribution, upstream PRs
 
 Add:

@@ -28,6 +28,9 @@ const PACKAGED_RUNTIME_PACKAGE_ROOTS = [
   'qrcode',
   'ssh2',
   'tweetnacl',
+  // Pod: the dbt language-server bridge (src/main/ae/dbt/dbt-lsp-bridge.ts) requires
+  // vscode-jsonrpc/node at startup; without it the packaged app exits before its window.
+  'vscode-jsonrpc',
   'ws',
   'yaml',
   'zod'
