@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,10 +20,7 @@ type PodDbtLineageViewProps = {
  * only ship to editors that open it. Owns the React Flow provider so the toolbar's
  * zoom controls and the canvas share one viewport.
  */
-export default function PodDbtLineageView({
-  fileId,
-  filePath
-}: PodDbtLineageViewProps): React.JSX.Element {
+function PodDbtLineageView({ fileId, filePath }: PodDbtLineageViewProps): React.JSX.Element {
   const state = usePodLineageGraph(filePath)
   const { graph } = state
 
@@ -74,7 +71,6 @@ export default function PodDbtLineageView({
       </div>
     )
   }
-  const nameMatched = new Set(state.columnResult?.nameMatchedNodes ?? [])
   return (
     <ReactFlowProvider>
       <div className="flex h-full min-h-0 flex-col" data-testid="pod-lineage-view">
@@ -108,7 +104,7 @@ export default function PodDbtLineageView({
                 collapse={state.collapse}
                 highlight={state.highlight}
                 focusColumn={state.focusColumn}
-                nameMatchedNodes={nameMatched}
+                nameMatchedNodes={state.nameMatchedNodes}
                 showColumns={state.showColumns}
                 arrangeKey={state.arrangeKey}
                 selectedNodeId={state.selectedNodeId}
@@ -133,3 +129,8 @@ export default function PodDbtLineageView({
     </ReactFlowProvider>
   )
 }
+
+// Why memo: the dock re-renders on every store change it watches (tab, height, run
+// state), and the view's props are two strings; without this each of those rebuilt
+// the whole canvas while hidden behind another tab.
+export default memo(PodDbtLineageView)

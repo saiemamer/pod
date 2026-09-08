@@ -10,7 +10,14 @@ import {
   mergeLineageGraphs,
   visibleLineageNodeIds
 } from './lineage-canvas-state'
-import { layoutLineage, lineageNodeHeight, LINEAGE_HEADER_HEIGHT } from './lineage-layout'
+import {
+  layoutLineage,
+  lineageNodeHeight,
+  lineageNodesNearViewport,
+  LINEAGE_HEADER_HEIGHT,
+  LINEAGE_NAME_MATCHED_FOOTER_HEIGHT,
+  LINEAGE_NODE_SEP
+} from './lineage-layout'
 
 function node(id: string, columns: string[] = []): DbtGraphNode {
   return {
@@ -73,6 +80,18 @@ describe('visibleLineageNodeIds', () => {
 })
 
 describe('mergeLineageGraphs', () => {
+  it('keeps the base node objects for models both graphs carry', () => {
+    const extra: DbtGraphResult = {
+      ...graph,
+      focus: 'c',
+      nodes: [node('c', ['id']), node('d')],
+      edges: [{ source: 'c', target: 'd' }]
+    }
+    const merged = mergeLineageGraphs(graph, extra)
+    expect(merged.nodes.find((n) => n.uniqueId === 'c')).toBe(graph.nodes[3])
+    expect(merged.nodes.map((n) => n.uniqueId)).toContain('d')
+  })
+
   it('adds nodes and edges once and replaces the expanded node counts', () => {
     const extra: DbtGraphResult = {
       ...graph,
@@ -88,7 +107,9 @@ describe('mergeLineageGraphs', () => {
     }
     const merged = mergeLineageGraphs(graph, extra)
     expect(merged.nodes.map((n) => n.uniqueId)).toEqual(['raw', 'a', 'b', 'c', 'x', 'd', 'e'])
-    expect(merged.nodes.find((n) => n.uniqueId === 'c')?.columns).toHaveLength(1)
+    // Why the base object: one manifest graph feeds both answers, so the model the
+    // canvas already holds is the same model; keeping it spares a re-render.
+    expect(merged.nodes.find((n) => n.uniqueId === 'c')).toBe(graph.nodes[3])
     expect(merged.edges).toHaveLength(6)
     expect(merged.moreDownstream).toEqual({ d: 1 })
   })
@@ -153,10 +174,16 @@ describe('layoutLineage', () => {
     expect(placed.a.x).toBeLessThan(placed.b.x)
     expect(placed.x.x).toBeLessThan(placed.b.x)
     expect(placed.b.x).toBeLessThan(placed.c.x)
+    // Why the gap: dagre reports centres and the answer must be top-left corners; a
+    // spread of dagre's label once put the centre back, and tall boxes overlapped.
+    expect(placed.x.y - (placed.a.y + placed.a.height)).toBe(LINEAGE_NODE_SEP)
     expect(placed.b.height).toBe(lineageNodeHeight(2, true))
     expect(placed.c.height).toBe(LINEAGE_HEADER_HEIGHT)
     expect(lineageNodeHeight(30, true)).toBe(lineageNodeHeight(15, true))
     expect(lineageNodeHeight(30, false)).toBe(LINEAGE_HEADER_HEIGHT)
+    // Why: the "columns matched by name" footer grows a box after a click without a
+    // re-layout, so the gap between boxes must be taller than the footer.
+    expect(LINEAGE_NAME_MATCHED_FOOTER_HEIGHT).toBeLessThan(LINEAGE_NODE_SEP / 2)
   })
 
   it('keeps the same placement for the same graph', () => {
@@ -179,11 +206,11 @@ describe('layoutLineage', () => {
       )
     ).toMatchInlineSnapshot(`
       {
-        "a": "444,33 232x66",
-        "b": "772,82 232x86",
-        "c": "1100,82 232x40",
-        "raw": "116,33 232x66",
-        "x": "444,131 232x66",
+        "a": "328,0 232x66",
+        "b": "656,47 232x86",
+        "c": "984,70 232x40",
+        "raw": "0,0 232x66",
+        "x": "328,114 232x66",
       }
     `)
   })
@@ -192,5 +219,34 @@ describe('layoutLineage', () => {
     expect(lineageColumnsVisible(true, 0.5)).toBe(false)
     expect(lineageColumnsVisible(true, 0.6)).toBe(true)
     expect(lineageColumnsVisible(false, 2)).toBe(false)
+  })
+})
+
+describe('lineageNodesNearViewport', () => {
+  const placed = layoutLineage(
+    graph.nodes.map((n) => ({ id: n.uniqueId, columnCount: n.columns.length, showColumns: true })),
+    graph.edges
+  )
+
+  it('lists the nodes inside the visible area, then those within the margin', () => {
+    // A 400x300 viewport at 100 percent whose top-left sits on b's box.
+    const viewport = { x: -placed.b.x, y: -placed.b.y, zoom: 1, width: 400, height: 300 }
+    expect(lineageNodesNearViewport(placed, {}, viewport, 0)).toEqual(['b', 'c'])
+    expect(lineageNodesNearViewport(placed, {}, viewport, 1).sort()).toEqual(
+      ['a', 'b', 'c', 'x'].sort()
+    )
+  })
+
+  it('accounts for zoom and dragged positions', () => {
+    const viewport = { x: 0, y: 0, zoom: 0.5, width: 300, height: 300 }
+    // Half zoom shows 600x600 flow units from the origin: raw, a and x, not b at 772.
+    expect(lineageNodesNearViewport(placed, {}, viewport, 0)).toEqual(['raw', 'a', 'x'])
+    expect(lineageNodesNearViewport(placed, { b: { x: 0, y: 0 } }, viewport, 0)).toEqual([
+      'raw',
+      'a',
+      'b',
+      'x'
+    ])
+    expect(lineageNodesNearViewport(placed, {}, { ...viewport, width: 0 }, 1)).toEqual([])
   })
 })

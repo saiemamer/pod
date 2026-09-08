@@ -80,7 +80,9 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 24,
-    overscan: 12
+    // Why 6: rows are 24 px and a wheel tick moves three, so six spare rows each way
+    // cover a scroll without rendering a third of the list twice on every filter.
+    overscan: 6
   })
 
   const toggle = useCallback((id: string) => {
@@ -284,24 +286,20 @@ function ExplorerRow({
       {/* Why a fixed slot: every row reserves the action's width, so the right-hand
           column lines up whether or not the row can show lineage. */}
       <span className="flex w-6 shrink-0 justify-center">
+        {/* Why a native title: a styled tooltip per row was the largest share of a
+            thousand-relation list's render; the side buttons on the canvas do the same. */}
         {canOpen && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
-                aria-label={translate('pod.dbt.explorer.lineage', 'Show lineage')}
-                onClick={onLineage}
-              >
-                <GitFork />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={4}>
-              {translate('pod.dbt.explorer.lineage', 'Show lineage')}
-            </TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            // Why a plain button: the ghost icon Button's variant machinery ran once per
+            // row of a thousand-relation list; these are its icon-xs ghost classes.
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-accent-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 motion-reduce:transition-none [&_svg]:size-3.5"
+            aria-label={translate('pod.dbt.explorer.lineage', 'Show lineage')}
+            title={translate('pod.dbt.explorer.lineage', 'Show lineage')}
+            onClick={onLineage}
+          >
+            <GitFork />
+          </button>
         )}
       </span>
     </div>
