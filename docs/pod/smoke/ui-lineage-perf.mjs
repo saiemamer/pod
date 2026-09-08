@@ -6,6 +6,11 @@
 // and writes a JSON report next to the screenshots.
 //
 //   POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/smoke/ui-lineage-perf.mjs
+//
+// POD_PERF_PROFILE=1 also records a V8 CPU profile per timed step into
+// POD_SMOKE_OUT/perf-profile-<step>.cpuprofile (open in DevTools > Performance, or
+// summarise the self time per function); the sampling costs a few percent, so the
+// gate itself runs without it.
 import { createRequire } from 'node:module'
 import { existsSync, writeFileSync } from 'node:fs'
 const require = createRequire(`${process.cwd()}/package.json`)
@@ -38,6 +43,23 @@ if (!page) {
 page.setDefaultTimeout(60000)
 const cdp = await page.context().newCDPSession(page)
 await cdp.send('HeapProfiler.enable')
+const PROFILE = process.env.POD_PERF_PROFILE === '1'
+if (PROFILE) {
+  await cdp.send('Profiler.enable')
+  await cdp.send('Profiler.setSamplingInterval', { interval: 500 })
+}
+const profiled = async (name, fn) => {
+  if (!PROFILE) {
+    return fn()
+  }
+  await cdp.send('Profiler.start')
+  try {
+    return await fn()
+  } finally {
+    const { profile } = await cdp.send('Profiler.stop')
+    writeFileSync(`${OUT}/perf-profile-${name}.cpuprofile`, JSON.stringify(profile))
+  }
+}
 
 // Why in-page: a long task observer must live where the tasks happen.
 await page.evaluate(() => {
@@ -170,28 +192,53 @@ try {
   await editor.click()
   await sleep(300)
   let mark = await page.evaluate(() => window.__podMark())
-  t0 = await now()
-  await page.keyboard.press(`${MOD}+Alt+L`)
   const dock = page.locator('[data-testid="pod-dbt-dock"]')
-  await dock.waitFor({ state: 'visible' })
-  const readyAt = await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        const tick = () => {
-          const c = document.querySelector('[data-testid="pod-lineage-canvas"]')
-          if (c && c.dataset.ready === 'true') {
-            resolve(performance.now())
-          } else {
-            requestAnimationFrame(tick)
+  const waitReady = () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const tick = () => {
+            const c = document.querySelector('[data-testid="pod-lineage-canvas"]')
+            if (c && c.dataset.ready === 'true') {
+              resolve(performance.now())
+            } else {
+              requestAnimationFrame(tick)
+            }
           }
-        }
-        tick()
-      })
-  )
+          tick()
+        })
+    )
+  t0 = await now()
+  const readyAt = await profiled('first-open', async () => {
+    await page.keyboard.press(`${MOD}+Alt+L`)
+    await dock.waitFor({ state: 'visible' })
+    return waitReady()
+  })
   const firstOpen = readyAt - t0
-  const shown = await dock.locator('[data-testid="pod-lineage-node"]').count()
-  log('first open:', Math.round(firstOpen), 'ms to ready,', shown, 'nodes on canvas')
+  // Why settle: the canvas mounts the nodes around the focus first and the rest a
+  // frame after it shows, so the count is read once it stops moving, and the whole
+  // neighbourhood must be there.
+  let shown = 0
+  for (let i = 0; i < 40; i += 1) {
+    const next = await dock.locator('[data-testid="pod-lineage-node"]').count()
+    if (next === shown && next > 0) {
+      break
+    }
+    shown = next
+    await sleep(100)
+  }
+  const settledAt = await now()
+  log(
+    'first open:',
+    Math.round(firstOpen),
+    'ms to ready,',
+    shown,
+    'nodes on canvas after',
+    Math.round(settledAt - t0),
+    'ms'
+  )
   record(`first Lineage open to ready canvas (${shown} nodes)`, firstOpen, 'ms', 1500)
+  record('nodes on canvas after the first open', shown, 'nodes', graphResult.nodes.length, 'higher')
   const openTasks = await longTasksSince(mark)
   record('longest task during first open', openTasks.length ? Math.max(...openTasks) : 0, 'ms', 400)
   await page.screenshot({ path: `${OUT}/perf-1-canvas.png` })
@@ -281,26 +328,28 @@ try {
   mark = await page.evaluate(() => window.__podMark())
   const ordersNode = dock.locator('[data-node-id="model.demo.orders"]')
   t0 = await now()
-  await ordersNode
-    .locator('[data-testid="pod-lineage-column"]', { hasText: 'status' })
-    .first()
-    .click()
-  const litAt = await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        const tick = () => {
-          if (
-            document.querySelectorAll('[data-testid="pod-lineage-column"][data-lit="true"]')
-              .length >= 2
-          ) {
-            resolve(performance.now())
-          } else {
-            requestAnimationFrame(tick)
+  const litAt = await profiled('column-click', async () => {
+    await ordersNode
+      .locator('[data-testid="pod-lineage-column"]', { hasText: 'status' })
+      .first()
+      .click()
+    return page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const tick = () => {
+            if (
+              document.querySelectorAll('[data-testid="pod-lineage-column"][data-lit="true"]')
+                .length >= 2
+            ) {
+              resolve(performance.now())
+            } else {
+              requestAnimationFrame(tick)
+            }
           }
-        }
-        tick()
-      })
-  )
+          tick()
+        })
+    )
+  })
   record('column click to lit path (cached SQL)', litAt - t0, 'ms', 600)
   const clickTasks = await longTasksSince(mark)
   record(
@@ -314,21 +363,23 @@ try {
   // 7. one more upstream level: the neighbourhood grows to the cap and relays out
   mark = await page.evaluate(() => window.__podMark())
   t0 = await now()
-  await dock.getByRole('button', { name: 'One level more' }).first().click()
-  const grownAt = await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        const tick = () => {
-          const c = document.querySelector('[data-testid="pod-lineage-canvas"]')
-          if (c && c.dataset.ready === 'true') {
-            resolve(performance.now())
-          } else {
-            requestAnimationFrame(tick)
+  const grownAt = await profiled('depth-change', async () => {
+    await dock.getByRole('button', { name: 'One level more' }).first().click()
+    return page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const tick = () => {
+            const c = document.querySelector('[data-testid="pod-lineage-canvas"]')
+            if (c && c.dataset.ready === 'true') {
+              resolve(performance.now())
+            } else {
+              requestAnimationFrame(tick)
+            }
           }
-        }
-        setTimeout(tick, 50)
-      })
-  )
+          setTimeout(tick, 50)
+        })
+    )
+  })
   const grownNodes = await dock.locator('[data-testid="pod-lineage-node"]').count()
   record(`depth +1 to ready canvas (${grownNodes} nodes)`, grownAt - t0, 'ms', 1500)
   const growTasks = await longTasksSince(mark)
@@ -342,19 +393,21 @@ try {
   // 8. twenty tab round trips and ten column clicks, then memory after GC
   const heapBefore = await heapMb()
   mark = await page.evaluate(() => window.__podMark())
-  for (let i = 0; i < 20; i += 1) {
-    await dock.getByRole('tab', { name: 'Connection' }).click()
-    await sleep(120)
-    await dock.getByRole('tab', { name: 'Lineage' }).click()
-    await sleep(120)
-  }
-  for (let i = 0; i < 10; i += 1) {
-    await ordersNode
-      .locator('[data-testid="pod-lineage-column"]', { hasText: i % 2 ? 'amount' : 'status' })
-      .first()
-      .click()
-    await sleep(150)
-  }
+  await profiled('tab-cycles', async () => {
+    for (let i = 0; i < 20; i += 1) {
+      await dock.getByRole('tab', { name: 'Connection' }).click()
+      await sleep(120)
+      await dock.getByRole('tab', { name: 'Lineage' }).click()
+      await sleep(120)
+    }
+    for (let i = 0; i < 10; i += 1) {
+      await ordersNode
+        .locator('[data-testid="pod-lineage-column"]', { hasText: i % 2 ? 'amount' : 'status' })
+        .first()
+        .click()
+      await sleep(150)
+    }
+  })
   const cycleTasks = await longTasksSince(mark)
   record(
     'longest task across 20 tab round trips + 10 clicks',
@@ -368,24 +421,41 @@ try {
 
   // 9. the Database panel with a thousand relations: open, expand, filter
   mark = await page.evaluate(() => window.__podMark())
-  t0 = await now()
-  await page.locator('[aria-label^="Database"]').first().click()
   const panel = page.locator('[data-testid="pod-dbt-explorer"]')
-  await panel
-    .locator('[data-testid="pod-dbt-explorer-relation"]')
-    .first()
-    .waitFor({ state: 'visible' })
+  t0 = await now()
+  await profiled('panel-open', async () => {
+    await page.locator('[aria-label^="Database"]').first().click()
+    await panel
+      .locator('[data-testid="pod-dbt-explorer-relation"]')
+      .first()
+      .waitFor({ state: 'visible' })
+  })
   const panelOpen = (await now()) - t0
   const relationRows = await panel.locator('[data-testid="pod-dbt-explorer-relation"]').count()
-  record(`Database panel open (${relationRows} relation rows)`, panelOpen, 'ms', 800)
+  record(`Database panel open (${relationRows} relation rows, virtualised)`, panelOpen, 'ms', 800)
+  // Why wait for the rows: the list is virtualised, so the count barely moves; the
+  // filter has landed when every shown relation carries the needle.
   t0 = await now()
-  await panel.getByRole('textbox', { name: 'Filter relations and columns' }).fill('stg_00')
-  await page.evaluate(
-    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-  )
-  const filtered = (await now()) - t0
+  const filteredAt = await profiled('panel-filter', async () => {
+    await panel.getByRole('textbox', { name: 'Filter relations and columns' }).fill('stg_00')
+    return page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const tick = () => {
+            const rows = [...document.querySelectorAll('[data-testid="pod-dbt-explorer-relation"]')]
+            if (rows.length > 0 && rows.every((row) => row.textContent?.includes('stg_00'))) {
+              resolve(performance.now())
+            } else {
+              requestAnimationFrame(tick)
+            }
+          }
+          tick()
+        })
+    )
+  })
+  const filtered = filteredAt - t0
   const filteredRows = await panel.locator('[data-testid="pod-dbt-explorer-relation"]').count()
-  record(`Database panel filter to ${filteredRows} rows`, filtered, 'ms', 250)
+  record(`Database panel filter to ${filteredRows} shown rows`, filtered, 'ms', 250)
   const panelTasks = await longTasksSince(mark)
   record(
     'longest task in the Database panel',

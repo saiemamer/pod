@@ -188,6 +188,19 @@ log(
 )
 await page.screenshot({ path: `${OUT}/lineage-1-canvas.png` })
 
+// 4c. the toolbar's zoom buttons step by ten percent (pinch and wheel stay continuous)
+const zoomLabel = async () => dock.locator('[data-testid="pod-lineage-zoom"]').innerText()
+const zoomSteps = [await zoomLabel()]
+for (const name of ['Zoom in', 'Zoom in', 'Zoom out', 'Zoom out']) {
+  await dock.getByRole('button', { name }).click()
+  await sleep(250)
+  zoomSteps.push(await zoomLabel())
+}
+log('zoom steps (+ + − −):', zoomSteps.join(' → '))
+if (zoomSteps.join(' ') !== '100% 110% 121% 110% 100%') {
+  throw new Error(`zoom steps are not ten percent: ${zoomSteps.join(' ')}`)
+}
+
 // 5. click the status column on orders: the path lights up in both directions
 const ordersNode = dock.locator('[data-node-id="model.demo.orders"]')
 await ordersNode

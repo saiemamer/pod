@@ -106,17 +106,13 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
   const motion = usePodDbtDockMotion(state?.view)
   const [lineageOpened, setLineageOpened] = useState(false)
   const [resizing, setResizing] = useState(false)
-  const hasState = state !== undefined
+  // Why remember the last body: it stays mounted behind the Lineage tab, so a round
+  // trip to Connection and back neither remounts the view nor refetches.
+  const bodyViewRef = useRef<Exclude<PodDbtDockView, 'lineage'>>('table')
   // Why during render: the Lineage view must exist in the same pass that shows it.
   if (state?.view === 'lineage' && !lineageOpened) {
     setLineageOpened(true)
   }
-  // Why warm the chunk: the first click on Lineage should not wait for React Flow to load.
-  useEffect(() => {
-    if (hasState) {
-      void import('@/ae/lineage/PodDbtLineageView')
-    }
-  }, [hasState])
   if (!isJinjaSql) {
     return null
   }
@@ -162,8 +158,12 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     handle.addEventListener('pointermove', onMove)
     handle.addEventListener('pointerup', onUp)
   }
+  if (state.view !== 'lineage') {
+    bodyViewRef.current = state.view
+  }
+  const bodyView = bodyViewRef.current
   const body = (): React.ReactNode => {
-    if (state.view === 'connection') {
+    if (bodyView === 'connection') {
       return (
         <PodDbtConnectionView
           fileId={activeFile.id}
@@ -179,7 +179,7 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
         </pre>
       )
     }
-    if (state.view === 'compiled') {
+    if (bodyView === 'compiled') {
       return state.compile ? (
         <pre className="h-full overflow-auto scrollbar-editor p-3 font-mono text-xs text-foreground">
           {state.compile.sql}
@@ -317,12 +317,19 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
         // Why dim: the previous answer stays visible while a rerun is in flight, so mark it stale.
         <div
           ref={motion.bodyRef}
-          className={`min-h-0 flex-1 ${state.status === 'running' ? 'opacity-60' : ''}`}
+          className={`relative min-h-0 flex-1 ${state.status === 'running' ? 'opacity-60' : ''}`}
         >
           {/* Why kept mounted: the canvas holds its graph and viewport, so coming back
-              is instant and in place instead of a spinner and a jump. */}
+              is instant and in place instead of a spinner and a jump. Why opacity: the
+              tab change must not touch an inherited property (display, visibility,
+              pointer-events, inert) on this box, because Blink then restyles every one
+              of the thousands of elements under it; opacity only repaints, and the
+              active tab's body covers the canvas so it takes no clicks. */}
           {lineageOpened && (
-            <div className="h-full" hidden={state.view !== 'lineage'}>
+            <div
+              className={`absolute inset-0 ${state.view === 'lineage' ? '' : 'opacity-0'}`}
+              aria-hidden={state.view !== 'lineage'}
+            >
               <Suspense
                 fallback={
                   <div className="flex h-full items-center justify-center">
@@ -334,7 +341,11 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
               </Suspense>
             </div>
           )}
-          {state.view !== 'lineage' && body()}
+          {/* Why always mounted: adding or removing a sibling of the canvas restyles
+              the canvas's thousand elements; hiding this cover does not. */}
+          <div className="relative z-10 h-full bg-background" hidden={state.view === 'lineage'}>
+            {body()}
+          </div>
         </div>
       )}
     </div>
@@ -352,5 +363,8 @@ function usePodDbtProjectWarmup(filePath: string | null): void {
     }
     void ensurePodDbtLanguageClient()
     void window.api.ae.dbt.ensureCatalog({ path: filePath }).catch(() => undefined)
+    // Why warm the chunk here: React Flow and dagre load while the model is being read,
+    // so the first Cmd+Alt+L draws instead of fetching (1.7 s cold on the dev build).
+    void import('@/ae/lineage/PodDbtLineageView')
   }, [filePath])
 }

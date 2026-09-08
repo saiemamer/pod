@@ -96,6 +96,13 @@ for (let i = 0; i < tree.length; i += 1) {
 }
 const editor = page.locator('.monaco-editor .view-lines').first()
 await editor.waitFor({ state: 'visible', timeout: 120000 })
+// Why close first: a tall dock left by the lineage smoke pushes the visible lines under
+// the editor header, and the click lands on that header instead.
+const leftover = page.locator('[data-testid="pod-dbt-dock"] [aria-label="Close results"]')
+if (await leftover.count()) {
+  await leftover.first().click()
+  await sleep(400)
+}
 await editor.click()
 await sleep(500)
 await page.screenshot({ path: `${OUT}/dbt-1-editor.png` })
@@ -104,6 +111,20 @@ await page.screenshot({ path: `${OUT}/dbt-1-editor.png` })
 await page.keyboard.press(`${MOD}+Enter`)
 const dock = page.locator('[data-testid="pod-dbt-dock"]')
 await dock.waitFor({ state: 'visible' })
+// Why an absolute height: the height persists across runs, and a tall dock left by
+// another smoke hides the editor lines the next steps click.
+const currentHeight = (await dock.boundingBox())?.height ?? 0
+const dockHandle = dock.locator('[data-testid="pod-dbt-dock-handle"]')
+const handleBox = await dockHandle.boundingBox()
+if (handleBox && Math.abs(currentHeight - 260) > 4) {
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + (currentHeight - 260), {
+    steps: 8
+  })
+  await page.mouse.up()
+  await sleep(300)
+}
 // Why the status text: on a re-run the previous rows stay visible, dimmed, until dbt answers.
 await dock.getByText(/^orders: \d+ rows/).waitFor({ state: 'visible', timeout: 20000 })
 await sleep(300)

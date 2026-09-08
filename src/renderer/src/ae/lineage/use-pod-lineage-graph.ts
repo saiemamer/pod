@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   DbtColumnLineageResult,
   DbtGraphResult,
@@ -28,6 +28,8 @@ function readStoredColumns(): boolean {
   }
 }
 
+const EMPTY_NAME_MATCHED: ReadonlySet<string> = new Set()
+
 export type PodLineageGraphState = {
   graph: DbtGraphResult | null
   loading: boolean
@@ -39,6 +41,8 @@ export type PodLineageGraphState = {
   columnResult: DbtColumnLineageResult | null
   columnError: string | null
   focusColumn: string | null
+  /** Models the engine could not read, whose columns were matched by name. Stable per answer. */
+  nameMatchedNodes: ReadonlySet<string>
   showColumns: boolean
   showTree: boolean
   selectedNodeId: string | null
@@ -60,8 +64,13 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
   const [graph, setGraph] = useState<DbtGraphResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [upstreamDepth, setUpstreamDepth] = useState<number | null>(null)
-  const [downstreamDepth, setDownstreamDepth] = useState<number | null>(null)
+  // Why "requested": the depth the reader asked for, null until they touch a stepper.
+  // Echoing the answer's depth into state re-ran the fetch and rebuilt every node once
+  // per open.
+  const [requested, setRequested] = useState<{ up: number | null; down: number | null }>({
+    up: null,
+    down: null
+  })
   const [collapse, setCollapse] = useState<LineageCollapse>(EMPTY_COLLAPSE)
   const [columnResult, setColumnResult] = useState<DbtColumnLineageResult | null>(null)
   const [columnError, setColumnError] = useState<string | null>(null)
@@ -72,6 +81,13 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
   const [arrangeKey, setArrangeKey] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
   const requestId = useRef(0)
+  // Why refs: the callbacks below reach every node as data; reading the latest graph
+  // and answer through refs keeps their identity fixed, so a click re-renders the
+  // rows it lit and not every node.
+  const latestGraph = useRef<DbtGraphResult | null>(null)
+  latestGraph.current = graph
+  const latestColumnResult = useRef<DbtColumnLineageResult | null>(null)
+  latestColumnResult.current = columnResult
 
   useEffect(() => {
     const api = window.api?.ae?.dbt
@@ -85,16 +101,14 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     void api
       .graph({
         path: filePath,
-        ...(upstreamDepth !== null ? { upstreamDepth } : {}),
-        ...(downstreamDepth !== null ? { downstreamDepth } : {})
+        ...(requested.up !== null ? { upstreamDepth: requested.up } : {}),
+        ...(requested.down !== null ? { downstreamDepth: requested.down } : {})
       })
       .then((result) => {
         if (requestId.current !== id) {
           return
         }
         setGraph(result)
-        setUpstreamDepth(result.upstreamDepth)
-        setDownstreamDepth(result.downstreamDepth)
         setCollapse(EMPTY_COLLAPSE)
         setColumnResult(null)
         setColumnError(null)
@@ -109,7 +123,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
           setLoading(false)
         }
       })
-  }, [filePath, upstreamDepth, downstreamDepth, reloadKey])
+  }, [filePath, requested, reloadKey])
 
   useEffect(() => {
     const api = window.api?.ae?.dbt
@@ -125,20 +139,28 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
   const reload = useCallback(() => setReloadKey((key) => key + 1), [])
 
   const setDepth = useCallback((side: 'up' | 'down', delta: number) => {
-    const setter = side === 'up' ? setUpstreamDepth : setDownstreamDepth
-    setter((current) => Math.max(0, Math.min(20, (current ?? 1) + delta)))
+    const shown = latestGraph.current
+    setRequested((current) => {
+      const key = side === 'up' ? 'up' : 'down'
+      const base =
+        current[key] ?? (side === 'up' ? shown?.upstreamDepth : shown?.downstreamDepth) ?? 1
+      return { ...current, [key]: Math.max(0, Math.min(20, base + delta)) }
+    })
   }, [])
 
   const toggleColumns = useCallback(() => {
-    setShowColumns((current) => {
-      try {
-        globalThis.localStorage?.setItem(COLUMNS_STORAGE_KEY, current ? 'off' : 'on')
-      } catch {
-        // Why: storage can be unavailable; the toggle still applies for this session.
-      }
-      return !current
-    })
-  }, [])
+    // Why outside the updater: React may run an updater twice; storage is written once.
+    const next = !showColumns
+    try {
+      globalThis.localStorage?.setItem(COLUMNS_STORAGE_KEY, next ? 'on' : 'off')
+    } catch {
+      // Why: storage can be unavailable; the toggle still applies for this session.
+    }
+    setShowColumns(next)
+  }, [showColumns])
+
+  const toggleTree = useCallback(() => setShowTree((current) => !current), [])
+  const arrange = useCallback(() => setArrangeKey((key) => key + 1), [])
 
   const toggleCollapse = useCallback((nodeId: string, side: 'up' | 'down') => {
     setCollapse((current) => {
@@ -155,7 +177,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
   const expand = useCallback(
     async (nodeId: string, side: 'up' | 'down') => {
       const api = window.api?.ae?.dbt
-      if (!api || !graph) {
+      if (!api || !latestGraph.current) {
         return
       }
       setLoading(true)
@@ -173,7 +195,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
         setLoading(false)
       }
     },
-    [filePath, graph]
+    [filePath]
   )
 
   const clickColumn = useCallback(
@@ -182,10 +204,11 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
       if (!api) {
         return
       }
+      const current = latestColumnResult.current
       const same =
-        columnResult &&
-        columnResult.focus.uniqueId === nodeId &&
-        columnResult.focus.column.toLowerCase() === column.toLowerCase()
+        current &&
+        current.focus.uniqueId === nodeId &&
+        current.focus.column.toLowerCase() === column.toLowerCase()
       if (same) {
         setColumnResult(null)
         setColumnError(null)
@@ -199,7 +222,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
         setColumnError(podDbtErrorMessage(cause))
       }
     },
-    [columnResult, filePath]
+    [filePath]
   )
 
   const parseProject = useCallback(async () => {
@@ -217,17 +240,29 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     }
   }, [filePath, reload])
 
+  // Why memo: the canvas rebuilds every node's data when these change identity, so
+  // they must only change when the answer does.
+  const highlight = useMemo(() => lineageHighlightFrom(columnResult), [columnResult])
+  const nameMatchedNodes = useMemo<ReadonlySet<string>>(
+    () =>
+      columnResult && columnResult.nameMatchedNodes.length > 0
+        ? new Set(columnResult.nameMatchedNodes)
+        : EMPTY_NAME_MATCHED,
+    [columnResult]
+  )
+
   return {
     graph,
     loading,
     error,
-    upstreamDepth,
-    downstreamDepth,
+    upstreamDepth: requested.up ?? graph?.upstreamDepth ?? null,
+    downstreamDepth: requested.down ?? graph?.downstreamDepth ?? null,
     collapse,
-    highlight: lineageHighlightFrom(columnResult),
+    highlight,
     columnResult,
     columnError,
     focusColumn: columnResult?.focus.column ?? null,
+    nameMatchedNodes,
     showColumns,
     showTree,
     selectedNodeId,
@@ -236,8 +271,8 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     reload,
     setDepth,
     toggleColumns,
-    toggleTree: () => setShowTree((current) => !current),
-    arrange: () => setArrangeKey((key) => key + 1),
+    toggleTree,
+    arrange,
     toggleCollapse,
     expand,
     clickColumn,
