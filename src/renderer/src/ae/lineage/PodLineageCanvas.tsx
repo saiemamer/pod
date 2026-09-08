@@ -62,8 +62,7 @@ const FLOW_THEME = {
  */
 export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Element {
   const { graph, collapse, highlight, showColumns, arrangeKey, selectedNodeId } = props
-  const zoom = useStore((state) => state.transform[2])
-  const columnsVisible = lineageColumnsVisible(showColumns, zoom)
+  const columnsVisible = useStore((state) => lineageColumnsVisible(showColumns, state.transform[2]))
   const { fitView } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const [dragged, setDragged] = useState<Record<string, { x: number; y: number }>>({})
@@ -82,11 +81,11 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
         visibleNodes.map((node) => ({
           id: node.uniqueId,
           columnCount: node.columns.length,
-          showColumns: columnsVisible
+          showColumns
         })),
         graph.edges
       ),
-    [visibleNodes, graph.edges, columnsVisible]
+    [visibleNodes, graph.edges, showColumns]
   )
   const positions = useTweenedPositions(placed)
 
@@ -132,7 +131,12 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
       graph,
       columnsVisible,
       highlight,
-      props,
+      props.focusColumn,
+      props.nameMatchedNodes,
+      props.onColumnClick,
+      props.onToggleCollapse,
+      props.onExpand,
+      props.onOpen,
       sides,
       collapse
     ]
@@ -195,13 +199,14 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
   }, [computedNodes])
   const onNodesChange = useCallback((changes: NodeChange<PodLineageNodeType>[]) => {
     setDragged((current) => {
-      const next = { ...current }
+      let next: Record<string, { x: number; y: number }> | null = null
       for (const change of changes) {
         if (change.type === 'position' && change.position) {
+          next ??= { ...current }
           next[change.id] = change.position
         }
       }
-      return next
+      return next ?? current
     })
     setNodes((current) => applyNodeChanges(changes, current))
   }, [])
