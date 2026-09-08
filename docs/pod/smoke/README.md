@@ -59,6 +59,8 @@ POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/s
 
 The report lands in `POD_SMOKE_OUT/pod-perf-report.json`. Delete `models/perf/` and `perf/` from the smoke repo afterwards if the four-node smoke should stay small.
 
+When a check fails, run it again with `POD_PERF_PROFILE=1`: the script then records a V8 CPU profile per timed step (`perf-profile-first-open.cpuprofile`, `column-click`, `depth-change`, `tab-cycles`, `panel-open`, `panel-filter`) next to the report. Open one in Chrome DevTools > Performance, or sum the self time per function from the JSON. The sampling costs a few percent, so the gate itself runs without it. Remember the dev build renders under React StrictMode, which runs every render twice, and that `(program)` in a profile is Blink's own style and layout work.
+
 **Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
 
 ## Domain setup on a real machine

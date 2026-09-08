@@ -25,6 +25,35 @@
   --pod-lineage-other: var(--color-slate-500);
 }
 
+/* With a column lit, nodes off the path fade back; the path carries a class on React
+   Flow's wrapper and the canvas an attribute, so nodes off the path are not touched. */
+[data-highlight='true'] .react-flow__node:not(.pod-lineage-lit-node) .pod-lineage-box {
+  opacity: 0.35;
+}
+
+/* Below the zoom cut the column rows are hidden here instead of unmounted, so crossing
+   it is one layout pass rather than a render of every node. */
+[data-columns='hidden'] .pod-lineage-rows {
+  display: none;
+}
+
+/* Stand-in for rows not rendered yet: faint lines at the row pitch. */
+.pod-lineage-rows-pending {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 19px,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 19px,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 20px
+  );
+}
+
+/* With a column lit, node edges off the path fade; the attribute sits on the canvas, so
+   no edge object changes for it. */
+[data-highlight='true'] .react-flow__edge:not(.pod-lineage-lit) .react-flow__edge-path {
+  opacity: 0.2;
+}
+
 /* Nodes and highlight edges settle in rather than pop; a layout change tweens
    positions in JavaScript so the edges travel with their nodes. */
 @keyframes pod-lineage-enter {

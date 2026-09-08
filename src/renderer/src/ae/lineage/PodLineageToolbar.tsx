@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import {
   Columns3,
@@ -102,6 +103,34 @@ function Stepper({
   )
 }
 
+/** One step of the − / + buttons; pinch and wheel stay continuous. */
+export const LINEAGE_ZOOM_STEP = 1.1
+
+/**
+ * Zoom out, percentage, zoom in. Its own component because the percentage changes on
+ * every wheel frame and the rest of the toolbar need not re-render for it.
+ */
+function ZoomStepper(): React.JSX.Element {
+  const { zoomTo, getZoom } = useReactFlow()
+  const zoom = useStore((state) => state.transform[2])
+  return (
+    <Stepper
+      label=""
+      value={`${Math.round(zoom * 100)}%`}
+      lessLabel={translate('pod.lineage.toolbar.zoomOut', 'Zoom out')}
+      moreLabel={translate('pod.lineage.toolbar.zoomIn', 'Zoom in')}
+      testId="pod-lineage-zoom"
+      // Why 1.1: React Flow's zoomIn and zoomOut step by 1.2, which jumps 47 % to 57 %;
+      // ten percent steps read as one notch. zoomTo clamps to the canvas's zoom range.
+      onChange={(delta) =>
+        void zoomTo(delta > 0 ? getZoom() * LINEAGE_ZOOM_STEP : getZoom() / LINEAGE_ZOOM_STEP, {
+          duration: 150
+        })
+      }
+    />
+  )
+}
+
 function kindLabel(kind: LineageKind): string {
   switch (kind) {
     case 'source':
@@ -124,9 +153,8 @@ function kindLabel(kind: LineageKind): string {
 }
 
 /** Second row of the dock on the Lineage tab: depth, view toggles, zoom, legend, engine. */
-export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Element {
-  const { zoomIn, zoomOut, fitView } = useReactFlow()
-  const zoom = useStore((state) => state.transform[2])
+function PodLineageToolbarComponent(props: PodLineageToolbarProps): React.JSX.Element {
+  const { fitView } = useReactFlow()
   // Why short: the toolbar shares one row with the legend; the version and the reason
   // for a fallback live in the tooltip and on the Connection tab.
   const engineText = !props.engine
@@ -193,16 +221,7 @@ export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Elem
           {props.loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
         </IconAction>
       </div>
-      <Stepper
-        label=""
-        value={`${Math.round(zoom * 100)}%`}
-        lessLabel={translate('pod.lineage.toolbar.zoomOut', 'Zoom out')}
-        moreLabel={translate('pod.lineage.toolbar.zoomIn', 'Zoom in')}
-        testId="pod-lineage-zoom"
-        onChange={(delta) =>
-          void (delta > 0 ? zoomIn({ duration: 150 }) : zoomOut({ duration: 150 }))
-        }
-      />
+      <ZoomStepper />
       {props.truncated && (
         <span className="text-[11px] text-muted-foreground">
           {translate('pod.lineage.toolbar.truncated', 'cut at the node cap')}
@@ -237,3 +256,7 @@ export function PodLineageToolbar(props: PodLineageToolbarProps): React.JSX.Elem
     </div>
   )
 }
+
+// Why memo: the view re-renders on every column click, and seven tooltips plus the
+// legend are a visible share of that pass while none of their props changed.
+export const PodLineageToolbar = memo(PodLineageToolbarComponent)

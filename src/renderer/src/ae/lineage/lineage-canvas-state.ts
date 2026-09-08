@@ -73,7 +73,11 @@ export function lineageSideCounts(
 export function mergeLineageGraphs(base: DbtGraphResult, extra: DbtGraphResult): DbtGraphResult {
   const nodes = new Map(base.nodes.map((node) => [node.uniqueId, node]))
   for (const node of extra.nodes) {
-    nodes.set(node.uniqueId, node)
+    // Why keep the base object: the same model from the same manifest says the same
+    // thing, and a node the canvas already holds stays untouched by the merge.
+    if (!nodes.has(node.uniqueId)) {
+      nodes.set(node.uniqueId, node)
+    }
   }
   const edgeKey = (edge: DbtGraphEdge): string => `${edge.source}->${edge.target}`
   const edges = new Map(base.edges.map((edge) => [edgeKey(edge), edge]))
