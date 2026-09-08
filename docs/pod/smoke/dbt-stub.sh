@@ -3,6 +3,14 @@
 # The manifest is source -> stg_orders -> {orders -> order_summary, orders_by_customer}, so the canvas,
 # column lineage and the Database explorer have something to draw.
 sleep 1
+# Performance runs point POD_STUB_MANIFEST and POD_STUB_CATALOG at a generated fixture
+# (docs/pod/smoke/perf-fixture.mjs); the four-node manifest below is the default.
+if [ -n "$POD_STUB_MANIFEST" ]; then
+  case " $* " in
+    *" parse "*) mkdir -p target; cp "$POD_STUB_MANIFEST" target/manifest.json; exit 0 ;;
+    *" docs generate "*) mkdir -p target; cp "$POD_STUB_CATALOG" target/catalog.json; exit 0 ;;
+  esac
+fi
 case " $* " in
   *" parse "*) mkdir -p target; cat > target/manifest.json <<'EOF'
 {"metadata": {"dbt_version": "1.9.0", "generated_at": "2026-09-07T14:00:00Z", "project_name": "demo"},
