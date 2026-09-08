@@ -107,7 +107,7 @@ export function PodLineageTree(props: PodLineageTreeProps): React.JSX.Element {
   )
   return (
     <div
-      className="flex w-56 shrink-0 flex-col overflow-auto scrollbar-sleek border-l border-border/60"
+      className="flex w-56 shrink-0 flex-col overflow-auto scrollbar-sleek border-l border-border/60 animate-in fade-in-0 slide-in-from-right-2 duration-200 motion-reduce:animate-none"
       data-testid="pod-lineage-tree"
     >
       <Section

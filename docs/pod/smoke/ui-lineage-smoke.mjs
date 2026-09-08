@@ -226,6 +226,14 @@ log(
   await indicatorX()
 )
 
+// Why: the Lineage view stays mounted across tabs, so coming back is instant and in place
+log(
+  'lineage views mounted after the round trip:',
+  await dock.locator('[data-testid="pod-lineage-view"]').count(),
+  '| canvas ready:',
+  await dock.locator('[data-testid="pod-lineage-canvas"]').getAttribute('data-ready')
+)
+
 // 5b. the same canvas in dark mode: swap the theme classes the app toggles (the live
 // window retheme runs from the renderer's settings store, not from the settings file)
 await page.evaluate(() => {
