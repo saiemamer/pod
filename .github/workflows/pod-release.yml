@@ -119,6 +119,49 @@ jobs:
           # Why: no Developer ID yet. Unsigned apps open via right-click, Open.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      # Why: the 0.1.0 build shipped with Orca's feed and a CLI wrapper that could not
+      # find the Pod binary; both are only visible in the packaged bundle.
+      - name: Verify the packaged app updates from Pod and its CLI starts
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          apps="$(find dist -maxdepth 2 -name 'Pod.app' -type d | sort)"
+          test -n "$apps" || { echo "::error::No Pod.app under dist/"; exit 1; }
+          for app in $apps; do
+            grep -q '^owner: saiemamer$' "$app/Contents/Resources/app-update.yml"
+            grep -q '^repo: pod$' "$app/Contents/Resources/app-update.yml"
+            cli_version="$("$app/Contents/Resources/bin/orca" --version)"
+            test "$cli_version" = "${TAG#v}" || { echo "::error::$app: bundled CLI reports $cli_version, tag is $TAG"; exit 1; }
+            echo "$app updates from saiemamer/pod; bundled CLI reports $cli_version"
+          done
+
+      # Why: 0.1.8 and 0.1.9 packaged fine and exited at startup on a missing
+      # main-process dependency; only launching the built apps catches that. The
+      # release is still a draft here, so a failure ships nothing.
+      - name: Verify the packaged apps start
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in $(find dist -maxdepth 2 -name 'Pod.app' -type d | sort); do
+            log="$RUNNER_TEMP/pod-launch-$(basename "$(dirname "$app")").log"
+            "$app/Contents/MacOS/Pod" > "$log" 2>&1 &
+            pid=$!
+            sleep 20
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "::error::$app exited within 20 s of launch"; cat "$log"; exit 1
+            fi
+            if grep -q 'fatal-exit' "$log"; then
+              echo "::error::$app reported a fatal exit"; cat "$log"; exit 1
+            fi
+            kill "$pid" || true
+            sleep 3
+            echo "$app stayed up for 20 s"
+          done
+
+      # Why last: the draft becomes visible to users and to the tap's bump job only
+      # after the built apps proved they start.
       - name: Publish the release
         shell: bash
         env:
@@ -128,45 +171,12 @@ jobs:
           set -euo pipefail
           count="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=20" --jq "[.[] | select(.tag_name == \"$TAG\")] | length")"
           test "$count" = "1" || { echo "::error::$count releases carry tag $TAG"; exit 1; }
+          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for name in pod-macos-x64.dmg pod-macos-arm64.dmg latest-mac.yml; do
+            grep -qx "$name" <<< "$assets" || { echo "::error::$name is missing from the draft"; exit 1; }
+          done
           gh release edit "$TAG" --draft=false --latest
-          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q '^pod-macos-x64.dmg$'
-          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q '^pod-macos-arm64.dmg$'
-
-      # Why: the 0.1.0 build shipped with Orca's feed and a CLI wrapper that could not
-      # find the Pod binary; both are only visible in the packaged bundle.
-      - name: Verify the packaged app updates from Pod and its CLI starts
-        shell: bash
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          app="$(find dist -maxdepth 2 -name 'Pod.app' -type d | head -1)"
-          test -n "$app" || { echo "::error::No Pod.app under dist/"; exit 1; }
-          grep -q '^owner: saiemamer$' "$app/Contents/Resources/app-update.yml"
-          grep -q '^repo: pod$' "$app/Contents/Resources/app-update.yml"
-          cli_version="$("$app/Contents/Resources/bin/orca" --version)"
-          test "$cli_version" = "${TAG#v}" || { echo "::error::Bundled CLI reports $cli_version, tag is $TAG"; exit 1; }
-          echo "Packaged app updates from saiemamer/pod; bundled CLI reports $cli_version"
-
-      # Why: 0.1.8 and 0.1.9 packaged fine and exited at startup on a missing
-      # main-process dependency; only launching the built app catches that.
-      - name: Verify the packaged app starts
-        shell: bash
-        run: |
-          set -euo pipefail
-          app="$(find dist -maxdepth 2 -name 'Pod.app' -type d | head -1)"
-          log="$RUNNER_TEMP/pod-launch.log"
-          "$app/Contents/MacOS/Pod" > "$log" 2>&1 &
-          pid=$!
-          sleep 20
-          if ! kill -0 "$pid" 2>/dev/null; then
-            echo "::error::Pod exited within 20 s of launch"; cat "$log"; exit 1
-          fi
-          if grep -q 'fatal-exit' "$log"; then
-            echo "::error::Pod reported a fatal exit"; cat "$log"; exit 1
-          fi
-          kill "$pid" || true
-          echo "Packaged app stayed up for 20 s"
+          echo "published $TAG with: $(tr '\n' ' ' <<< "$assets")"
 
       - name: Summary
         shell: bash

@@ -15,7 +15,7 @@ const requireFromProject = createRequire(join(projectDir, 'package.json'))
 
 /** Mirrors BUNDLED_MAIN_DEPENDENCIES in electron.vite.config.ts. */
 const BUNDLED_INTO_MAIN = new Set(['@xterm/headless', '@xterm/addon-serialize', 'psl', 'zod'])
-const POD_MAIN_DIRS = ['src/main/ae', 'src/main/pod', 'src/main/ipc/ae']
+const POD_MAIN_DIRS = ['src/main/ae', 'src/main/pod', 'src/main/ipc/ae', 'src/shared/ae']
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
