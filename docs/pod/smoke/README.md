@@ -16,6 +16,17 @@ The dev instance keeps its own data directory, so the installed Pod is untouched
 
 For the orchestration half (run-create, task-create, two-step dispatch, `check --wait`), build the CLI once with `pnpm build:cli` and use `out/bin/orca` with `--from <coordinator terminal handle>`; the steps and what they taught are in `docs/pod/PLAN.md` under "Phase 1 outcome".
 
+## Test rules
+
+Pod's own tests follow these rules (2026-10-03):
+
+- Before adding a unit test, name the behaviour it protects and a realistic bug that would make it fail. If an existing test or smoke step already catches that bug, do not add it.
+- Test through the module's public interface. No test may need an export, flag or hook that production code does not use.
+- Mock only at a real boundary: an external binary such as `omni` or `dbt` (the stand-ins in this folder), the network, IPC, persistence, the clock. Do not mock Pod's own modules.
+- No test that restates a constant, a type or the implementation line by line, and no test that checks a mock returns what it was told.
+- A test written for a bug fix must fail on the code before the fix.
+- User-visible behaviour is proven by a smoke step here that fails without the change, not by a component unit test.
+
 ## dbt dock (Phase 2)
 
 `ui-dbt-smoke.mjs` opens `models/marts/orders.sql` in the smoke dbt repo, presses Cmd+Enter (model run), selects three lines and presses Cmd+Enter again (inline run), then Cmd+Shift+Enter (compile), and reads the Connection tab. It then waits for the language server, asks for completion inside `ref('…')`, Cmd-clicks the model name to open `stg_orders.sql`, and on a fresh model run sorts by `status`, searches `paid`, hides `amount`, exports the shown rows to `target/orders_results.csv`, and drags the dock handle up 120 px (then back). It needs a `dbt` on the path Pod is told about; without a warehouse on this Mac, `dbt-stub.sh` answers `show`, `compile`, `parse` and `docs generate` with canned output. The first run downloads dbt-language-server v0.4.2 (5 MB, from GitHub Releases) into the dev instance's data directory; the Connection tab shows where it landed.
@@ -56,6 +67,8 @@ node docs/pod/smoke/perf-fixture.mjs
 POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python npx tsx docs/pod/smoke/graph-bench.mjs
 POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/smoke/ui-lineage-perf.mjs   # against pnpm dev on 9333
 ```
+
+On this 8 GB Intel Mac the pan-average and Database panel filter checks miss when other apps are busy, on `main` as well as on a branch, and pass when the Mac is quiet (2026-10-03: pan average 19.9 to 23.2 ms against the 20 ms limit while busy, 16.8 ms quiet). Close other apps before a gate run, and compare against `main` on the same machine before blaming a change.
 
 The report lands in `POD_SMOKE_OUT/pod-perf-report.json`. Delete `models/perf/` and `perf/` from the smoke repo afterwards if the default smoke repo should stay small.
 
