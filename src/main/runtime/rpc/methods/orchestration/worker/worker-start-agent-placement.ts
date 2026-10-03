@@ -29,6 +29,7 @@ import {
   type WorkerSetupReceipt
 } from './worker-topology'
 import { createWorkerWorktree } from './worker-worktree-creation'
+import type { WorkerCreationTarget } from './worker-creation-target'
 
 /** Only what the placement itself reads. The runtime's own worktree accessors are untyped, so
  *  naming the two fields keeps `any` out of this module's unions. */
@@ -52,8 +53,8 @@ type WorkerAgentPlacementArgs = {
   taskId: string
   params: WorkerStartInput
   requestedWorktree: string
-  /** The coordinator's worktree, present only when this start creates one. */
-  creationWorktree: PlacedWorktree | undefined
+  /** Where the new worktree goes, present only when this start creates one. */
+  creationTarget: WorkerCreationTarget | undefined
   /** The already-resolved placement, present only when this start does not create one. */
   resolvedWorktree: PlacedWorktree | undefined
   mode: WorkerStartModeReceipt
@@ -78,8 +79,8 @@ export const EXISTING_WORKTREE_SETUP: WorkerSetupReceipt = {
 export async function placeWorkerAgent(
   args: WorkerAgentPlacementArgs
 ): Promise<WorkerAgentPlacement> {
-  if (args.creationWorktree) {
-    return placeInCreatedWorktree(args, args.creationWorktree)
+  if (args.creationTarget) {
+    return placeInCreatedWorktree(args, args.creationTarget)
   }
   const worktree = requireWorktree(args.resolvedWorktree)
   if (args.params.terminal) {
@@ -107,7 +108,7 @@ export async function placeWorkerAgent(
 
 async function placeInCreatedWorktree(
   args: WorkerAgentPlacementArgs,
-  coordinatorWorktree: PlacedWorktree
+  target: WorkerCreationTarget
 ): Promise<WorkerAgentPlacement> {
   args.onStage('worktree_create')
   const created = await createWorkerWorktree({
@@ -115,7 +116,7 @@ async function placeInCreatedWorktree(
     db: args.db,
     dispatchId: args.dispatchId,
     requestedWorktree: args.requestedWorktree,
-    coordinatorWorktree,
+    target,
     params: args.params,
     agent: args.agent as TuiAgent,
     withAgentTerminal: args.mode.mode !== 'structured',

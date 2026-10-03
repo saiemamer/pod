@@ -15,6 +15,7 @@ import {
 import { EXISTING_WORKTREE_SETUP, placeWorkerAgent } from './worker-start-agent-placement'
 import { awaitStructuredWorkerSetupGate } from './worker-start-structured-setup-gate'
 import { assertOrchestrationWorktreeCreationSupported } from './folder-worktree-placement'
+import { resolveWorkerCreationTarget } from './worker-creation-target'
 import type { WorkerStartInput } from './worker-start-schema'
 import {
   persistGatedSetupSpawnFailure,
@@ -61,17 +62,22 @@ export async function startLocalWorker(args: {
     params.from,
     callerSession
   )
-  const creationWorktree = createsWorktree
-    ? await runtime.showManagedWorktree(`id:${coordinatorWorktreeId}`)
+  const creationTarget = createsWorktree
+    ? await resolveWorkerCreationTarget({
+        runtime,
+        coordinatorWorktreeId,
+        requestedWorktree,
+        repo: params.repo
+      })
     : undefined
-  if (creationWorktree) {
+  if (creationTarget) {
     await assertOrchestrationWorktreeCreationSupported({
       runtime,
-      repoSelector: params.repo ?? creationWorktree.repoId,
+      repoSelector: creationTarget.repoSelector,
       existingPlacement: 'current or an exact existing folder workspace'
     })
   }
-  let resolvedWorktree = creationWorktree
+  let resolvedWorktree = creationTarget
     ? undefined
     : requestedWorktree === 'current'
       ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorWorktreeId}`)
@@ -92,7 +98,7 @@ export async function startLocalWorker(args: {
     mode,
     resolvedWorktreeId: resolvedWorktree?.id ?? null,
     name: params.name ?? null,
-    repo: params.repo ?? creationWorktree?.repoId ?? null,
+    repo: creationTarget?.repoSelector ?? params.repo ?? null,
     baseBranch: params.baseBranch ?? null,
     terminal: params.terminal ?? null,
     agent: agent ?? null,
@@ -145,7 +151,7 @@ export async function startLocalWorker(args: {
       taskId: task.id,
       params,
       requestedWorktree,
-      creationWorktree,
+      creationTarget,
       resolvedWorktree,
       mode,
       agent,

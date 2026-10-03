@@ -224,6 +224,61 @@ describe('orchestration new-worktree workers', () => {
     expect(db.getDispatchContext(task.id)).toBeUndefined()
   })
 
+  function coordinateFromFolderWorkspace() {
+    vi.mocked(runtime.showTerminal).mockResolvedValue({
+      handle: 'term_coord',
+      worktreeId: 'folder:workspace-1',
+      status: 'running'
+    } as never)
+    // Why: the real worktree lookup has no folder branch and answers selector_not_found.
+    vi.mocked(runtime.showManagedWorktree).mockRejectedValue(new Error('selector_not_found'))
+  }
+
+  it('creates a worker worktree in a named repo under a folder-workspace coordinator', async () => {
+    coordinateFromFolderWorkspace()
+    mockCreatedWorktree()
+
+    const { result } = await startWorker({ worktree: 'new-child', repo: 'id:repo' })
+
+    expect(runtime.createManagedWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoSelector: 'id:repo',
+        lineage: expect.objectContaining({
+          parentWorkspace: 'folder:workspace-1',
+          parentWorktree: undefined,
+          noParent: false
+        })
+      })
+    )
+    expect(result).toMatchObject({ state: 'ready' })
+  })
+
+  it('keeps a top-level worker from a folder-workspace coordinator unparented', async () => {
+    coordinateFromFolderWorkspace()
+    mockCreatedWorktree()
+
+    await startWorker({ worktree: 'new-top-level', repo: 'id:repo' })
+
+    expect(runtime.createManagedWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoSelector: 'id:repo',
+        lineage: expect.objectContaining({ noParent: true, parentWorktree: undefined })
+      })
+    )
+  })
+
+  it('asks a folder-workspace coordinator for --repo before creating a worktree', async () => {
+    coordinateFromFolderWorkspace()
+    const createWorktree = vi.spyOn(runtime, 'createManagedWorktree')
+
+    await expect(startWorker({ worktree: 'new-child' })).rejects.toMatchObject({
+      code: 'invalid_argument',
+      message:
+        'A folder workspace has no repo of its own; pass --repo <selector> to create a worktree from it.'
+    })
+    expect(createWorktree).not.toHaveBeenCalled()
+  })
+
   it('injects the execution host CLI command without a Dispatch capability', async () => {
     mockCreatedWorktree()
     vi.mocked(runtime.getTerminalOrchestrationCliCommand).mockReturnValue('orca-ide')
