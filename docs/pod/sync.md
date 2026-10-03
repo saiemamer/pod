@@ -6,45 +6,73 @@ Three things keep a rebase small. Pod's own code lives in new files (`ae/` direc
 
 ## Where it stands (2026-10-03)
 
-Pod is still on v1.4.197. The daily rehearsal below has opened an issue for every newer stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift), all open). The first stopped on `package.json` and `pnpm-lock.yaml`; the latest, v1.4.219, stops on `.gitattributes`, `config/electron-builder.config.cjs` and `package.json`. An issue lists only the files of the first Pod commit that stops, because the job aborts there, so the full set is larger.
+Pod is still on v1.4.197. The daily rehearsal below has opened an issue for every newer stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift), all open). Sixteen of them stopped only on some of `package.json`, `pnpm-lock.yaml`, `.gitattributes` and `config/electron-builder.config.cjs`, the four files the sync script below resolves by rule; v1.4.199 and v1.4.200 (issues 3 and 4) stopped on `src/renderer/src/store/index.ts`. Those issues list only the files of the first Pod commit that stopped, because the old job aborted there.
+
+## The sync script
+
+`config/pod-sync-upstream.mjs` does the rebase. It works on the repository in the current directory, reads the base tag from `config/pod-brand.cjs`, fetches only the base and target tags from stablyai/orca (adding the `upstream` remote if it is missing), creates `sync/<tag>` from `HEAD` and runs `git rebase --onto <tag> <base>` there. It refuses a dirty tree, an existing branch, and `--branch main`.
+
+```sh
+node config/pod-sync-upstream.mjs v1.4.219                  # rebase onto branch sync/v1.4.219
+node config/pod-sync-upstream.mjs v1.4.219 --branch try     # onto another new branch
+node config/pod-sync-upstream.mjs --continue                # after resolving a stop by hand
+node config/pod-sync-upstream.mjs v1.4.219 --report out.json   # also write the outcome as JSON
+```
+
+At each stop it resolves these files by rule and stages them. During a rebase git's `--ours` is the upstream side (the tag plus the Pod commits already replayed) and `--theirs` is the Pod commit being replayed.
+
+- `package.json`: upstream's file, version included, with Pod's keys from the register re-applied: the `test:pod` and `typecheck:pod` scripts and the `vscode-jsonrpc`, `@xyflow/react` and `@dagrejs/dagre` dependencies. A new key goes after the one it follows in Pod's file.
+- `pnpm-lock.yaml`: upstream's, then `pnpm install --lockfile-only` so pnpm adds Pod's dependencies back. It needs `pnpm` on the path and the network.
+- `.gitattributes`: upstream's lines plus Pod's `README.md merge=pod-keep` line and its `# Pod:` comment.
+- `config/electron-builder.config.cjs`: upstream's file with Pod's identity lines re-applied (app id, product name, Windows executable name, mac DMG name, publish owner and repo), each read from `config/pod-brand.cjs`.
+
+Each rule first checks that the Pod commit changed only what the rule knows how to re-apply, and that upstream still has the line or key it replaces. If not, it stops rather than guess: a Pod commit that changes another `package.json` key, a lockfile change without a Pod dependency change, upstream rewording `const appId = 'com.stablyai.orca'`, or a file one side added or deleted. The package.json keys and the electron-builder lines live in the script as `POD_PACKAGE_KEYS` and `ELECTRON_BUILDER_TOUCHES`. They mirror those rows of [`FORK_TOUCHPOINTS.md`](../../FORK_TOUCHPOINTS.md), so a new Pod dependency goes in both or every sync stops on it.
+
+Any other conflicted file stops it with the rebase left in progress. It prints the Pod commit (with its position, "commit 12 of 62"), each file a person must resolve and why, and the files it already staged. Resolve those, `git add` them, and run `--continue`; it carries on applying the rules at later stops. `git rebase --abort` gives up, and `git branch -D sync/<tag>` then removes the branch.
+
+After a clean rebase it moves every new upstream workflow from `.github/workflows/` to `.github/workflows-upstream/` (`src/shared/brand.test.ts` fails on a non-`pod-` file there) and bumps `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts`, all in one commit, `pod(sync): rebase onto Orca <tag>`. A clash in that step (a moved workflow already in `workflows-upstream/`) stops it the same way, and `--continue` finishes once fixed. It exits 0 when done, 2 when stopped for a person, and 1 when it refused or failed.
+
+`node --test config/pod-sync-upstream.test.mjs` runs its tests, which build a small upstream and a Pod clone and need only Node and git. The lockfile rule needs pnpm and the network, so only real syncs cover it.
 
 ## The daily rehearsal
 
-`.github/workflows/pod-upstream-drift.yml` runs at 06:00 UTC. It finds the newest `vX.Y.Z` tag on stablyai/orca, rebases a throwaway copy of `main` onto it, and on a clean rebase runs `pnpm install --frozen-lockfile`, `pnpm tc` and the brand and updater tests. On a conflict or a failure it opens an issue labelled `upstream-drift`, or comments on the open one for the same tag. It never pushes. Run it by hand from the Actions tab with a tag, or with `main` to rehearse against upstream's branch before the next tag exists.
+`.github/workflows/pod-upstream-drift.yml` runs at 06:00 UTC, or from the Actions tab on `main` with a tag. It finds the newest `vX.Y.Z` tag on stablyai/orca and runs three jobs.
+
+1. `prepare` holds no secrets. It tests the script and runs it on `main`. On a clean rebase it runs `pnpm install --frozen-lockfile`, `pnpm tc` and the brand and updater tests, and if they pass it hands the new commits over as a git bundle.
+2. `push` runs on a fresh runner and executes nothing from the repository. It checks that the bundle holds exactly `refs/heads/sync/<tag>` and that the commit sets the base tag to `<tag>`, then pushes that one ref to saiemamer/pod. It replaces an older `sync/<tag>` when `main` has moved since and leaves it alone when the tree is the same.
+3. `report` files the outcome on one issue per tag, labelled `upstream-drift`: a new issue, or a comment on the open one. A stop lists the Pod commit, the files that need a person and why, and the files the rules resolved. A failed check, a failed push or a script error goes there too.
+
+It never pushes `main` and never pushes or creates a tag. `GITHUB_TOKEN` is read-only for code in every job and can write issues only in `report`. The push uses the `POD_SYNC_TOKEN` secret, because GitHub refuses a `GITHUB_TOKEN` push that adds or changes files under `.github/workflows/`, and every sync branch does. Nobody has decided yet whether to add it; it would be a fine-grained token for saiemamer/pod only, with Contents and Workflows read and write. Until it exists the run stays green, nothing is pushed, and the tag's issue gets one note, once per tag, that the update is clean and checked, with the command that produces `sync/<tag>` locally.
 
 ## Rebase onto a new upstream release
 
-Do this on a branch, in a checkout with no other work in progress. During a rebase git's `--ours` is the upstream side being rebased onto and `--theirs` is the Pod commit being replayed.
+If the rehearsal pushed `sync/<tag>`, check that branch out and skip to the list below. Otherwise run the script in a checkout with no other work in progress:
+
+```sh
+node config/pod-sync-upstream.mjs v1.4.219
+```
+
+It adds the `upstream` remote and the merge driver that keeps Pod's README if they are missing. Its fetch, by hand:
 
 ```sh
 git remote add upstream https://github.com/stablyai/orca.git   # once
 git config merge.pod-keep.driver 'cp %B %A'                    # once: keeps Pod's README.md during rebases
 OLD=v1.4.197 NEW=v1.4.219
 git fetch --no-tags --filter=blob:none upstream "refs/tags/$OLD:refs/tags/$OLD" "refs/tags/$NEW:refs/tags/$NEW"
-git checkout -b "sync/$NEW" main
-git rebase --onto "$NEW" "$OLD"
 ```
 
 Fetch only the two tags, as above. Never push upstream tags to saiemamer/pod: `pod-release.yml` builds every `v*` tag, and Pod's own tags are `v0.x.y`. `git push origin main` (with or without `--force-with-lease`) pushes no tags; avoid `--tags` and `--follow-tags`.
 
-At each stop, find the file in `FORK_TOUCHPOINTS.md`, take upstream's version of the lines around the touch, and re-apply Pod's touch as the register describes it. The files that stop rebases today:
+At a stop the script hands over, find the file in `FORK_TOUCHPOINTS.md`, take upstream's version of the lines around the touch, and re-apply Pod's touch as the register describes it.
 
-- `package.json`: keep upstream's version of everything except what the register lists: the `test:pod` and `typecheck:pod` scripts and the dependencies Pod added (`vscode-jsonrpc`, `@xyflow/react`, `@dagrejs/dagre`).
-- `pnpm-lock.yaml`: do not merge it by hand. Take upstream's (`git checkout --ours pnpm-lock.yaml`), then run `pnpm install` so pnpm adds Pod's dependencies back, and `git add` the result.
-- `.gitattributes`: keep upstream's lines and Pod's `README.md merge=pod-keep` line.
-- `config/electron-builder.config.cjs`: upstream's file with Pod's identity values re-applied (appId, product name, mac executable and artifact names, publish owner and repo), all read from `config/pod-brand.cjs`.
+When the script has finished:
 
-Then `git add` the file and `git rebase --continue`. If upstream added a workflow under `.github/workflows/`, move it aside, or `src/shared/brand.test.ts` fails: `git mv .github/workflows/<new>.yml .github/workflows-upstream/`.
+1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
+2. Run the smokes in [`smoke/README.md`](./smoke/README.md) against `pnpm dev` on this tree, and the lineage performance gate, comparing with `main` on the same Mac.
+3. Run the data check below.
+4. Land it. The rebase rewrites `main`'s history, so it goes up with `git push --force-with-lease origin main`, and every other clone resets to it (`git fetch origin && git reset --hard origin/main`, after moving local work onto a branch). Then cut a release with the new base named in its notes (see [`README.md`](./README.md), "Cut a release").
 
-When the rebase finishes:
-
-1. Bump `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts` in one commit.
-2. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
-3. Run the smokes in [`smoke/README.md`](./smoke/README.md) against `pnpm dev` on this tree, and the lineage performance gate, comparing with `main` on the same Mac.
-4. Run the data check below.
-5. Land it. The rebase rewrites `main`'s history, so it goes up with `git push --force-with-lease origin main`, and every other clone resets to it (`git fetch origin && git reset --hard origin/main`, after moving local work onto a branch). Then cut a release with the new base named in its notes (see [`README.md`](./README.md), "Cut a release").
-
-`FORK_TOUCHPOINTS.md` should end with the same rows it started with. A touch that had to grow belongs in the register in the same commit.
+`FORK_TOUCHPOINTS.md` should end with the same rows it started with. A touch that had to grow belongs in the register in the same commit, and in the script's lists when it is one of the four rule files.
 
 ## What an update keeps
 
