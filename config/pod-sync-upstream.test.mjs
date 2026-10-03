@@ -51,8 +51,7 @@ function fixture() {
   const pod = join(root, 'pod')
   mkdirSync(up)
   git(up, 'init', '-q', '-b', 'main')
-  const sync = (...args) => {
-    const report = join(root, 'report.json')
+  const syncReportingTo = (report, ...args) => {
     rmSync(report, { force: true })
     const result = spawnSync(process.execPath, [SCRIPT, ...args, '--report', report], {
       cwd: pod,
@@ -62,10 +61,11 @@ function fixture() {
     return {
       code: result.status,
       output: result.stdout + result.stderr,
-      report: existsSync(report) ? JSON.parse(read(root, 'report.json')) : null
+      report: existsSync(report) ? JSON.parse(readFileSync(report, 'utf8')) : null
     }
   }
-  return { up, pod, git, write, read, commit, sync }
+  const sync = (...args) => syncReportingTo(join(root, 'report.json'), ...args)
+  return { root, up, pod, git, write, read, commit, sync, syncReportingTo }
 }
 
 afterEach(() => {
@@ -122,6 +122,15 @@ const brandFiles = (tag) => ({
   'src/shared/brand.ts': `export const POD_UPSTREAM_BASE_TAG = '${tag}'\n`
 })
 
+// Like Orca, each release tag sits on its own release commit off main, so v1.1.0 does not
+// contain v1.0.0.
+function tagRelease(f, tag) {
+  f.git(f.up, 'checkout', '-q', '-b', `release/${tag}`)
+  f.commit(f.up, `release ${tag}`, { 'CHANGELOG.md': `${tag}\n` })
+  f.git(f.up, 'tag', tag)
+  f.git(f.up, 'checkout', '-q', 'main')
+}
+
 // Orca v1.0.0 with Pod's commits on top, then Orca v1.1.0 editing next to each Pod touch.
 function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
   const f = fixture()
@@ -137,10 +146,11 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
     '.github/workflows/pr.yml': 'name: pr\n',
     'src/app.ts': "export const greeting = 'hello'\n"
   })
-  git(up, 'tag', 'v1.0.0')
+  tagRelease(f, 'v1.0.0')
 
   git(dirname(pod), 'clone', '-q', up, pod)
   git(pod, 'remote', 'rename', 'origin', 'upstream')
+  git(pod, 'reset', '-q', '--hard', 'v1.0.0')
   commit(pod, 'pod: brand constants and identity touchpoints', {
     ...brandFiles('v1.0.0'),
     'package.json': json({
@@ -174,7 +184,7 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
     ),
     '.github/workflows/release.yml': 'name: release\n'
   })
-  git(up, 'tag', 'v1.1.0')
+  tagRelease(f, 'v1.1.0')
   return f
 }
 
@@ -274,7 +284,7 @@ test('a stop on a file without a rule can be resolved by hand and finished with 
   const { up, pod, git, read, commit, write, sync } = f
   commit(pod, 'pod: greet in Pod', { 'src/app.ts': "export const greeting = 'hello from Pod'\n" })
   commit(up, 'orca 1.2.0', { 'src/app.ts': "export const greeting = 'hello from Orca'\n" })
-  git(up, 'tag', 'v1.2.0')
+  tagRelease(f, 'v1.2.0')
 
   const first = sync('v1.2.0')
   assert.equal(first.code, 2, first.output)
@@ -311,9 +321,56 @@ test('refuses a --branch value that git would read as an option', () => {
   const { pod, git, sync } = forkedRepos()
   const branchesBefore = git(pod, 'branch', '--list')
 
-  const { code, output } = sync('v1.1.0', '--branch', '--orphan')
+  const { code, report } = sync('v1.1.0', '--branch', '--orphan')
 
   assert.equal(code, 1)
-  assert.match(output, /--branch needs a value that does not start with a dash/)
+  assert.match(report.error, /--branch needs a value that does not start with a dash/)
   assert.equal(git(pod, 'branch', '--list'), branchesBefore)
+})
+
+test('syncs onto a newer tag on a sibling release line', () => {
+  // Catches: requiring the new tag to descend from the base tag, which refused v1.4.219
+  // over v1.4.197 on the first real run; and carrying the old release commit along.
+  const { up, pod, git, read, sync } = forkedRepos()
+  const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', 'v1.0.0', 'v1.1.0'], {
+    cwd: up
+  })
+  assert.equal(ancestry.status, 1, 'v1.1.0 must not contain v1.0.0, as with Orca')
+
+  const { code, output } = sync('v1.1.0')
+
+  assert.equal(code, 0, output)
+  assert.equal(read(pod, 'CHANGELOG.md'), 'v1.1.0\n')
+  assert.equal(git(pod, 'log', '--format=%s', 'HEAD', '--grep', '^release v1.0.0$'), '')
+})
+
+test('refuses a tag older than the base tag', () => {
+  // Catches: a mistyped tag (v1.4.129 for v1.4.219) rebasing Pod back onto an older Orca.
+  const f = forkedRepos()
+  const { pod, git, sync } = f
+  tagRelease(f, 'v0.9.0')
+  const branchesBefore = git(pod, 'branch', '--list')
+
+  const { code, report } = sync('v0.9.0')
+
+  assert.equal(code, 1)
+  assert.match(report.error, /v0\.9\.0 is older than the base tag v1\.0\.0/)
+  assert.equal(git(pod, 'branch', '--list'), branchesBefore)
+})
+
+test('a refusal still writes the report into a directory that does not exist yet', () => {
+  // Catches: the first real run, where the report directory under $RUNNER_TEMP was missing,
+  // the script crashed with ENOENT, and the issue could only say "see the run".
+  const { root, syncReportingTo } = forkedRepos()
+
+  const { code, report } = syncReportingTo(
+    join(root, 'not-yet', 'report.json'),
+    'v1.1.0',
+    '--branch',
+    'main'
+  )
+
+  assert.equal(code, 1)
+  assert.equal(report.status, 'error')
+  assert.match(report.error, /refusing to rebase main/)
 })

@@ -14,8 +14,8 @@
 //
 // Exit 0: rebased and committed. Exit 2: stopped for a person. Exit 1: refused or failed.
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 
 const UPSTREAM_URL = 'https://github.com/stablyai/orca.git'
 const TAG_PATTERN = /^v\d+\.\d+\.\d+$/
@@ -110,6 +110,14 @@ function parseArgs(argv) {
   return options
 }
 
+const versionParts = (tag) => tag.slice(1).split('.').map(Number)
+
+function isNewerTag(tag, than) {
+  const [a, b] = [versionParts(tag), versionParts(than)]
+  const at = a.findIndex((part, i) => part !== b[i])
+  return at !== -1 && a[at] > b[at]
+}
+
 function readBaseTag() {
   const text = readFileSync('config/pod-brand.cjs', 'utf8')
   const match = text.match(/upstreamBaseTag: '([^']+)'/)
@@ -167,12 +175,17 @@ function start(options, report) {
   if (base === tag) {
     throw new Refusal(`Pod is already on ${tag}`)
   }
+  if (!isNewerTag(tag, base)) {
+    throw new Refusal(`${tag} is older than the base tag ${base}`)
+  }
   ensureTags([base, tag])
   if (!gitOk(['merge-base', '--is-ancestor', base, 'HEAD'])) {
     throw new Refusal(`HEAD does not contain the base tag ${base}`)
   }
-  if (!gitOk(['merge-base', '--is-ancestor', base, tag])) {
-    throw new Refusal(`${tag} does not descend from the base tag ${base}`)
+  // Why not --is-ancestor: each Orca release tag sits on its own release commits, so a
+  // newer tag does not contain the older one. The rebase replays only base..HEAD either way.
+  if (!gitOk(['merge-base', base, tag])) {
+    throw new Refusal(`${tag} shares no history with the base tag ${base}`)
   }
   if (!git(['config', '--get', 'merge.pod-keep.driver'], { allowFailure: true }).stdout.trim()) {
     // Why: .gitattributes routes README.md here, which keeps Pod's front page during a rebase.
@@ -568,12 +581,20 @@ function drive(state, report, rebaseDone) {
   return 0
 }
 
+// Why read before parsing and before the chdir: a refused argument must still leave a
+// report, at the path the caller meant.
+function reportPathFrom(argv) {
+  const value = argv[argv.indexOf('--report') + 1]
+  return argv.includes('--report') && value && !value.startsWith('-') ? resolve(value) : null
+}
+
 function main() {
+  const argv = process.argv.slice(2)
+  const reportPath = reportPathFrom(argv)
   const report = { status: 'error' }
-  let options = { report: null }
   let code = 1
   try {
-    options = parseArgs(process.argv.slice(2))
+    const options = parseArgs(argv)
     process.chdir(git(['rev-parse', '--show-toplevel']).trim())
     if (options.continue) {
       const state = loadState()
@@ -601,14 +622,15 @@ function main() {
       printStop(report)
     }
   } catch (error) {
-    if (!(error instanceof Refusal)) {
-      throw error
-    }
     report.error = error.message
     console.error(`pod-sync-upstream: ${error.message}`)
+    if (!(error instanceof Refusal)) {
+      console.error(error.stack)
+    }
   }
-  if (options.report) {
-    writeFileSync(options.report, `${JSON.stringify(report, null, 2)}\n`)
+  if (reportPath) {
+    mkdirSync(dirname(reportPath), { recursive: true })
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`)
   }
   process.exit(code)
 }
