@@ -1,21 +1,13 @@
-import { z } from 'zod'
-import { defineMethod, type RpcMethod } from '../core'
-import { OptionalString, requiredString } from '../schemas'
+import { defineMethod } from '../core'
+import {
+  DomainInitiativeUpdateParams,
+  DomainSelectorParams
+} from '../../../../shared/ae/ae-rpc-params'
 import { getAeDomainService } from '../../../ae/domain-service'
 import { AE_INITIATIVE_STATUSES, type AeInitiativeStatus } from '../../../../shared/ae/domain-types'
 
-const DomainSelector = z.object({
-  domain: requiredString('Missing domain selector')
-})
-
-const InitiativeUpdateParams = z.object({
-  initiative: requiredString('Missing initiative id'),
-  run: OptionalString,
-  status: OptionalString
-})
-
 /** Pod: read-only domain surface for agents and scripts; secrets are names only. */
-export const DOMAIN_METHODS: RpcMethod[] = [
+export const DOMAIN_METHODS = [
   defineMethod({
     name: 'domain.list',
     params: null,
@@ -26,7 +18,7 @@ export const DOMAIN_METHODS: RpcMethod[] = [
   }),
   defineMethod({
     name: 'domain.show',
-    params: DomainSelector,
+    params: DomainSelectorParams,
     handler: (params) => {
       const service = getAeDomainService()
       const wanted = params.domain.trim().toLowerCase()
@@ -41,7 +33,7 @@ export const DOMAIN_METHODS: RpcMethod[] = [
   }),
   defineMethod({
     name: 'domain.initiativeUpdate',
-    params: InitiativeUpdateParams,
+    params: DomainInitiativeUpdateParams,
     handler: (params) => {
       const service = getAeDomainService()
       const existing = service.listInitiatives().find((entry) => entry.id === params.initiative)

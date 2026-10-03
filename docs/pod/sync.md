@@ -70,7 +70,7 @@ At a stop the script hands over, find the file in `FORK_TOUCHPOINTS.md`, take up
 
 When the script has finished:
 
-1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
+1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and the RPC params catalog (`pnpm run generate:rpc-params-catalog`), and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
 2. Run the smokes in [`smoke/README.md`](./smoke/README.md) against `pnpm dev` on this tree, and the lineage performance gate, comparing with `main` on the same Mac.
 3. Run the data check below.
 4. Land it. The rebase rewrites `main`'s history, so it goes up with `git push --force-with-lease origin main`, and every other clone resets to it (`git fetch origin && git reset --hard origin/main`, after moving local work onto a branch). Then cut a release with the new base named in its notes (see [`README.md`](./README.md), "Cut a release").

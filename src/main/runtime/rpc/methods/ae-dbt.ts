@@ -1,6 +1,13 @@
-import { z } from 'zod'
-import { defineMethod, type RpcMethod } from '../core'
-import { OptionalBoolean, OptionalPositiveInt, OptionalString, requiredString } from '../schemas'
+import { defineMethod } from '../core'
+import {
+  DbtColumnLineageParams,
+  DbtCompileParams,
+  DbtLineageParams,
+  DbtListParams,
+  DbtModelParams,
+  DbtPathParams,
+  DbtShowParams
+} from '../../../../shared/ae/ae-rpc-params'
 import { getAeDbtService } from '../../../ae/dbt/dbt-service'
 import {
   dbtColumnLineageRequest,
@@ -8,68 +15,41 @@ import {
   getDbtLineageServices
 } from '../../../ae/dbt/dbt-lineage-ops'
 
-const PathParams = z.object({
-  path: requiredString('Missing path'),
-  projectDir: OptionalString,
-  target: OptionalString
-})
-const ShowParams = PathParams.extend({
-  model: OptionalString,
-  sql: OptionalString,
-  limit: OptionalPositiveInt
-})
-const CompileParams = PathParams.extend({
-  model: OptionalString,
-  sql: OptionalString
-})
-const ListParams = PathParams.extend({
-  filter: OptionalString,
-  refresh: OptionalBoolean
-})
-const ModelParams = PathParams.extend({
-  model: requiredString('Missing --model'),
-  refresh: OptionalBoolean
-})
-const LineageParams = ModelParams.extend({ depth: OptionalPositiveInt })
-const ColumnLineageParams = LineageParams.extend({
-  column: requiredString('Missing --column')
-})
-
 /** Pod: `orca dbt ...` for agents. `path` is the caller's cwd; the service finds the project from it. */
-export const DBT_METHODS: RpcMethod[] = [
+export const DBT_METHODS = [
   defineMethod({
     name: 'dbt.project',
-    params: PathParams,
+    params: DbtPathParams,
     handler: (params) => getAeDbtService().project(params)
   }),
   defineMethod({
     name: 'dbt.show',
-    params: ShowParams,
+    params: DbtShowParams,
     handler: (params) => getAeDbtService().show(params)
   }),
   defineMethod({
     name: 'dbt.compile',
-    params: CompileParams,
+    params: DbtCompileParams,
     handler: (params) => getAeDbtService().compile(params)
   }),
   defineMethod({
     name: 'dbt.parse',
-    params: PathParams,
+    params: DbtPathParams,
     handler: (params) => getAeDbtService().parse(params)
   }),
   defineMethod({
     name: 'dbt.listModels',
-    params: ListParams,
+    params: DbtListParams,
     handler: (params) => getAeDbtService().listModels(params)
   }),
   defineMethod({
     name: 'dbt.modelInfo',
-    params: ModelParams,
+    params: DbtModelParams,
     handler: (params) => getAeDbtService().modelInfo(params)
   }),
   defineMethod({
     name: 'dbt.lineage',
-    params: LineageParams,
+    params: DbtLineageParams,
     handler: (params) =>
       dbtLineageWithColumns(getAeDbtService(), getDbtLineageServices(), {
         ...params,
@@ -78,7 +58,7 @@ export const DBT_METHODS: RpcMethod[] = [
   }),
   defineMethod({
     name: 'dbt.columnLineage',
-    params: ColumnLineageParams,
+    params: DbtColumnLineageParams,
     handler: (params) => dbtColumnLineageRequest(getAeDbtService(), getDbtLineageServices(), params)
   })
 ]
