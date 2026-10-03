@@ -172,6 +172,14 @@ if (grow > 0 && box) {
   await page.mouse.up()
 }
 const nodes = dock.locator('[data-testid="pod-lineage-node"]')
+// Why throw: these steps only logged counts, and a node sliding off screen passed silently.
+const expectCount = async (label, want) => {
+  const got = await nodes.count()
+  log(label, got)
+  if (got !== want) {
+    throw new Error(`${label} ${got}, expected ${want}`)
+  }
+}
 await nodes.first().waitFor({ state: 'visible', timeout: 30000 })
 await sleep(1200)
 const nodeIds = await nodes.evaluateAll((els) => els.map((el) => el.dataset.nodeId))
@@ -275,16 +283,90 @@ const centreOn = async (name) => {
   await dock.locator('[data-testid="pod-lineage-tree"] button', { hasText: name }).first().click()
   await sleep(600)
 }
+// Why no force and a canvas check: a side button once moved its own node off the
+// canvas, and a forced click landed on the sidebar beside it without failing.
+const STG = 'model.demo.stg_orders'
+const stgNode = dock.locator(`[data-node-id="${STG}"]`)
+const stgSide = stgNode.locator('[data-testid="pod-lineage-side-up"]')
+const expectStgInside = async (label) => {
+  const canvas = await dock.locator('.react-flow').boundingBox()
+  const box = await stgNode.boundingBox()
+  const inside =
+    !!canvas &&
+    !!box &&
+    box.x >= canvas.x &&
+    box.x + box.width <= canvas.x + canvas.width &&
+    box.y >= canvas.y &&
+    box.y + box.height <= canvas.y + canvas.height
+  log(label, box ? `stg_orders at ${Math.round(box.x)},${Math.round(box.y)}` : 'gone', inside)
+  if (!inside) {
+    throw new Error(`${label} stg_orders left the canvas`)
+  }
+}
+// Samples stg_orders' screen x every frame while a side button re-lays out the graph;
+// the node should hold still, not drift and come back.
+const clickSideSampled = async (label) => {
+  await page.evaluate((id) => {
+    const el = document.querySelector(`[data-node-id="${id}"]`)
+    const samples = []
+    window.__podDrift = samples
+    const tick = () => {
+      if (window.__podDrift !== samples) {
+        return
+      }
+      const node = document.querySelector(`[data-node-id="${id}"]`) ?? el
+      samples.push(node.getBoundingClientRect().x)
+      requestAnimationFrame(tick)
+    }
+    tick()
+  }, STG)
+  await stgSide.click({ timeout: 5000 })
+  await sleep(600)
+  const samples = await page.evaluate(() => {
+    const taken = window.__podDrift
+    window.__podDrift = null
+    return taken
+  })
+  const drift = Math.max(...samples.map((x) => Math.abs(x - samples[0])))
+  log(label, `largest drift ${drift.toFixed(1)} px over ${samples.length} frames`)
+  if (drift > 4) {
+    throw new Error(`${label} stg_orders drifted ${drift.toFixed(1)} px`)
+  }
+}
 await centreOn('stg_orders')
-const stgSide = dock.locator(
-  '[data-node-id="model.demo.stg_orders"] [data-testid="pod-lineage-side-up"]'
-)
-await stgSide.click({ force: true })
+await clickSideSampled('collapse:')
+await expectCount('nodes after collapsing stg_orders parents:', 3)
+await expectStgInside('after collapse:')
+await clickSideSampled('restore:')
+await expectCount('nodes after restoring:', 4)
+await expectStgInside('after restore:')
+
+// 6a. a dragged node ignores the layout, so its own side button must not move it
+const header = stgNode.locator('text=stg_orders').first()
+const before = await header.boundingBox()
+const undragged = await stgNode.boundingBox()
+await page.mouse.move(before.x + 10, before.y + 5)
+await page.mouse.down()
+await page.mouse.move(before.x + 10, before.y + 85, { steps: 6 })
+await page.mouse.up()
+await sleep(300)
+const dragged = await stgNode.boundingBox()
+log('drag moved stg_orders down by:', `${Math.round(dragged.y - undragged.y)} px`)
+if (dragged.y - undragged.y < 40) {
+  throw new Error('the drag did not move stg_orders')
+}
+await stgSide.click({ timeout: 5000 })
 await sleep(600)
-log('nodes after collapsing stg_orders parents:', await nodes.count())
-await stgSide.click({ force: true })
+const afterDragClick = await stgNode.boundingBox()
+const dragShift = Math.hypot(afterDragClick.x - dragged.x, afterDragClick.y - dragged.y)
+log('dragged stg_orders moved by its side button:', `${dragShift.toFixed(1)} px`)
+if (dragShift > 2) {
+  throw new Error(`a dragged stg_orders moved ${dragShift.toFixed(1)} px`)
+}
+await stgSide.click({ timeout: 5000 })
 await sleep(600)
-log('nodes after restoring:', await nodes.count())
+await dock.getByRole('button', { name: 'Arrange' }).first().click()
+await sleep(800)
 
 // 6b. depth 1 leaves the source out and puts a "+1" handle on stg_orders; clicking it loads it
 await dock.locator('[data-testid="pod-lineage-depth-up"]').waitFor({ state: 'visible' })
@@ -295,15 +377,18 @@ while ((await depthUp()) > 1) {
   await sleep(400)
 }
 await sleep(800)
-log('nodes at upstream depth 1:', await nodes.count())
+await expectCount('nodes at upstream depth 1:', 3)
 await centreOn('stg_orders')
-const loadMore = dock.locator(
-  '[data-node-id="model.demo.stg_orders"] [data-testid="pod-lineage-side-up"]'
-)
-log('stg_orders side handle reads:', await loadMore.innerText())
-await loadMore.click({ force: true })
+log('stg_orders side handle reads:', await stgSide.innerText())
+await stgSide.click({ timeout: 5000 })
 await sleep(1200)
-log('nodes after loading one more level:', await nodes.count())
+await expectCount('nodes after loading one more level:', 4)
+await expectStgInside('after loading one more level:')
+const downHandle = await stgNode.locator('[data-testid="pod-lineage-side-down"]').innerText()
+log('stg_orders downstream handle after the load:', downHandle)
+if (downHandle !== '+1') {
+  throw new Error(`stg_orders downstream handle reads ${downHandle}, expected +1`)
+}
 await page.screenshot({ path: `${OUT}/lineage-3b-expand.png` })
 while ((await depthUp()) < 4) {
   await dock.getByRole('button', { name: 'One level more' }).first().click()

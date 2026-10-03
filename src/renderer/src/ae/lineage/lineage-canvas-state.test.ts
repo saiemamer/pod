@@ -113,6 +113,25 @@ describe('mergeLineageGraphs', () => {
     expect(merged.edges).toHaveLength(6)
     expect(merged.moreDownstream).toEqual({ d: 1 })
   })
+
+  it('leaves neighbours the canvas already holds out of the expanded node counts', () => {
+    // Loading a's parents at depth 1 counts both of a's children as not loaded;
+    // b is already on the canvas, so only the other child is still missing.
+    const extra: DbtGraphResult = {
+      ...graph,
+      focus: 'a',
+      nodes: [node('root'), node('raw', ['id']), node('a', ['id'])],
+      edges: [
+        { source: 'root', target: 'raw' },
+        { source: 'raw', target: 'a' }
+      ],
+      moreUpstream: { root: 1 },
+      moreDownstream: { a: 2 }
+    }
+    const merged = mergeLineageGraphs(graph, extra)
+    expect(merged.moreDownstream).toEqual({ c: 2, a: 1 })
+    expect(merged.moreUpstream).toEqual({ root: 1 })
+  })
 })
 
 describe('lineageHighlightFrom', () => {

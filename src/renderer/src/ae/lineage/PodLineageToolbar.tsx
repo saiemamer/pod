@@ -228,8 +228,9 @@ function PodLineageToolbarComponent(props: PodLineageToolbarProps): React.JSX.El
         </span>
       )}
       <div className="ml-auto flex min-w-0 items-center gap-3">
+        {/* Why wrap: clipping hid the last kinds in a narrow dock; a second 10 px line fits the row. */}
         <div
-          className="flex min-w-0 items-center gap-2 overflow-hidden"
+          className="flex max-h-8 min-w-0 flex-wrap content-center items-center justify-end gap-x-2 overflow-hidden leading-3"
           data-testid="pod-lineage-legend"
         >
           {props.kinds.map((kind) => (

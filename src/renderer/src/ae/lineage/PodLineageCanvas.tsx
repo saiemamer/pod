@@ -29,6 +29,8 @@ import { layoutLineage, type LineageLayoutResult } from './lineage-layout'
 import { useLineageFirstMount } from './use-lineage-first-mount'
 import { useLineageRowsWindow } from './use-lineage-rows-window'
 import { useTweenedPositions } from './use-tweened-positions'
+import { useLineageCentreOnSelect } from './use-lineage-centre-on-select'
+import { useLineageAnchoredLayout } from './use-lineage-anchored-layout'
 import {
   PodLineageNode,
   samePodLineageNodeData,
@@ -46,9 +48,11 @@ export type PodLineageCanvasProps = {
   /** Bumped by Arrange to drop dragged positions and recentre. */
   arrangeKey: number
   selectedNodeId: string | null
+  /** Bumped by every tree click, so a second click on the selected row centres again. */
+  centreKey: number
   onColumnClick: PodLineageNodeData['onColumnClick']
   onToggleCollapse: PodLineageNodeData['onToggleCollapse']
-  onExpand: PodLineageNodeData['onExpand']
+  onExpand: (nodeId: string, side: 'up' | 'down') => Promise<boolean>
   onOpen: PodLineageNodeData['onOpen']
 }
 
@@ -164,7 +168,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     showColumns: boolean
     result: LineageLayoutResult
   } | null>(null)
-  const placed = useMemo(() => {
+  const laidOut = useMemo(() => {
     const cached = layoutCache.current
     if (
       cached &&
@@ -185,6 +189,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     layoutCache.current = { nodes: visibleNodes, edges: graph.edges, showColumns, result }
     return result
   }, [visibleNodes, graph.edges, showColumns])
+  const { placed, onToggleCollapse, onExpand } = useLineageAnchoredLayout(laidOut, dragged, props)
   const positions = useTweenedPositions(placed)
 
   const rowsShown = useLineageRowsWindow(placed, dragged, columnsVisible)
@@ -219,8 +224,8 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
         collapsedUp: collapse.up.has(id),
         collapsedDown: collapse.down.has(id),
         onColumnClick: props.onColumnClick,
-        onToggleCollapse: props.onToggleCollapse,
-        onExpand: props.onExpand,
+        onToggleCollapse,
+        onExpand,
         onOpen: props.onOpen
       }
       const previousData = dataCache.current.get(id)
@@ -259,8 +264,8 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     highlight,
     props.focusColumn,
     props.onColumnClick,
-    props.onToggleCollapse,
-    props.onExpand,
+    onToggleCollapse,
+    onExpand,
     props.onOpen,
     sides,
     collapse
@@ -406,11 +411,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     return () => cancelAnimationFrame(frame)
   }, [litKey, updateNodeInternals])
 
-  useEffect(() => {
-    if (selectedNodeId && visible.has(selectedNodeId)) {
-      void fitView({ nodes: [{ id: selectedNodeId }], duration: 200, minZoom: 1, maxZoom: 1 })
-    }
-  }, [selectedNodeId, visible, fitView])
+  useLineageCentreOnSelect(selectedNodeId, props.centreKey, visible)
 
   return (
     <div

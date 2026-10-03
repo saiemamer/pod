@@ -46,6 +46,7 @@ export type PodLineageGraphState = {
   showColumns: boolean
   showTree: boolean
   selectedNodeId: string | null
+  centreKey: number
   engine: DbtLineageEngineStatus | null
   arrangeKey: number
   reload: () => void
@@ -54,7 +55,8 @@ export type PodLineageGraphState = {
   toggleTree: () => void
   arrange: () => void
   toggleCollapse: (nodeId: string, side: 'up' | 'down') => void
-  expand: (nodeId: string, side: 'up' | 'down') => Promise<void>
+  /** Resolves true once the extra level has merged into the graph. */
+  expand: (nodeId: string, side: 'up' | 'down') => Promise<boolean>
   clickColumn: (nodeId: string, column: string) => Promise<void>
   select: (nodeId: string | null) => void
   parseProject: () => Promise<void>
@@ -77,6 +79,11 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
   const [showColumns, setShowColumns] = useState(readStoredColumns)
   const [showTree, setShowTree] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [centreKey, setCentreKey] = useState(0)
+  const select = useCallback((nodeId: string | null) => {
+    setSelectedNodeId(nodeId)
+    setCentreKey((key) => key + 1)
+  }, [])
   const [engine, setEngine] = useState<DbtLineageEngineStatus | null>(null)
   const [arrangeKey, setArrangeKey] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
@@ -178,7 +185,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     async (nodeId: string, side: 'up' | 'down') => {
       const api = window.api?.ae?.dbt
       if (!api || !latestGraph.current) {
-        return
+        return false
       }
       setLoading(true)
       try {
@@ -189,8 +196,10 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
           downstreamDepth: side === 'down' ? 1 : 0
         })
         setGraph((current) => (current ? mergeLineageGraphs(current, extra) : extra))
+        return true
       } catch (cause) {
         setError(podDbtErrorMessage(cause))
+        return false
       } finally {
         setLoading(false)
       }
@@ -266,6 +275,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     showColumns,
     showTree,
     selectedNodeId,
+    centreKey,
     engine,
     arrangeKey,
     reload,
@@ -276,7 +286,7 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
     toggleCollapse,
     expand,
     clickColumn,
-    select: setSelectedNodeId,
+    select,
     parseProject
   }
 }
