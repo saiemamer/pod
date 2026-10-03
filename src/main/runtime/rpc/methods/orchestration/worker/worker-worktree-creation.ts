@@ -12,13 +12,14 @@ import type { TuiAgent } from '../../../../../../shared/tui-agent'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import type { OrchestrationDb } from '../../../../orchestration/db'
 import type { WorkerEffect, WorkerSetupReceipt } from './worker-topology'
+import type { WorkerCreationTarget } from './worker-creation-target'
 
 export async function createWorkerWorktree(args: {
   runtime: OrcaRuntimeService
   db: OrchestrationDb
   dispatchId: string
   requestedWorktree: string
-  coordinatorWorktree: Awaited<ReturnType<OrcaRuntimeService['showManagedWorktree']>>
+  target: WorkerCreationTarget
   params: {
     repo?: string
     name?: string
@@ -42,11 +43,11 @@ export async function createWorkerWorktree(args: {
   terminalHandle: string | undefined
   setupReceipt: WorkerSetupReceipt
 }> {
-  const { runtime, db, dispatchId, requestedWorktree, coordinatorWorktree, params, effects } = args
+  const { runtime, db, dispatchId, requestedWorktree, target, params, effects } = args
   const setupDecision = params.setup ?? 'run'
   db.recordWorkerStage({ dispatchId, stage: 'worktree_creating', effects })
   const created = await runtime.createManagedWorktree({
-    repoSelector: params.repo ?? coordinatorWorktree.repoId,
+    repoSelector: target.repoSelector,
     name: params.name as string,
     baseBranch: params.baseBranch,
     displayName: params.displayName,
@@ -67,7 +68,8 @@ export async function createWorkerWorktree(args: {
       : {}),
     activate: false,
     lineage: {
-      parentWorktree: requestedWorktree === 'new-child' ? coordinatorWorktree.id : undefined,
+      parentWorktree: target.parentWorktreeId,
+      ...(target.parentWorkspace ? { parentWorkspace: target.parentWorkspace } : {}),
       noParent: requestedWorktree === 'new-top-level',
       callerTerminalHandle: params.from
     }

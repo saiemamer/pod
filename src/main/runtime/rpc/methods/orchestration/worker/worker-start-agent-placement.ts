@@ -32,6 +32,7 @@ import {
   type WorkerSetupReceipt
 } from './worker-topology'
 import { createWorkerWorktree } from './worker-worktree-creation'
+import type { WorkerCreationTarget } from './worker-creation-target'
 
 /** Only what the placement itself reads. The runtime's own worktree accessors are untyped, so
  *  naming the two fields keeps `any` out of this module's unions. */
@@ -55,8 +56,8 @@ type WorkerAgentPlacementArgs = {
   taskId: string
   params: WorkerStartInput
   requestedWorktree: string
-  /** The coordinator's worktree, present only when this start creates one. */
-  creationWorktree: PlacedWorktree | undefined
+  /** Where the new worktree goes, present only when this start creates one. */
+  creationTarget: WorkerCreationTarget | undefined
   /** The already-resolved placement, present only when this start does not create one. */
   resolvedWorktree: PlacedWorktree | undefined
   /** Decided before the dispatch record; for an existing worktree, already settled on its host. */
@@ -82,7 +83,7 @@ export const EXISTING_WORKTREE_SETUP: WorkerSetupReceipt = {
 export async function placeWorkerAgent(
   args: WorkerAgentPlacementArgs
 ): Promise<WorkerAgentPlacement> {
-  const existing = args.creationWorktree ? undefined : requireWorktree(args.resolvedWorktree)
+  const existing = args.creationTarget ? undefined : requireWorktree(args.resolvedWorktree)
   if (existing && args.params.terminal) {
     args.effects.push({
       kind: 'terminal',
@@ -131,7 +132,7 @@ async function launchWorkerAgent(
             db: args.db,
             dispatchId: args.dispatchId,
             requestedWorktree: args.requestedWorktree,
-            coordinatorWorktree: requireWorktree(args.creationWorktree),
+            target: requireCreationTarget(args.creationTarget),
             params: args.params,
             agent,
             // The executor withholds the startup agent exactly when the worker is to be a session.
@@ -221,6 +222,13 @@ function requireWorktree(worktree: PlacedWorktree | undefined): PlacedWorktree {
     throw new Error('Worker topology did not resolve a worktree.')
   }
   return worktree
+}
+
+function requireCreationTarget(target: WorkerCreationTarget | undefined): WorkerCreationTarget {
+  if (!target) {
+    throw new Error('Worker topology did not resolve a creation target.')
+  }
+  return target
 }
 
 /** Validation refuses a fresh launch with no agent; this only narrows the type. */
