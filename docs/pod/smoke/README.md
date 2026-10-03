@@ -74,6 +74,15 @@ The report lands in `POD_SMOKE_OUT/pod-perf-report.json`. Delete `models/perf/` 
 
 When a check fails, run it again with `POD_PERF_PROFILE=1`: the script then records a V8 CPU profile per timed step (`perf-profile-first-open.cpuprofile`, `column-click`, `depth-change`, `tab-cycles`, `panel-open`, `panel-filter`) next to the report. Open one in Chrome DevTools > Performance, or sum the self time per function from the JSON. The sampling costs a few percent, so the gate itself runs without it. Remember the dev build renders under React StrictMode, which runs every render twice, and that `(program)` in a profile is Blink's own style and layout work.
 
+## Omni panel (Phase 4)
+
+`ui-omni-smoke.mjs` points `toolCmdOverrides.omni` at `omni-stub.sh` in this repo (a stand-in for the Omni CLI that answers `omni models list | create-branch | validate | commit | list-topics | get-topic` with JSON shaped like Omni's spec and never touches the network) and gives the `pod-smoke` domain a fake `OMNI_API_KEY` and a fresh stub state directory. On `omni-demo`'s `master` worktree it opens the right sidebar's Omni tab, checks that the picker lists the shared models from both pages of the model list, chooses one (saved as `OMNI_MODEL_ID` in the domain env), checks that the `master` branch is not on Omni yet and that the shared model shows three topics, creates the branch, checks that the topics re-read on the branch (four, one branch-only), validates (one error, one warning), and opens the Tickets topic. With `out/bin/orca` built it also runs `orca omni branch`, `validate` and `commit --json` from the repo. It then clears `OMNI_MODEL_ID` with the panel open and expects the picker back, this time with the stub in `POD_OMNI_STUB_MODELS=endless-schema` mode, so the picker shows its no-shared-models line and the 1,000-model cap. Last, it checks that every stub call carried a token, which proves the domain's `OMNI_API_KEY` reached the CLI as `OMNI_API_TOKEN`. It restores the settings and the domain env afterwards. Six screenshots: `omni-1-picker` to `omni-6-no-shared-models`.
+
+```sh
+pnpm build:cli   # optional, for the CLI steps
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-omni-smoke.mjs   # against pnpm dev on port 9333
+```
+
 **Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
 
 ## Domain setup on a real machine

@@ -79,6 +79,11 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/ae-dbt.js')).DBT_HANDLERS
   },
   {
+    name: 'omni', // Pod
+    keys: ['omni branch', 'omni validate', 'omni commit'],
+    load: async () => (await import('./handlers/ae-omni.js')).OMNI_HANDLERS
+  },
+  {
     name: 'repo',
     keys: ['repo list', 'repo add', 'repo show', 'repo set-base-ref', 'repo search-refs'],
     load: async () => (await import('./handlers/repo.js')).REPO_HANDLERS
