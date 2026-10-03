@@ -6,7 +6,7 @@ Rules:
 
 - One line per touch where possible. Import from `src/shared/brand.ts` (or `config/pod-brand.cjs` in CommonJS) instead of pasting a value.
 - Add a row here in the same commit as the touch.
-- Rebase, never merge, onto upstream stable tags: `git rebase --onto vNEW vOLD main`. Update `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts` in the same commit.
+- Rebase, never merge, onto upstream stable tags with `node config/pod-sync-upstream.mjs vNEW` ([`docs/pod/sync.md`](docs/pod/sync.md)), which also updates `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts`. The script mirrors the `package.json` and `config/electron-builder.config.cjs` rows below; change it with them.
 
 ## Phase 0: identity, updates, release pipeline
 
@@ -112,7 +112,7 @@ The dbt MCP server (slice 2) adds no upstream touch. `packages/pod-dbt-mcp/` is 
 
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `config/pod-typecheck-changed.mjs`, `docs/pod/`, `packages/pod-dbt-mcp/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `config/pod-typecheck-changed.mjs`, `config/pod-sync-upstream.mjs` (+ test), `docs/pod/`, `packages/pod-dbt-mcp/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 
