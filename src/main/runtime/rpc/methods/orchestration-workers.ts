@@ -5,6 +5,7 @@ import { defineMethod, type RpcMethod } from '../core'
 import { startFederatedWorker } from './orchestration-federated-worker-start'
 import { assertOrchestrationWorktreeCreationSupported } from './orchestration-folder-worktree-placement'
 import { WorkerStartParams } from './orchestration-worker-start-schema'
+import { resolveWorkerCreationTarget } from './orchestration-worker-creation-target'
 import {
   createExistingWorktreeWorkerTerminal,
   createWorkerWorktree,
@@ -81,17 +82,22 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
       const { agent, launch } = prepareLocalWorkerStart({ params, createsWorktree, runtime })
 
       const coordinatorTerminal = await runtime.showTerminal(params.from)
-      const creationWorktree = createsWorktree
-        ? await runtime.showManagedWorktree(`id:${coordinatorTerminal.worktreeId}`)
+      const creationTarget = createsWorktree
+        ? await resolveWorkerCreationTarget({
+            runtime,
+            coordinatorWorktreeId: coordinatorTerminal.worktreeId,
+            requestedWorktree,
+            repo: params.repo
+          })
         : undefined
-      if (creationWorktree) {
+      if (creationTarget) {
         await assertOrchestrationWorktreeCreationSupported({
           runtime,
-          repoSelector: params.repo ?? creationWorktree.repoId,
+          repoSelector: creationTarget.repoSelector,
           existingPlacement: 'current or an exact existing folder workspace'
         })
       }
-      let resolvedWorktree = creationWorktree
+      let resolvedWorktree = creationTarget
         ? undefined
         : requestedWorktree === 'current'
           ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorTerminal.worktreeId}`)
@@ -117,7 +123,7 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
         worktree: requestedWorktree,
         resolvedWorktreeId: resolvedWorktree?.id ?? null,
         name: params.name ?? null,
-        repo: params.repo ?? creationWorktree?.repoId ?? null,
+        repo: creationTarget?.repoSelector ?? params.repo ?? null,
         baseBranch: params.baseBranch ?? null,
         terminal: params.terminal ?? null,
         agent: agent ?? null,
@@ -158,14 +164,14 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
         state: 'not_applicable'
       }
       try {
-        if (creationWorktree) {
+        if (creationTarget) {
           failedStage = 'worktree_create'
           const created = await createWorkerWorktree({
             runtime,
             db,
             dispatchId: started.dispatch.id,
             requestedWorktree,
-            coordinatorWorktree: creationWorktree,
+            target: creationTarget,
             params,
             agent: agent as TuiAgent,
             launchPreferences: launch.preferences,
