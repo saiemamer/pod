@@ -108,9 +108,11 @@ No new upstream file. The rows above that changed: `package.json` (two dependenc
 
 The four right-sidebar rows from Phase 1 gained `'omni'` on the same lines as `'initiative'` and `'database'`. The Omni service (`src/main/ae/omni/`), its IPC (`ae:omni:*`, registered from `registerAeDomainHandlers`), the preload block (`window.api.ae.omni`) and the panel (`src/renderer/src/ae/omni/`) are Pod-owned files. `src/main/ae/worktree-for-path.ts` holds the managed-worktree lookup that dbt and Omni share.
 
+The dbt MCP server (slice 2) adds no upstream touch. `packages/pod-dbt-mcp/` is a standalone package with its own lockfile (upstream has no `packages/` directory at v1.4.197; if a rebase brings one, keep Pod's package out of upstream's workspace list), and its switch lives in Pod-owned files: `src/renderer/src/components/settings/PodMcpSwitchRow.tsx`, `src/shared/ae/pod-mcp-config.ts`, `src/main/ae/pod-mcp-config-writer.ts` and `src/main/ipc/ae/ae-mcp-handlers.ts`. It reaches Claude only through the user setting `agentDefaultArgs.claude`.
+
 ## Pod-owned files outside `ae/`
 
-`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `config/pod-typecheck-changed.mjs`, `docs/pod/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
+`src/shared/brand.ts`, `src/shared/brand.test.ts`, `src/shared/pod/brand-text.ts` (+ test), `src/main/updater-pod-release-feed.test.ts`, `src/main/pod/brew-managed-install.ts`, `config/pod-brand.cjs`, `config/vitest.pod.config.ts`, `config/pod-typecheck-changed.mjs`, `docs/pod/`, `packages/pod-dbt-mcp/`, `.github/workflows/pod-*.yml`, `src/main/ipc/ae/`, `src/cli/ae-*-format.ts`, `src/renderer/src/lib/monaco-languages/register-jinja-sql.ts` (+ test) and the `jinja-sql`, `jinja` and `sql` grammars beside it, this file. They are new files, so they never conflict on rebase.
 
 ## Upstream tests Pod does not run
 

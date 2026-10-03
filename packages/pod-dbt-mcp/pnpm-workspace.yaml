@@ -1,0 +1,5 @@
+# A standalone package with its own lockfile, outside the desktop app's package graph
+# (the root pnpm-workspace.yaml lists no packages), the way mobile/ is.
+packages: []
+
+minimumReleaseAge: 4320

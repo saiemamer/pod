@@ -38,6 +38,12 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/install-node-dependencies
       - run: pnpm exec oxlint --format github
+      # Why here: packages/pod-dbt-mcp has its own lockfile outside the root graph, and the
+      # vitest config runs src/** only.
+      - name: pod-dbt-mcp tests
+        run: |
+          pnpm --dir packages/pod-dbt-mcp install --frozen-lockfile
+          pnpm --dir packages/pod-dbt-mcp test
 
   test:
     name: tests ${{ matrix.shard }}/8

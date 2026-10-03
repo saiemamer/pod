@@ -35,6 +35,22 @@ export const getPodToolsSearchEntries = createLocalizedCatalog((): SettingsSearc
       'Path to dbt-language-server for completion and go-to-definition in models. Leave empty and Pod downloads the pinned release.'
     ),
     keywords: ['dbt', 'lsp', 'language server', 'completion', 'definition', 'path']
+  },
+  {
+    title: translate('pod.settings.tools.dbtMcp.title', 'pod-dbt-mcp command'),
+    description: translate(
+      'pod.settings.tools.dbtMcp.description',
+      "Path to pod-dbt-mcp, the MCP server with Pod's six dbt tools. Leave empty to use the one on PATH."
+    ),
+    keywords: ['mcp', 'dbt', 'server', 'path', 'claude']
+  },
+  {
+    title: translate('pod.settings.tools.mcpClaude.title', 'dbt tools for Claude Code (MCP)'),
+    description: translate(
+      'pod.settings.tools.mcpClaude.description',
+      "Claude Code agents Pod starts load pod-dbt-mcp through --mcp-config, added to Claude's default arguments. It applies to every Claude launch, so leave it off if you run agents on SSH hosts, which lack the config file."
+    ),
+    keywords: ['mcp', 'dbt', 'claude', 'agent', 'tools', 'mcp-config']
   }
 ])
 

@@ -1,0 +1,25 @@
+{
+  "name": "pod-dbt-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pod's six dbt tools (list models, model info, lineage, column lineage, show, compile) as an MCP server, for agents that speak MCP instead of the orca CLI.",
+  "license": "MIT",
+  "bin": {
+    "pod-dbt-mcp": "./src/server.js"
+  },
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.5.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
