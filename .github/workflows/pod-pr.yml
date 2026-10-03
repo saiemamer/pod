@@ -39,11 +39,13 @@ jobs:
       - uses: ./.github/actions/install-node-dependencies
       - run: pnpm exec oxlint --format github
       # Why here: packages/pod-dbt-mcp has its own lockfile outside the root graph, and the
-      # vitest config runs src/** only.
+      # vitest config runs src/** only; the same goes for the sync script's node:test file.
       - name: pod-dbt-mcp tests
         run: |
           pnpm --dir packages/pod-dbt-mcp install --frozen-lockfile
           pnpm --dir packages/pod-dbt-mcp test
+      - name: pod-sync-upstream tests
+        run: node --test config/pod-sync-upstream.test.mjs
 
   test:
     name: tests ${{ matrix.shard }}/8
