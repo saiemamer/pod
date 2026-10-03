@@ -11,33 +11,47 @@ description: >-
 
 You are a worker in the Omni repo of a Pod domain. `POD_REPO_ROLE` is `omni`, the
 `omni` CLI is on your PATH or at the path Pod configured, and the domain injected
-`OMNI_BASE_URL` and `OMNI_API_KEY` if they were set. Never print or paste those
-values.
+`OMNI_BASE_URL`, `OMNI_API_KEY` and `OMNI_MODEL_ID` if they were set. Never print or
+paste the key.
+
+`orca omni` wraps the three steps Pod tracks, so the branch is always the one named
+after your worktree. Each reads the model from `OMNI_MODEL_ID` (or `--model <id>`) and
+passes the key to the Omni CLI as `OMNI_API_TOKEN`, the name the CLI reads.
 
 ## Branch first
 
-The Omni model branch is named after your git worktree, which is named after the
-initiative part. Create it before any edit and confirm the exact syntax with
-`omni models --help`:
+The Omni model branch is named after your git branch, which is named after the
+initiative part. Create it before any edit:
 
 ```sh
-omni models create-branch --name "$(git rev-parse --abbrev-ref HEAD)"
+orca omni branch --create --json
 ```
+
+The JSON carries `branch.id`, the branch UUID the Omni CLI's `--branch-id` flags take.
 
 ## Edit through the CLI, not by hand
 
-Omni owns the YAML for topics, views and relationships. Use the CLI's create and
-update commands so the model stays consistent; do not hand-edit files under the
-Omni-managed directories. Typical sequence:
+Omni owns the YAML for topics, views and relationships. Write it through the CLI on
+your branch so the model stays consistent; do not hand-edit files under the
+Omni-managed directories. Path parameters are positional and request bodies go in
+`--body`; `omni models <command> --help` and `--schema` show the exact shape.
 
 ```sh
-omni models yaml-create --branch <branch> --file <topic-or-view>.yaml
-omni models validate --branch <branch>
-omni models commit --branch <branch> --message "<what changed and why>"
+omni models yaml-get "$OMNI_MODEL_ID" --branch-id <branch id> --file-name tickets.view
+omni models yaml-create "$OMNI_MODEL_ID" --body '{"branchId": "<branch id>", "fileName": "tickets.view", "yaml": "<the whole file>"}'
+omni models get-topic "$OMNI_MODEL_ID" tickets --branch-id <branch id>
 ```
 
-Run validate after every batch of edits; a failing validation is a stop, not a
-warning.
+## Validate, then commit
+
+```sh
+orca omni validate --json
+orca omni commit --message "<what changed and why>" --json
+```
+
+`validate` exits 0 either way: read `valid` and `errors`. An error is a stop, not a
+warning. `commit` pushes the branch to git and returns `prUrl`, the pull request the
+reviewer opens.
 
 ## What a good Omni change contains
 
@@ -49,5 +63,5 @@ warning.
 ## Finish
 
 Report back with the branch name, the topics and views touched, the validation
-result, and anything the reviewer must check in the Omni UI. Then run
-`orca orchestration worker-done` as the orchestration guide describes.
+result, the pull request URL, and anything the reviewer must check in the Omni UI.
+Then run `orca orchestration worker-done` as the orchestration guide describes.

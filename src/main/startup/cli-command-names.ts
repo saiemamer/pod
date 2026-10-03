@@ -46,6 +46,7 @@ export const CLI_COMMAND_NAMES = [
   'linear',
   'mouse',
   'network',
+  'omni', // Pod
   'open',
   'open-url',
   'orchestration',

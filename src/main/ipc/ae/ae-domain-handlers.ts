@@ -13,6 +13,8 @@ import { installAeDbtService } from '../../ae/dbt/dbt-service'
 import { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
 import { installDbtLineageServices } from '../../ae/dbt/dbt-lineage-ops'
 import { AE_DBT_LSP_EVENT_CHANNEL, registerAeDbtHandlers } from './ae-dbt-handlers'
+import { installAeOmniService } from '../../ae/omni/omni-service'
+import { registerAeOmniHandlers } from './ae-omni-handlers'
 import { getAppEnvironment } from '../../../shared/app-environment'
 import { getMainHttpClient } from '../../network/http-client'
 import type { TuiAgent } from '../../../shared/tui-agent'
@@ -52,6 +54,7 @@ export function registerAeDomainHandlers(
   // Why: a language server left behind keeps a dbt project's files open after Pod quits.
   getAppEnvironment().onWillQuit(() => void lsp.stopAll())
   registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), mainWindow)
+  registerAeOmniHandlers(installAeOmniService({ store, runtime, domains: service }))
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }

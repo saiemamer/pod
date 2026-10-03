@@ -42,6 +42,18 @@ import type {
   DbtShowResult
 } from '../../shared/ae/dbt-types'
 
+import type {
+  OmniBranchRequest,
+  OmniBranchResult,
+  OmniContextSummary,
+  OmniModelsResult,
+  OmniPathRequest,
+  OmniTopicDetail,
+  OmniTopicRequest,
+  OmniTopicsResult,
+  OmniValidateResult
+} from '../../shared/ae/omni-types'
+
 /** Pod: domains (folders of repos with roles) and initiatives (cross-repo runs). */
 export type AeApi = {
   domains: {
@@ -99,6 +111,15 @@ export type AeApi = {
       restart: (args: DbtLspDocumentRequest) => Promise<DbtLspStatus>
       onEvent: (callback: (event: DbtLspEvent) => void) => () => void
     }
+  }
+  /** Omni model branches and topics for the worktree a path sits in. */
+  omni: {
+    context: (args: OmniPathRequest) => Promise<OmniContextSummary>
+    models: (args: OmniPathRequest) => Promise<OmniModelsResult>
+    branch: (args: OmniBranchRequest) => Promise<OmniBranchResult>
+    validate: (args: OmniPathRequest) => Promise<OmniValidateResult>
+    topics: (args: OmniPathRequest) => Promise<OmniTopicsResult>
+    topic: (args: OmniTopicRequest) => Promise<OmniTopicDetail>
   }
   onChanged: (callback: () => void) => () => void
 }

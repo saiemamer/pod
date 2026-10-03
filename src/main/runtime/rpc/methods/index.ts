@@ -1,5 +1,6 @@
 import { DOMAIN_METHODS } from './ae-domain' // Pod
 import { DBT_METHODS } from './ae-dbt' // Pod
+import { OMNI_METHODS } from './ae-omni' // Pod
 import { STATUS_METHODS } from './status'
 import { ORCAD_TERMINAL_CENSUS_METHODS } from './orcad-terminal-census'
 import { ORCAD_MIGRATION_METHODS } from './orcad-migration'
@@ -72,6 +73,7 @@ export const ALL_RPC_METHODS = [
   ...REPO_METHODS,
   ...DOMAIN_METHODS, // Pod
   ...DBT_METHODS, // Pod
+  ...OMNI_METHODS, // Pod
   ...WORKTREE_METHODS,
   ...AGENT_SESSION_METHODS,
   ...STRUCTURED_AGENT_SESSION_METHODS,

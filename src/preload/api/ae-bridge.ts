@@ -49,6 +49,14 @@ export const aeApi = {
       }
     }
   },
+  omni: {
+    context: (args) => ipcRenderer.invoke('ae:omni:context', args),
+    models: (args) => ipcRenderer.invoke('ae:omni:models', args),
+    branch: (args) => ipcRenderer.invoke('ae:omni:branch', args),
+    validate: (args) => ipcRenderer.invoke('ae:omni:validate', args),
+    topics: (args) => ipcRenderer.invoke('ae:omni:topics', args),
+    topic: (args) => ipcRenderer.invoke('ae:omni:topic', args)
+  },
   onChanged: (callback: () => void): (() => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('ae:changed', listener)
