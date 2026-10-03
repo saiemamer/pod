@@ -10,7 +10,7 @@ Pod is still on v1.4.197. The daily rehearsal below has opened an issue for ever
 
 ## The sync script
 
-`config/pod-sync-upstream.mjs` does the rebase. It works on the repository in the current directory, reads the base tag from `config/pod-brand.cjs`, fetches only the base and target tags from stablyai/orca (adding the `upstream` remote if it is missing), creates `sync/<tag>` from `HEAD` and runs `git rebase --onto <tag> <base>` there. It refuses a dirty tree, an existing branch, and `--branch main`.
+`config/pod-sync-upstream.mjs` does the rebase. It works on the repository in the current directory, reads the base tag from `config/pod-brand.cjs`, fetches only the base and target tags from stablyai/orca (adding the `upstream` remote if it is missing), creates `sync/<tag>` from `HEAD` and runs `git rebase --onto <tag> <base>` there. It refuses a dirty tree, an existing branch, `--branch main`, and a tag older than the base. Orca puts each release tag on its own release commits, so v1.4.219 does not contain v1.4.197; the script only needs the two to share history. The rebase replays Pod's commits (`<base>..HEAD`) and none of the base tag's release commits, so the result has the new tag's version of every file Pod does not touch.
 
 ```sh
 node config/pod-sync-upstream.mjs v1.4.219                  # rebase onto branch sync/v1.4.219
