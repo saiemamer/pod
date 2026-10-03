@@ -15,6 +15,7 @@ import { installDbtLineageServices } from '../../ae/dbt/dbt-lineage-ops'
 import { AE_DBT_LSP_EVENT_CHANNEL, registerAeDbtHandlers } from './ae-dbt-handlers'
 import { installAeOmniService } from '../../ae/omni/omni-service'
 import { registerAeOmniHandlers } from './ae-omni-handlers'
+import { registerAeMcpHandlers } from './ae-mcp-handlers'
 import { getAppEnvironment } from '../../../shared/app-environment'
 import { getMainHttpClient } from '../../network/http-client'
 import type { TuiAgent } from '../../../shared/tui-agent'
@@ -55,6 +56,7 @@ export function registerAeDomainHandlers(
   getAppEnvironment().onWillQuit(() => void lsp.stopAll())
   registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), mainWindow)
   registerAeOmniHandlers(installAeOmniService({ store, runtime, domains: service }))
+  registerAeMcpHandlers(store)
   for (const channel of AE_DOMAIN_IPC_CHANNELS) {
     ipcMain.removeHandler(channel)
   }

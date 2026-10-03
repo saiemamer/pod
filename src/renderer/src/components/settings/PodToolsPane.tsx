@@ -4,6 +4,7 @@ import { SearchableSetting } from './SearchableSetting'
 import { SettingsRow } from './SettingsFormControls'
 import { PodPathInput } from './PodPathInput'
 import { getPodToolsSearchEntries } from './pod-tools-search'
+import { PodMcpSwitchRow } from './PodMcpSwitchRow'
 
 type PodToolsPaneProps = {
   settings: GlobalSettings
@@ -14,7 +15,8 @@ const TOOLS: { key: keyof AeToolCmdOverrides; placeholder: string }[] = [
   { key: 'dbt', placeholder: 'dbt' },
   { key: 'omni', placeholder: 'omni' },
   { key: 'python', placeholder: 'python3' },
-  { key: 'dbtLsp', placeholder: 'dbt-language-server' }
+  { key: 'dbtLsp', placeholder: 'dbt-language-server' },
+  { key: 'dbtMcp', placeholder: 'pod-dbt-mcp' }
 ]
 
 /** Pod: where the analytics tools live. Empty means the agent's PATH decides. */
@@ -60,6 +62,12 @@ export function PodToolsPane({ settings, updateSettings }: PodToolsPaneProps): R
           </SearchableSetting>
         )
       })}
+      <PodMcpSwitchRow
+        entry={entries[TOOLS.length]}
+        settings={settings}
+        updateSettings={updateSettings}
+        serverPath={overrides.dbtMcp}
+      />
     </div>
   )
 }

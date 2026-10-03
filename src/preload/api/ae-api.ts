@@ -121,5 +121,10 @@ export type AeApi = {
     topics: (args: OmniPathRequest) => Promise<OmniTopicsResult>
     topic: (args: OmniTopicRequest) => Promise<OmniTopicDetail>
   }
+  /** The dbt MCP server config Claude Code agents load through `--mcp-config`. */
+  mcp: {
+    configPath: () => Promise<string>
+    writeConfig: () => Promise<{ configPath: string; command: string; args: string[] }>
+  }
   onChanged: (callback: () => void) => () => void
 }
