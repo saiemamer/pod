@@ -1,9 +1,15 @@
 name: Pod upstream drift
 
-# Why: Orca cuts a stable release most days. This rehearses the rebase of Pod's
-# main onto the newest upstream stable tag in a throwaway branch and typechecks
-# it, so a conflict or a broken touchpoint shows up as an issue the same day
-# instead of during a release. It never pushes.
+# Why: Orca cuts a stable release most days. This rebases Pod's main onto the newest
+# upstream stable tag with config/pod-sync-upstream.mjs, which resolves the files that
+# clash on every release. A clean rebase that passes the checks is pushed as sync/<tag>,
+# ready to land; a stop or a failure goes on one issue per tag. It never pushes main or
+# a tag: pod-release.yml builds every v* tag.
+#
+# Three jobs, so the push token never shares a runner with code from the rebased tree:
+# prepare (no secrets) rebases, installs and checks, and hands over a git bundle; push
+# runs nothing from the repository and pushes only refs/heads/sync/<tag>; report files
+# the issue.
 
 on:
   schedule:
@@ -11,23 +17,35 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Rehearse against this upstream tag (v1.4.200) or branch (main) instead of the newest stable tag
+        description: Sync onto this upstream stable tag (v1.4.219) instead of the newest one
         required: false
         type: string
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
+
+concurrency:
+  group: pod-upstream-drift
+  cancel-in-progress: false
 
 jobs:
-  rehearse:
+  prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.upstream.outputs.base }}
+      newest: ${{ steps.upstream.outputs.newest }}
+      main-sha: ${{ steps.upstream.outputs.main-sha }}
+      outcome: ${{ steps.sync.outputs.outcome }}
+      checked: ${{ steps.verify.outputs.checked }}
+      ready: ${{ steps.bundle.outputs.ready }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Find newest upstream stable tag
         id: upstream
@@ -36,88 +54,285 @@ jobs:
           TAG_INPUT: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          # Why: the script branches from HEAD, so a run from another branch would sync that branch.
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "::error::run this workflow from main, not $GITHUB_REF"
+            exit 1
+          fi
           base="$(node -p "require('./config/pod-brand.cjs').upstreamBaseTag")"
           newest="${TAG_INPUT:-$(git ls-remote --tags https://github.com/stablyai/orca.git 'refs/tags/v*' \
             | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)}"
+          if ! [[ "$newest" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$newest is not an upstream stable tag (vX.Y.Z)"
+            exit 1
+          fi
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "newest=$newest" >> "$GITHUB_OUTPUT"
-          echo "Pod base: $base, rehearsing against: $newest"
-
-      - name: Rehearse rebase
-        id: rebase
-        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
-        shell: bash
-        env:
-          BASE: ${{ steps.upstream.outputs.base }}
-          NEWEST: ${{ steps.upstream.outputs.newest }}
-        run: |
-          set -euo pipefail
-          git remote add upstream https://github.com/stablyai/orca.git
-          # Why: a branch name lets a manual run rehearse a forward rebase before the next tag exists.
-          case "$NEWEST" in
-            v[0-9]*) target_spec="refs/tags/$NEWEST:refs/tags/$NEWEST"; target_ref="$NEWEST" ;;
-            *) target_spec="refs/heads/$NEWEST:refs/remotes/upstream/$NEWEST"; target_ref="upstream/$NEWEST" ;;
-          esac
-          git fetch --no-tags --filter=blob:none upstream "refs/tags/$BASE:refs/tags/$BASE" "$target_spec"
-          git config user.name pod-drift
-          git config user.email pod-drift@users.noreply.github.com
-          # Why: README.md is Pod's front page; .gitattributes routes it to this driver, which
-          # keeps the version from the commit being replayed (Pod's) during a rebase.
-          git config merge.pod-keep.driver 'cp %B %A'
-          git checkout -B drift main
-          if git rebase --onto "$target_ref" "$BASE"; then
-            echo "conflict=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "conflict=true" >> "$GITHUB_OUTPUT"
-            git diff --name-only --diff-filter=U | tee conflicts.txt
-            git rebase --abort
-          fi
+          echo "main-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Pod base: $base, syncing onto: $newest"
 
       - name: Setup pnpm
-        if: steps.rebase.outputs.conflict == 'false'
+        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: Setup Node.js
-        if: steps.rebase.outputs.conflict == 'false'
+        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
         uses: actions/setup-node@v4
         with:
           node-version-file: package.json
           cache: pnpm
 
-      - name: Install and typecheck the rebased tree
+      - name: Test the sync script
+        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
+        run: node --test config/pod-sync-upstream.test.mjs
+
+      - name: Rebase onto the upstream tag
+        id: sync
+        if: steps.upstream.outputs.newest != steps.upstream.outputs.base
+        shell: bash
+        env:
+          NEWEST: ${{ steps.upstream.outputs.newest }}
+        run: |
+          set -uo pipefail
+          git config user.name pod-drift
+          git config user.email pod-drift@users.noreply.github.com
+          node config/pod-sync-upstream.mjs "$NEWEST" --report "$RUNNER_TEMP/report/sync-report.json"
+          code=$?
+          case "$code" in
+            0) echo "outcome=clean" >> "$GITHUB_OUTPUT" ;;
+            2) echo "outcome=stopped" >> "$GITHUB_OUTPUT" ;;
+            *) echo "outcome=error" >> "$GITHUB_OUTPUT"; exit 1 ;;
+          esac
+
+      - name: Install and check the rebased tree
         id: verify
-        if: steps.rebase.outputs.conflict == 'false'
+        if: steps.sync.outputs.outcome == 'clean'
         shell: bash
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile
           pnpm tc
           pnpm run test:pod src/shared/brand src/shared/release-channel src/main/updater
+          echo "checked=true" >> "$GITHUB_OUTPUT"
 
-      - name: Open or update the drift issue
-        if: always() && steps.upstream.outputs.newest != steps.upstream.outputs.base && (steps.rebase.outputs.conflict == 'true' || steps.verify.outcome == 'failure')
+      - name: Bundle sync/<tag>
+        id: bundle
+        if: steps.verify.outputs.checked == 'true'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEWEST: ${{ steps.upstream.outputs.newest }}
-          CONFLICT: ${{ steps.rebase.outputs.conflict }}
+          MAIN_SHA: ${{ steps.upstream.outputs.main-sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bundle"
+          # Why ^main: the push job has main's history, so the bundle carries only the new commits.
+          git bundle create "$RUNNER_TEMP/bundle/sync.bundle" "refs/heads/sync/$NEWEST" "^$MAIN_SHA"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the bundle
+        if: steps.bundle.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-bundle
+          path: ${{ runner.temp }}/bundle/sync.bundle
+          retention-days: 7
+
+      - name: Upload the sync report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-report
+          path: ${{ runner.temp }}/report/sync-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  push:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      state: ${{ steps.token.outputs.state || steps.push.outputs.state }}
+    steps:
+      - name: Check for the push token
+        id: token
+        shell: bash
+        env:
+          SYNC_TOKEN: ${{ secrets.POD_SYNC_TOKEN }}
+        run: |
+          if [[ -n "$SYNC_TOKEN" ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=no-token" >> "$GITHUB_OUTPUT"
+            echo "::notice::POD_SYNC_TOKEN is not set, so the checked sync is not pushed (see docs/pod/sync.md)"
+          fi
+
+      # Why only git from here on: this job holds the token, so it runs nothing from the
+      # repository and installs nothing.
+      - name: Checkout main's history
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.main-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download the bundle
+        if: steps.token.outputs.present == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: sync-bundle
+          path: ${{ runner.temp }}/bundle
+
+      - name: Verify and push sync/<tag>
+        id: push
+        if: steps.token.outputs.present == 'true'
+        shell: bash
+        env:
+          NEWEST: ${{ needs.prepare.outputs.newest }}
+          SYNC_TOKEN: ${{ secrets.POD_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$NEWEST" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          ref="refs/heads/sync/$NEWEST"
+          bundle="$RUNNER_TEMP/bundle/sync.bundle"
+          git bundle verify -q "$bundle"
+          # Why: the bundle came from a runner that executed the rebased tree; it may update
+          # this one ref and nothing else, never main or a tag.
+          heads="$(git bundle list-heads "$bundle")"
+          if [[ "$(wc -l <<< "$heads")" -ne 1 || "$(cut -d' ' -f2 <<< "$heads")" != "$ref" ]]; then
+            echo "::error::the bundle must hold exactly $ref, but lists: $heads"
+            exit 1
+          fi
+          sha="$(cut -d' ' -f1 <<< "$heads")"
+          git fetch -q --no-tags "$bundle" "$ref"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$sha" ]]
+          if ! git show "$sha:config/pod-brand.cjs" | grep -qF "upstreamBaseTag: '$NEWEST'"; then
+            echo "::error::$sha does not set the base tag to $NEWEST"
+            exit 1
+          fi
+          # Why an extraheader in the environment: a token in the remote URL can surface in git's errors.
+          auth="$(printf 'x-access-token:%s' "$SYNC_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          remote="https://github.com/$GITHUB_REPOSITORY.git"
+          existing="$(git ls-remote "$remote" "$ref" | cut -f1)"
+          if [[ -n "$existing" ]]; then
+            git fetch -q --no-tags "$remote" "$ref"
+            if [[ "$(git rev-parse 'FETCH_HEAD^{tree}')" == "$(git rev-parse "$sha^{tree}")" ]]; then
+              echo "sync/$NEWEST already holds this tree; nothing to push"
+              echo "state=unchanged" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          # Why --force on this one ref: a newer main replaces the older sync for the same tag.
+          git push --force --no-follow-tags "$remote" "$sha:$ref"
+          echo "state=pushed" >> "$GITHUB_OUTPUT"
+          echo "Pushed https://github.com/$GITHUB_REPOSITORY/tree/sync/$NEWEST"
+
+  report:
+    needs: [prepare, push]
+    if: always() && needs.prepare.outputs.newest != needs.prepare.outputs.base
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - name: Download the sync report
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sync-report
+          path: ${{ runner.temp }}/report
+
+      - name: Open or update the drift issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NEWEST: ${{ needs.prepare.outputs.newest }}
+          OUTCOME: ${{ needs.prepare.outputs.outcome }}
+          CHECKED: ${{ needs.prepare.outputs.checked }}
+          READY: ${{ needs.prepare.outputs.ready }}
+          PUSH_RESULT: ${{ needs.push.result }}
+          PUSH_STATE: ${{ needs.push.outputs.state }}
+          REPORT: ${{ runner.temp }}/report/sync-report.json
+          BODY: ${{ runner.temp }}/issue-body.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          title="Upstream drift: rebase onto $NEWEST needs attention"
-          if [[ "$CONFLICT" == "true" ]]; then
-            body="$(printf 'Rebasing main onto %s hit conflicts in:\n\n%s\n\nRun: %s' "$NEWEST" "$(sed 's/^/- /' conflicts.txt)" "$RUN_URL")"
-          else
-            body="$(printf 'Rebase onto %s applied cleanly but typecheck or tests failed.\n\nRun: %s' "$NEWEST" "$RUN_URL")"
+          # Prints the report kind and writes the issue body; "none" means nothing to report.
+          kind="$(node --input-type=module -e '
+            import { existsSync, readFileSync, writeFileSync } from "node:fs"
+            const { NEWEST, OUTCOME, CHECKED, READY, PUSH_RESULT, PUSH_STATE, REPORT, BODY, RUN_URL } = process.env
+            const report = existsSync(REPORT) ? JSON.parse(readFileSync(REPORT, "utf8")) : {}
+            const lines = []
+            let kind = "failed"
+            if (OUTCOME === "stopped") {
+              kind = "stopped"
+              const c = report.commit
+              const at = c.number ? ` (commit ${c.number} of ${c.of})` : ""
+              lines.push(`Rebasing main onto ${NEWEST} stopped at Pod commit ${c.sha.slice(0, 10)} "${c.subject}"${at}.`, "", "Needs a person:", "")
+              for (const f of report.needsPerson) lines.push(`- \`${f.path}\`: ${f.reason}`)
+              if (report.resolvedHere?.length) lines.push("", `Resolved by rule at this stop: ${report.resolvedHere.join(", ")}.`)
+              const earlier = (report.resolved ?? []).filter((r) => r.commit !== c.sha)
+              if (earlier.length) {
+                lines.push("", "Resolved by rule earlier in the rebase:", "")
+                for (const r of earlier) lines.push(`- ${r.commit.slice(0, 10)} ${r.subject}: ${r.files.join(", ")}`)
+              }
+              lines.push("", `To pick it up locally: \`node config/pod-sync-upstream.mjs ${NEWEST}\`, resolve the files above, then \`--continue\` (docs/pod/sync.md).`)
+            } else if (OUTCOME === "clean" && CHECKED !== "true") {
+              kind = "checks-failed"
+              lines.push(`Rebase onto ${NEWEST} applied cleanly but install, typecheck or tests failed, so sync/${NEWEST} was not pushed.`)
+            } else if (OUTCOME === "clean" && READY === "true" && PUSH_STATE === "no-token") {
+              kind = "unpushed"
+              lines.push("<!-- pod-sync:clean-unpushed -->", `Rebase onto ${NEWEST} applied cleanly and install, typecheck and the brand and updater tests passed. It was not pushed because the POD_SYNC_TOKEN secret is not set (docs/pod/sync.md).`, "", `To produce the branch locally: \`node config/pod-sync-upstream.mjs ${NEWEST}\` on main, which creates sync/${NEWEST}. This note is posted once per tag.`)
+            } else if (OUTCOME === "clean" && READY === "true" && ["pushed", "unchanged"].includes(PUSH_STATE)) {
+              kind = "none"
+            } else if (OUTCOME === "clean" && READY === "true" && PUSH_RESULT === "failure") {
+              kind = "push-failed"
+              lines.push(`Rebase onto ${NEWEST} applied cleanly and the checks passed, but verifying or pushing sync/${NEWEST} failed.`)
+            } else {
+              lines.push(`The sync onto ${NEWEST} failed before it could finish${report.error ? `: ${report.error}` : "; see the run"}.`)
+            }
+            lines.push("", `Run: ${RUN_URL}`)
+            writeFileSync(BODY, lines.join("\n") + "\n")
+            console.log(kind)
+          ')"
+          echo "Report: $kind"
+          if [[ "$kind" == none ]]; then
+            exit 0
           fi
+          title="Upstream drift: rebase onto $NEWEST needs attention"
+          marker='<!-- pod-sync:clean-unpushed -->'
+          # Why state=all for the once-per-tag note: closing the issue must not bring it back daily.
+          state=open
+          if [[ "$kind" == unpushed ]]; then state=all; fi
           # Why REST: gh's GraphQL createIssue is refused for GITHUB_TOKEN on this repo.
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=upstream-drift&per_page=50" \
-            --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
+          numbers="$(gh api "repos/$GH_REPO/issues?state=$state&labels=upstream-drift&per_page=100" \
+            --jq ".[] | select(.title == \"$title\") | .number")"
+          if [[ "$kind" == unpushed ]]; then
+            for n in $numbers; do
+              if gh api "repos/$GH_REPO/issues/$n" --jq .body | grep -qF "$marker" ||
+                [[ -n "$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
+                  --jq ".[] | select(.body | contains(\"$marker\")) | .id")" ]]; then
+                echo "Already noted on #$n"
+                exit 0
+              fi
+            done
+            numbers="$(gh api "repos/$GH_REPO/issues?state=open&labels=upstream-drift&per_page=100" \
+              --jq ".[] | select(.title == \"$title\") | .number")"
+          fi
+          existing="$(head -n1 <<< "$numbers")"
           if [[ -n "$existing" ]]; then
-            gh api "repos/$GITHUB_REPOSITORY/issues/$existing/comments" -f body="$body" --silent
+            gh api "repos/$GH_REPO/issues/$existing/comments" -F body=@"$BODY" --silent
             echo "Commented on #$existing"
           else
-            gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -f body="$body" -f 'labels[]=upstream-drift' --jq '"Opened #" + (.number|tostring)'
+            gh api "repos/$GH_REPO/issues" -f title="$title" -F body=@"$BODY" -f 'labels[]=upstream-drift' --jq '"Opened #" + (.number|tostring)'
           fi

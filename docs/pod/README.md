@@ -30,7 +30,7 @@ pnpm dev
 
 ## Rebase onto a new upstream release
 
-[`sync.md`](./sync.md) has the procedure, the daily rehearsal that warns when it is due, and the check that a user's domains and settings survive it.
+[`sync.md`](./sync.md) has the procedure, the script that does the rebase, the daily job that prepares each update on a `sync/<tag>` branch, and the check that a user's domains and settings survive it.
 
 ## Cut a release
 
