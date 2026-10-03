@@ -25,7 +25,7 @@ git checkout -b "sync/$NEW" main
 git rebase --onto "$NEW" "$OLD"
 ```
 
-Fetch only the two tags, as above. Never push upstream tags to saiemamer/pod: `pod-release.yml` builds every `v*` tag, and Pod's own tags are `v0.x.y`.
+Fetch only the two tags, as above. Never push upstream tags to saiemamer/pod: `pod-release.yml` builds every `v*` tag, and Pod's own tags are `v0.x.y`. `git push origin main` (with or without `--force-with-lease`) pushes no tags; avoid `--tags` and `--follow-tags`.
 
 At each stop, find the file in `FORK_TOUCHPOINTS.md`, take upstream's version of the lines around the touch, and re-apply Pod's touch as the register describes it. The files that stop rebases today:
 
