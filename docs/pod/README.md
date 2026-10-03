@@ -30,22 +30,7 @@ pnpm dev
 
 ## Rebase onto a new upstream release
 
-The `Pod upstream drift` workflow rehearses this daily and opens an issue when it fails. To do it for real:
-
-```sh
-git remote add upstream https://github.com/stablyai/orca.git   # once
-git config merge.pod-keep.driver 'cp %B %A'                    # once: keeps Pod's README.md during rebases
-git fetch --no-tags --filter=blob:none upstream refs/tags/v1.4.210:refs/tags/v1.4.210
-git rebase --onto v1.4.210 v1.4.197 main
-# resolve conflicts using FORK_TOUCHPOINTS.md as the guide
-# move any new upstream workflow out of .github/workflows (brand.test.ts fails until you do):
-#   git mv .github/workflows/<new>.yml .github/workflows-upstream/
-pnpm install && pnpm tc && pnpm test:pod src/shared/brand src/shared/release-channel src/main/updater
-```
-
-Then bump `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts`, and note the new base in the release notes.
-
-Never push upstream tags to `saiemamer/pod`: `pod-release.yml` builds every `v*` tag, and Pod's own tags are `v0.x.y`. `git push origin main` pushes no tags; avoid `--tags` and `--follow-tags`.
+[`sync.md`](./sync.md) has the procedure, the daily rehearsal that warns when it is due, and the check that a user's domains and settings survive it.
 
 ## Cut a release
 
