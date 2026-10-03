@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DbtGraphNode, DbtGraphResult } from '../../../../shared/ae/dbt-graph-types'
+import { indexDbtGraph, selectDbtNeighbourhood } from '../../../../shared/ae/dbt-lineage-graph'
 import {
   highlightedColumnNames,
   lineageColumnsVisible,
@@ -131,6 +132,64 @@ describe('mergeLineageGraphs', () => {
     const merged = mergeLineageGraphs(graph, extra)
     expect(merged.moreDownstream).toEqual({ c: 2, a: 1 })
     expect(merged.moreUpstream).toEqual({ root: 1 })
+  })
+})
+
+describe('mergeLineageGraphs on a shared parent', () => {
+  // a -> b, a -> c, b -> d, c -> d
+  const index = indexDbtGraph(
+    ['a', 'b', 'c', 'd'].map((id) => node(id)),
+    [
+      { source: 'a', target: 'b' },
+      { source: 'a', target: 'c' },
+      { source: 'b', target: 'd' },
+      { source: 'c', target: 'd' }
+    ]
+  )
+  const answer = (focus: string, up: number, down: number, known?: string[]): DbtGraphResult => {
+    const hood = selectDbtNeighbourhood(index, focus, {
+      upstreamDepth: up,
+      downstreamDepth: down,
+      maxNodes: 100,
+      known: known ? new Set(known) : undefined
+    })
+    return {
+      ...graph,
+      focus,
+      nodes: hood.nodeIds.map((id) => node(id)),
+      edges: hood.edges,
+      moreUpstream: hood.moreUpstream,
+      moreDownstream: hood.moreDownstream
+    }
+  }
+
+  it('draws the new parent into the sibling and clears the sibling count', () => {
+    const base = answer('d', 1, 0)
+    expect(base.moreUpstream).toEqual({ b: 1, c: 1 })
+    const merged = mergeLineageGraphs(base, answer('b', 1, 0, ['b', 'c', 'd']))
+    expect(merged.nodes.map((n) => n.uniqueId).sort()).toEqual(['a', 'b', 'c', 'd'])
+    expect(merged.edges.map((e) => `${e.source}->${e.target}`).sort()).toEqual([
+      'a->b',
+      'a->c',
+      'b->d',
+      'c->d'
+    ])
+    expect(merged.moreUpstream).toEqual({})
+    expect(merged.moreDownstream).toEqual({})
+  })
+
+  it('does the same in the downstream direction', () => {
+    const base = answer('a', 0, 1)
+    expect(base.moreDownstream).toEqual({ b: 1, c: 1 })
+    const merged = mergeLineageGraphs(base, answer('b', 0, 1, ['a', 'b', 'c']))
+    expect(merged.edges.map((e) => `${e.source}->${e.target}`).sort()).toEqual([
+      'a->b',
+      'a->c',
+      'b->d',
+      'c->d'
+    ])
+    expect(merged.moreDownstream).toEqual({})
+    expect(merged.moreUpstream).toEqual({})
   })
 })
 

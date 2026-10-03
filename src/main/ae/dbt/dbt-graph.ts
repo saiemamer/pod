@@ -228,7 +228,8 @@ export class DbtGraphService {
     const hood = selectDbtNeighbourhood(graph.index, focus.uniqueId, {
       upstreamDepth,
       downstreamDepth,
-      maxNodes
+      maxNodes,
+      known: request.known ? new Set(request.known) : undefined
     })
     return {
       projectDir: graph.projectDir,

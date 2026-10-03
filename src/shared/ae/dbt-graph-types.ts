@@ -44,6 +44,8 @@ export type DbtGraphRequest = DbtPathRequest & {
   downstreamDepth?: number
   maxNodes?: number
   refresh?: boolean
+  /** Node ids the canvas already shows; the answer links to them and leaves them out of counts. */
+  known?: string[]
 }
 
 export type DbtGraphResult = {
