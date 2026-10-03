@@ -80,9 +80,10 @@ jobs:
       - name: Setup Node.js
         if: steps.upstream.outputs.newest != steps.upstream.outputs.base
         uses: actions/setup-node@v4
+        # Why no `cache: pnpm`: its post step fails the run when the store does not exist,
+        # which is every stop, since pnpm install runs only after a clean rebase.
         with:
           node-version-file: package.json
-          cache: pnpm
 
       - name: Test the sync script
         if: steps.upstream.outputs.newest != steps.upstream.outputs.base
