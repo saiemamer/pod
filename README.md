@@ -6,13 +6,13 @@ Orca is excellent at parallel work inside one repository. Pod adds what analytic
 
 - **Teams and initiatives.** A team folder holds several repos. One coordinator agent plans an initiative, dispatches workers into worktrees of the dbt repo, waits, then dispatches workers into the Omni repo, all inside one tracked run.
 - **dbt, natively.** Jinja-aware SQL, a dbt language server, Cmd+Enter results from `dbt show`, compiled SQL, a column-level lineage canvas, project and profile discovery, and six dbt tools agents can call through `orca dbt ...`.
-- **Omni.** The Omni CLI workflow (model branch, YAML, validate, commit) taught to agents as a skill, with the `omni` binary and credentials configured in Settings.
+- **Omni.** The Omni CLI workflow (model branch, YAML, validate, commit) taught to agents as a skill and the `orca omni` commands, an Omni panel for the worktree's model branch, validation and topics, and the `omni` binary and credentials configured in Settings.
 
 Orca Mobile, Orca Cloud accounts and Orca Relay are hidden in Pod (one flag, `POD_SHOW_ORCA_CLOUD_FEATURES`, brings them back). Pod tracks upstream Orca stable releases. Every Pod addition lives in `ae/` directories; every edit to an upstream file is listed in [`FORK_TOUCHPOINTS.md`](./FORK_TOUCHPOINTS.md).
 
 ## Status
 
-Phase 0 of 4: bootstrap, rebrand, release pipeline. The full plan is in [`docs/pod/PLAN.md`](./docs/pod/PLAN.md). Current upstream base: see `upstreamBaseTag` in [`config/pod-brand.cjs`](./config/pod-brand.cjs).
+Phase 4 of 4 in progress: the Omni panel and the dbt MCP server have shipped. The full plan is in [`docs/pod/PLAN.md`](./docs/pod/PLAN.md). Current upstream base: see `upstreamBaseTag` in [`config/pod-brand.cjs`](./config/pod-brand.cjs); [`docs/pod/sync.md`](./docs/pod/sync.md) explains how Pod follows Orca's releases.
 
 ## Install (macOS)
 
@@ -21,7 +21,7 @@ brew install --cask saiemamer/pod/pod   # Pod.app plus the orca CLI
 brew upgrade --cask pod                 # later, to update (or click the button in the app)
 ```
 
-Builds are not yet signed; the cask clears macOS's quarantine attribute after install and upgrade, so Pod opens normally. When a new release is out, Pod shows a card with an "Update with Homebrew" button that opens Terminal and runs the upgrade; quit and reopen Pod afterwards. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest).
+Builds are not yet signed; the cask clears macOS's quarantine attribute after install and upgrade, so Pod opens normally. When a new release is out, Pod shows a card with an "Update with Homebrew" button that opens Terminal and runs the upgrade; quit and reopen Pod afterwards. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest). [`docs/pod/install.md`](./docs/pod/install.md) covers the DMG's first launch, first setup, updates and uninstalling.
 
 Pod and stock Orca both register a CLI named `orca` and share `~/.orca` and `~/Library/Application Support/orca`. Install one or the other on a machine, not both.
 
