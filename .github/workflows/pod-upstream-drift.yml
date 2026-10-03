@@ -95,11 +95,12 @@ jobs:
         env:
           NEWEST: ${{ steps.upstream.outputs.newest }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           git config user.name pod-drift
           git config user.email pod-drift@users.noreply.github.com
-          node config/pod-sync-upstream.mjs "$NEWEST" --report "$RUNNER_TEMP/report/sync-report.json"
-          code=$?
+          # Why `|| code=$?`: `shell: bash` runs with -e, which would end the step on exit 2 (a stop).
+          code=0
+          node config/pod-sync-upstream.mjs "$NEWEST" --report "$RUNNER_TEMP/report/sync-report.json" || code=$?
           case "$code" in
             0) echo "outcome=clean" >> "$GITHUB_OUTPUT" ;;
             2) echo "outcome=stopped" >> "$GITHUB_OUTPUT" ;;
@@ -211,7 +212,9 @@ jobs:
           sha="$(cut -d' ' -f1 <<< "$heads")"
           git fetch -q --no-tags "$bundle" "$ref"
           [[ "$(git rev-parse FETCH_HEAD)" == "$sha" ]]
-          if ! git show "$sha:config/pod-brand.cjs" | grep -qF "upstreamBaseTag: '$NEWEST'"; then
+          # Why a variable: grep -q exits at the first match, and under pipefail the writer's SIGPIPE fails the test.
+          brand="$(git show "$sha:config/pod-brand.cjs")"
+          if ! grep -qF "upstreamBaseTag: '$NEWEST'" <<< "$brand"; then
             echo "::error::$sha does not set the base tag to $NEWEST"
             exit 1
           fi
@@ -319,7 +322,8 @@ jobs:
             --jq ".[] | select(.title == \"$title\") | .number")"
           if [[ "$kind" == unpushed ]]; then
             for n in $numbers; do
-              if gh api "repos/$GH_REPO/issues/$n" --jq .body | grep -qF "$marker" ||
+              body="$(gh api "repos/$GH_REPO/issues/$n" --jq .body)"
+              if grep -qF "$marker" <<< "$body" ||
                 [[ -n "$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
                   --jq ".[] | select(.body | contains(\"$marker\")) | .id")" ]]; then
                 echo "Already noted on #$n"

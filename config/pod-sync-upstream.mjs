@@ -219,13 +219,19 @@ function saveState(state) {
   writeFileSync(gitPath(STATE_FILE), JSON.stringify(state, null, 2))
 }
 
-function stagesOf(path) {
-  const stages = new Set()
+// Maps each index stage of an unmerged path to its blob id.
+function unmergedEntries(path) {
+  const entries = new Map()
   for (const line of git(['ls-files', '-u', '-z', '--', path]).split('\0').filter(Boolean)) {
-    stages.add(Number(line.split('\t')[0].split(' ')[2]))
+    const [, oid, stage] = line.split('\t')[0].split(' ')
+    entries.set(Number(stage), oid)
   }
-  return stages
+  return entries
 }
+
+const blobAt = (rev, path) =>
+  git(['rev-parse', '-q', '--verify', `${rev}:${path}`], { allowFailure: true }).stdout.trim() ||
+  null
 
 const showStage = (stage, path) => git(['show', `:${stage}:${path}`])
 
@@ -369,6 +375,30 @@ function resolvePackageJson({ base, ours, theirs }) {
   return `${JSON.stringify(result, null, 2)}\n`
 }
 
+const MOVED_WORKFLOWS = '.github/workflows-upstream/'
+
+// Pod's move-aside commit meets a workflow Orca has since deleted: drop it, as Orca did.
+function resolveDeletedUpstreamWorkflow(path) {
+  const source = `.github/workflows/${path.slice(MOVED_WORKFLOWS.length)}`
+  const entries = unmergedEntries(path)
+  if (entries.size !== 2 || !entries.has(1) || !entries.has(3)) {
+    throw new Stop('upstream changed this moved workflow instead of deleting it')
+  }
+  if (entries.get(1) !== entries.get(3)) {
+    throw new Stop("Pod's commit edits this workflow as well as moving it")
+  }
+  if (blobAt('HEAD', source) || blobAt('HEAD', path)) {
+    throw new Stop('upstream still has this workflow')
+  }
+  if (
+    blobAt('REBASE_HEAD^', source) !== entries.get(1) ||
+    blobAt('REBASE_HEAD', path) !== entries.get(3)
+  ) {
+    throw new Stop(`Pod's commit does not move ${source} here unchanged`)
+  }
+  git(['rm', '-q', '-f', '--', path])
+}
+
 const RULES = {
   'package.json': resolvePackageJson,
   '.gitattributes': resolveGitattributes,
@@ -428,10 +458,15 @@ function resolveStop(state) {
   )
   for (const path of ordered) {
     try {
+      let label = path
       if (path === 'pnpm-lock.yaml') {
         resolveLockfile(unresolved)
+        git(['add', '--', path])
+      } else if (path.startsWith(MOVED_WORKFLOWS)) {
+        resolveDeletedUpstreamWorkflow(path)
+        label = `${path} (dropped; upstream deleted it)`
       } else if (RULES[path]) {
-        const stages = stagesOf(path)
+        const stages = unmergedEntries(path)
         if (![1, 2, 3].every((stage) => stages.has(stage))) {
           throw new Stop('one side added or deleted the file')
         }
@@ -441,12 +476,12 @@ function resolveStop(state) {
           theirs: showStage(3, path)
         })
         writeFileSync(path, content)
+        git(['add', '--', path])
       } else {
         throw new Stop('no rule for this file')
       }
-      git(['add', '--', path])
       unresolved.delete(path)
-      resolved.push(path)
+      resolved.push(label)
     } catch (error) {
       if (!(error instanceof Stop)) {
         throw error
@@ -472,6 +507,8 @@ function moveUpstreamWorkflows() {
     if (existsSync(target)) {
       throw new Stop(`upstream workflow ${path} also exists as ${target}`)
     }
+    // Why: git mv needs the folder, which is gone if every moved workflow was dropped.
+    mkdirSync(dirname(target), { recursive: true })
     git(['mv', path, target])
     moved.push(name)
   }
