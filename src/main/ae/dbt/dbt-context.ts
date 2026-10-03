@@ -1,8 +1,8 @@
-import { existsSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import type { Store } from '../../persistence'
 import type { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import type { AeDomainService } from '../domain-service'
+import { findGitRoot, findManagedWorktreeForPath } from '../worktree-for-path'
 import {
   normalizeAeDbtSettings,
   normalizeAeToolCmdOverrides,
@@ -62,7 +62,8 @@ export async function resolveDbtContext(
   request: DbtPathRequest & { target?: string }
 ): Promise<DbtContext> {
   const path = resolve(request.path)
-  const worktree = await findWorktreeForPath(deps.runtime, path)
+  const found = await findManagedWorktreeForPath(deps.runtime, path)
+  const worktree = found ? { id: found.id, repoId: found.repoId, path: found.path } : null
   const repoRoot = worktree?.path ?? findGitRoot(path)
   const globalSettings = deps.store.getSettings()
   const settings = normalizeAeDbtSettings(globalSettings.aeDbt)
@@ -143,50 +144,5 @@ export function summarizeDbtContext(context: DbtContext): DbtContextSummary {
     lspEnabled: context.settings.lspEnabled,
     catalog: summarizeDbtCatalog(context.project),
     manifest: summarizeDbtManifest(context.project)
-  }
-}
-
-/** Walk up from the path asking Orca for a managed worktree at each directory. */
-async function findWorktreeForPath(
-  runtime: OrcaRuntimeService,
-  path: string
-): Promise<DbtContext['worktree']> {
-  let dir = isDirectory(path) ? path : dirname(path)
-  for (let depth = 0; depth < 16; depth += 1) {
-    try {
-      const worktree = await runtime.showManagedWorktree(`path:${dir}`)
-      return { id: worktree.id, repoId: worktree.repoId, path: worktree.path }
-    } catch {
-      // Why: selector_not_found is the normal answer for a subdirectory; keep climbing.
-    }
-    const parent = dirname(dir)
-    if (parent === dir) {
-      break
-    }
-    dir = parent
-  }
-  return null
-}
-
-export function findGitRoot(path: string): string | null {
-  let dir = isDirectory(path) ? path : dirname(path)
-  for (let depth = 0; depth < 32; depth += 1) {
-    if (existsSync(join(dir, '.git'))) {
-      return dir
-    }
-    const parent = dirname(dir)
-    if (parent === dir) {
-      return null
-    }
-    dir = parent
-  }
-  return null
-}
-
-function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory()
-  } catch {
-    return false
   }
 }
