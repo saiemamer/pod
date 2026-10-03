@@ -1,0 +1,251 @@
+From 43018b6de29cf0e02e7b3f056f178c65f78edb8b Mon Sep 17 00:00:00 2001
+From: Saiem Amer <saiem.amer07@gmail.com>
+Date: Sat, 3 Oct 2026 23:26:12 +0100
+Subject: [PATCH] fix(orchestration): let a folder-workspace coordinator start
+ worktree workers
+
+`orca orchestration worker-start --worktree new-child|new-top-level` looked up
+the coordinator terminal's workspace with showManagedWorktree, which has no
+folder branch. A coordinator running in a folder workspace therefore failed
+with a bare `selector_not_found`, although `new-top-level` never needs the
+coordinator's worktree and `worktree create --parent-worktree folder:<id>`
+already supports folder parents.
+
+resolveWorkerCreationTarget now handles a folder-workspace coordinator: the
+repo comes from `--repo` (a folder has none of its own), a `new-child`
+worktree is parented to the folder workspace through `parentWorkspace`, and a
+missing `--repo` gets an `invalid_argument` that says what to pass. Worktree
+coordinators resolve exactly as before.
+---
+ .../orchestration-worker-creation-target.ts   | 39 +++++++++++++
+ .../methods/orchestration-worker-topology.ts  | 10 ++--
+ ...orchestration-workers-new-worktree.test.ts | 55 +++++++++++++++++++
+ .../rpc/methods/orchestration-workers.ts      | 22 +++++---
+ 4 files changed, 114 insertions(+), 12 deletions(-)
+ create mode 100644 src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
+
+diff --git a/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts b/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
+new file mode 100644
+index 0000000000..a4ebeac5d4
+--- /dev/null
++++ b/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
+@@ -0,0 +1,39 @@
++import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
++import type { OrcaRuntimeService } from '../../orca-runtime'
++import { OrchestrationError } from '../../orchestration/orchestration-error'
++
++/** A folder parent goes by its workspace key, as `worktree create --parent-worktree folder:<id>` does. */
++export type WorkerCreationTarget = {
++  repoSelector: string
++  parentWorktreeId?: string
++  parentWorkspace?: string
++}
++
++/** Where a new-child or new-top-level worker's worktree is created, from the coordinator's workspace. */
++export async function resolveWorkerCreationTarget(args: {
++  runtime: OrcaRuntimeService
++  coordinatorWorktreeId: string
++  requestedWorktree: string
++  repo?: string
++}): Promise<WorkerCreationTarget> {
++  const { runtime, coordinatorWorktreeId, requestedWorktree, repo } = args
++  // Why: a folder workspace is not a managed worktree, so looking it up fails with
++  // selector_not_found. It can still parent a worktree, and --repo names the repo it lacks.
++  if (parseWorkspaceKey(coordinatorWorktreeId)?.type === 'folder') {
++    if (!repo) {
++      throw new OrchestrationError(
++        'invalid_argument',
++        'A folder workspace has no repo of its own; pass --repo <selector> to create a worktree from it.'
++      )
++    }
++    return {
++      repoSelector: repo,
++      parentWorkspace: requestedWorktree === 'new-child' ? coordinatorWorktreeId : undefined
++    }
++  }
++  const coordinator = await runtime.showManagedWorktree(`id:${coordinatorWorktreeId}`)
++  return {
++    repoSelector: repo ?? coordinator.repoId,
++    parentWorktreeId: requestedWorktree === 'new-child' ? coordinator.id : undefined
++  }
++}
+diff --git a/src/main/runtime/rpc/methods/orchestration-worker-topology.ts b/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
+index 582d32058a..25db7d490f 100644
+--- a/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
++++ b/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
+@@ -2,6 +2,7 @@ import type { AgentLaunchPreferences } from '../../../../shared/agent-session-ho
+ import type { TuiAgent } from '../../../../shared/tui-agent'
+ import type { OrcaRuntimeService } from '../../orca-runtime'
+ import type { OrchestrationDb } from '../../orchestration/db'
++import type { WorkerCreationTarget } from './orchestration-worker-creation-target'
+ 
+ export type WorkerEffect = {
+   kind: 'worktree' | 'terminal' | 'setup' | 'dispatch_input'
+@@ -109,7 +110,7 @@ export async function createWorkerWorktree(args: {
+   db: OrchestrationDb
+   dispatchId: string
+   requestedWorktree: string
+-  coordinatorWorktree: Awaited<ReturnType<OrcaRuntimeService['showManagedWorktree']>>
++  target: WorkerCreationTarget
+   params: {
+     repo?: string
+     name?: string
+@@ -127,11 +128,11 @@ export async function createWorkerWorktree(args: {
+   terminalHandle: string
+   setupReceipt: WorkerSetupReceipt
+ }> {
+-  const { runtime, db, dispatchId, requestedWorktree, coordinatorWorktree, params, effects } = args
++  const { runtime, db, dispatchId, requestedWorktree, target, params, effects } = args
+   const setupDecision = params.setup ?? 'run'
+   db.recordWorkerStage({ dispatchId, stage: 'worktree_creating', effects })
+   const created = await runtime.createManagedWorktree({
+-    repoSelector: params.repo ?? coordinatorWorktree.repoId,
++    repoSelector: target.repoSelector,
+     name: params.name as string,
+     baseBranch: params.baseBranch,
+     displayName: params.displayName,
+@@ -147,7 +148,8 @@ export async function createWorkerWorktree(args: {
+     ...(args.launchPreferences ? { startupLaunchPreferences: args.launchPreferences } : {}),
+     activate: false,
+     lineage: {
+-      parentWorktree: requestedWorktree === 'new-child' ? coordinatorWorktree.id : undefined,
++      parentWorktree: target.parentWorktreeId,
++      ...(target.parentWorkspace ? { parentWorkspace: target.parentWorkspace } : {}),
+       noParent: requestedWorktree === 'new-top-level',
+       callerTerminalHandle: params.from
+     }
+diff --git a/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts b/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
+index c0ae7d5edd..eea1bee2d8 100644
+--- a/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
++++ b/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
+@@ -223,6 +223,61 @@ describe('orchestration new-worktree workers', () => {
+     expect(db.getDispatchContext(task.id)).toBeUndefined()
+   })
+ 
++  function coordinateFromFolderWorkspace() {
++    vi.mocked(runtime.showTerminal).mockResolvedValue({
++      handle: 'term_coord',
++      worktreeId: 'folder:workspace-1',
++      status: 'running'
++    } as never)
++    // Why: the real worktree lookup has no folder branch and answers selector_not_found.
++    vi.mocked(runtime.showManagedWorktree).mockRejectedValue(new Error('selector_not_found'))
++  }
++
++  it('creates a worker worktree in a named repo under a folder-workspace coordinator', async () => {
++    coordinateFromFolderWorkspace()
++    mockCreatedWorktree()
++
++    const { result } = await startWorker({ worktree: 'new-child', repo: 'id:repo' })
++
++    expect(runtime.createManagedWorktree).toHaveBeenCalledWith(
++      expect.objectContaining({
++        repoSelector: 'id:repo',
++        lineage: expect.objectContaining({
++          parentWorkspace: 'folder:workspace-1',
++          parentWorktree: undefined,
++          noParent: false
++        })
++      })
++    )
++    expect(result).toMatchObject({ state: 'ready' })
++  })
++
++  it('keeps a top-level worker from a folder-workspace coordinator unparented', async () => {
++    coordinateFromFolderWorkspace()
++    mockCreatedWorktree()
++
++    await startWorker({ worktree: 'new-top-level', repo: 'id:repo' })
++
++    expect(runtime.createManagedWorktree).toHaveBeenCalledWith(
++      expect.objectContaining({
++        repoSelector: 'id:repo',
++        lineage: expect.objectContaining({ noParent: true, parentWorktree: undefined })
++      })
++    )
++  })
++
++  it('asks a folder-workspace coordinator for --repo before creating a worktree', async () => {
++    coordinateFromFolderWorkspace()
++    const createWorktree = vi.spyOn(runtime, 'createManagedWorktree')
++
++    await expect(startWorker({ worktree: 'new-child' })).rejects.toMatchObject({
++      code: 'invalid_argument',
++      message:
++        'A folder workspace has no repo of its own; pass --repo <selector> to create a worktree from it.'
++    })
++    expect(createWorktree).not.toHaveBeenCalled()
++  })
++
+   it('injects the execution host CLI command and Dispatch capability together', async () => {
+     mockCreatedWorktree()
+     vi.mocked(runtime.getTerminalOrchestrationCliCommand).mockReturnValue('orca-ide')
+diff --git a/src/main/runtime/rpc/methods/orchestration-workers.ts b/src/main/runtime/rpc/methods/orchestration-workers.ts
+index 6127152593..b70208fdfc 100644
+--- a/src/main/runtime/rpc/methods/orchestration-workers.ts
++++ b/src/main/runtime/rpc/methods/orchestration-workers.ts
+@@ -5,6 +5,7 @@ import { defineMethod, type RpcMethod } from '../core'
+ import { startFederatedWorker } from './orchestration-federated-worker-start'
+ import { assertOrchestrationWorktreeCreationSupported } from './orchestration-folder-worktree-placement'
+ import { WorkerStartParams } from './orchestration-worker-start-schema'
++import { resolveWorkerCreationTarget } from './orchestration-worker-creation-target'
+ import {
+   createExistingWorktreeWorkerTerminal,
+   createWorkerWorktree,
+@@ -81,17 +82,22 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
+       const { agent, launch } = prepareLocalWorkerStart({ params, createsWorktree, runtime })
+ 
+       const coordinatorTerminal = await runtime.showTerminal(params.from)
+-      const creationWorktree = createsWorktree
+-        ? await runtime.showManagedWorktree(`id:${coordinatorTerminal.worktreeId}`)
++      const creationTarget = createsWorktree
++        ? await resolveWorkerCreationTarget({
++            runtime,
++            coordinatorWorktreeId: coordinatorTerminal.worktreeId,
++            requestedWorktree,
++            repo: params.repo
++          })
+         : undefined
+-      if (creationWorktree) {
++      if (creationTarget) {
+         await assertOrchestrationWorktreeCreationSupported({
+           runtime,
+-          repoSelector: params.repo ?? creationWorktree.repoId,
++          repoSelector: creationTarget.repoSelector,
+           existingPlacement: 'current or an exact existing folder workspace'
+         })
+       }
+-      let resolvedWorktree = creationWorktree
++      let resolvedWorktree = creationTarget
+         ? undefined
+         : requestedWorktree === 'current'
+           ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorTerminal.worktreeId}`)
+@@ -117,7 +123,7 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
+         worktree: requestedWorktree,
+         resolvedWorktreeId: resolvedWorktree?.id ?? null,
+         name: params.name ?? null,
+-        repo: params.repo ?? creationWorktree?.repoId ?? null,
++        repo: creationTarget?.repoSelector ?? params.repo ?? null,
+         baseBranch: params.baseBranch ?? null,
+         terminal: params.terminal ?? null,
+         agent: agent ?? null,
+@@ -158,14 +164,14 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
+         state: 'not_applicable'
+       }
+       try {
+-        if (creationWorktree) {
++        if (creationTarget) {
+           failedStage = 'worktree_create'
+           const created = await createWorkerWorktree({
+             runtime,
+             db,
+             dispatchId: started.dispatch.id,
+             requestedWorktree,
+-            coordinatorWorktree: creationWorktree,
++            target: creationTarget,
+             params,
+             agent: agent as TuiAgent,
+             launchPreferences: launch.preferences,
+-- 
+2.52.0
+
