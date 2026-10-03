@@ -1,5 +1,5 @@
 import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
-import type { AeDbtSettings, AeToolCmdOverrides } from './ae/dbt-settings-types' // Pod
+import type { AeDbtSettings } from './ae/dbt-settings-types' // Pod
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
 import type { GitHubProjectSettings } from './github/project-types'
@@ -398,8 +398,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   geminiCliOAuthEnabled: boolean
   /** Per-agent CLI command overrides. A missing key means use the catalog default binary name. */
   agentCmdOverrides: Partial<Record<TuiAgent, string>>
-  /** Pod: paths to external tools (dbt, omni, python); a missing key means look on PATH. */
-  toolCmdOverrides?: AeToolCmdOverrides
+  /** Per-tool command overrides for non-agent binaries, keyed by tool name. A missing key means use the tool on PATH. */
+  toolCmdOverrides?: Record<string, string>
   /** Pod: dbt defaults for the results grid, lineage and the dbt CLI. */
   aeDbt?: AeDbtSettings
   /** Custom CODEX_HOME for Codex session-history discovery (defaults to ~/.codex).
