@@ -84,22 +84,35 @@ export function mergeLineageGraphs(base: DbtGraphResult, extra: DbtGraphResult):
   for (const edge of extra.edges) {
     edges.set(edgeKey(edge), edge)
   }
-  // Why replace per node: the expanded node's "more" counts are now known exactly.
+  // Why replace per node: the expanded node's "more" counts are now known exactly,
+  // less the neighbours the canvas already held from the base graph.
+  const extraIds = new Set(extra.nodes.map((node) => node.uniqueId))
+  const held = (id: string, side: 'up' | 'down'): number => {
+    let count = 0
+    for (const edge of edges.values()) {
+      const [self, other] = side === 'up' ? [edge.target, edge.source] : [edge.source, edge.target]
+      if (self === id && !extraIds.has(other) && nodes.has(other)) {
+        count += 1
+      }
+    }
+    return count
+  }
   const moreUpstream = { ...base.moreUpstream }
   const moreDownstream = { ...base.moreDownstream }
-  for (const id of Object.keys(extra.moreUpstream)) {
-    moreUpstream[id] = extra.moreUpstream[id]
-  }
-  for (const id of Object.keys(extra.moreDownstream)) {
-    moreDownstream[id] = extra.moreDownstream[id]
-  }
   delete moreUpstream[extra.focus]
   delete moreDownstream[extra.focus]
-  if (extra.moreUpstream[extra.focus]) {
-    moreUpstream[extra.focus] = extra.moreUpstream[extra.focus]
-  }
-  if (extra.moreDownstream[extra.focus]) {
-    moreDownstream[extra.focus] = extra.moreDownstream[extra.focus]
+  for (const [side, from, into] of [
+    ['up', extra.moreUpstream, moreUpstream],
+    ['down', extra.moreDownstream, moreDownstream]
+  ] as const) {
+    for (const [id, count] of Object.entries(from)) {
+      const left = count - held(id, side)
+      if (left > 0) {
+        into[id] = left
+      } else {
+        delete into[id]
+      }
+    }
   }
   return {
     ...base,
