@@ -38,14 +38,10 @@ function PodDbtLineageView({ fileId, filePath }: PodDbtLineageViewProps): React.
     [fileId, graph]
   )
   const kinds = useMemo(() => (graph ? lineageKindsIn(graph.nodes) : []), [graph])
-  const { clickColumn, expand } = state
+  const { clickColumn } = state
   const onColumnClick = useCallback(
     (nodeId: string, column: string) => void clickColumn(nodeId, column),
     [clickColumn]
-  )
-  const onExpand = useCallback(
-    (nodeId: string, side: 'up' | 'down') => void expand(nodeId, side),
-    [expand]
   )
 
   if (!graph) {
@@ -108,9 +104,10 @@ function PodDbtLineageView({ fileId, filePath }: PodDbtLineageViewProps): React.
                 showColumns={state.showColumns}
                 arrangeKey={state.arrangeKey}
                 selectedNodeId={state.selectedNodeId}
+                centreKey={state.centreKey}
                 onColumnClick={onColumnClick}
                 onToggleCollapse={state.toggleCollapse}
-                onExpand={onExpand}
+                onExpand={state.expand}
                 onOpen={openNode}
               />
             </div>
