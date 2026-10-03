@@ -4,5 +4,5 @@ module.exports = {
   appId: 'io.github.saiemamer.pod',
   releaseOwner: 'saiemamer',
   releaseRepo: 'pod',
-  upstreamBaseTag: 'v1.4.197'
+  upstreamBaseTag: 'v1.4.219'
 }

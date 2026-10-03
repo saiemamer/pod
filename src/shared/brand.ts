@@ -10,7 +10,7 @@ export const POD_RELEASE_REPO = 'saiemamer/pod'
 export const POD_RELEASES_URL = `https://github.com/${POD_RELEASE_REPO}/releases`
 export const POD_HOMEBREW_TAP = 'saiemamer/pod'
 /** The upstream Orca tag Pod is currently rebased onto. Shown next to the Pod version. */
-export const POD_UPSTREAM_BASE_TAG = 'v1.4.197'
+export const POD_UPSTREAM_BASE_TAG = 'v1.4.219'
 export const POD_UPSTREAM_REPO = 'stablyai/orca'
 /**
  * Why: macOS only lets a signed app replace itself, and Pod is not signed yet, so packaged
