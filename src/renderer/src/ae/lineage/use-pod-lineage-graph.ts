@@ -193,7 +193,8 @@ export function usePodLineageGraph(filePath: string): PodLineageGraphState {
           path: filePath,
           model: nodeId,
           upstreamDepth: side === 'up' ? 1 : 0,
-          downstreamDepth: side === 'down' ? 1 : 0
+          downstreamDepth: side === 'down' ? 1 : 0,
+          known: latestGraph.current.nodes.map((node) => node.uniqueId)
         })
         setGraph((current) => (current ? mergeLineageGraphs(current, extra) : extra))
         return true

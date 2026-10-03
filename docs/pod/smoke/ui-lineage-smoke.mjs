@@ -43,6 +43,15 @@ ensure(
   `${repo}/models/marts/order_summary.sql`,
   "select status, count(*) as n from {{ ref('orders') }} group by 1\n"
 )
+// order_statuses and status_report make stg_orders a shared parent (a diamond)
+ensure(
+  `${repo}/models/marts/order_statuses.sql`,
+  "select distinct status from {{ ref('stg_orders') }}\n"
+)
+ensure(
+  `${repo}/models/marts/status_report.sql`,
+  "select s.status, count(c.order_id) as n\nfrom {{ ref('order_statuses') }} s\nleft join {{ ref('orders_by_customer') }} c on c.status = s.status\ngroup by 1\n"
+)
 ensure(
   `${repo}/models/sources.yml`,
   'version: 2\nsources:\n  - name: raw\n    tables:\n      - name: orders\n        identifier: orders_raw\n'
@@ -147,7 +156,12 @@ await sleep(500)
 for (let i = 0; i < 15 && !existsSync(`${repo}/target/catalog.json`); i += 1) {
   await sleep(1000)
 }
-if (!existsSync(`${repo}/target/catalog.json`)) {
+// Why the manifest check: one written before status_report joined the stand-in lacks the diamond.
+const stale =
+  !existsSync(`${repo}/target/catalog.json`) ||
+  !existsSync(`${repo}/target/manifest.json`) ||
+  !readFileSync(`${repo}/target/manifest.json`, 'utf8').includes('model.demo.status_report')
+if (stale) {
   const refreshed = await page.evaluate(
     (path) => window.api.ae.dbt.ensureCatalog({ path, force: true }),
     `${repo}/models/marts/orders.sql`
@@ -303,9 +317,9 @@ const expectStgInside = async (label) => {
     throw new Error(`${label} stg_orders left the canvas`)
   }
 }
-// Samples stg_orders' screen x every frame while a side button re-lays out the graph;
-// the node should hold still, not drift and come back.
-const clickSideSampled = async (label) => {
+// Samples a node's screen position every frame while its side button re-lays out the
+// graph; the node should hold still in x and y, not drift and come back.
+const clickSideSampled = async (label, id = STG, button = stgSide) => {
   await page.evaluate((id) => {
     const el = document.querySelector(`[data-node-id="${id}"]`)
     const samples = []
@@ -314,23 +328,24 @@ const clickSideSampled = async (label) => {
       if (window.__podDrift !== samples) {
         return
       }
-      const node = document.querySelector(`[data-node-id="${id}"]`) ?? el
-      samples.push(node.getBoundingClientRect().x)
+      const r = (document.querySelector(`[data-node-id="${id}"]`) ?? el).getBoundingClientRect()
+      samples.push([r.x, r.y])
       requestAnimationFrame(tick)
     }
     tick()
-  }, STG)
-  await stgSide.click({ timeout: 5000 })
+  }, id)
+  await button.click({ timeout: 5000 })
   await sleep(600)
   const samples = await page.evaluate(() => {
     const taken = window.__podDrift
     window.__podDrift = null
     return taken
   })
-  const drift = Math.max(...samples.map((x) => Math.abs(x - samples[0])))
+  const [x0, y0] = samples[0]
+  const drift = Math.max(...samples.map(([x, y]) => Math.hypot(x - x0, y - y0)))
   log(label, `largest drift ${drift.toFixed(1)} px over ${samples.length} frames`)
   if (drift > 4) {
-    throw new Error(`${label} stg_orders drifted ${drift.toFixed(1)} px`)
+    throw new Error(`${label} ${id} drifted ${drift.toFixed(1)} px`)
   }
 }
 await centreOn('stg_orders')
@@ -340,6 +355,23 @@ await expectStgInside('after collapse:')
 await clickSideSampled('restore:')
 await expectCount('nodes after restoring:', 4)
 await expectStgInside('after restore:')
+
+// 6c. a side button that brings the selected node back must not re-centre on it: the
+// view would pull the clicked button out from under the pointer
+const ORDERS = 'model.demo.orders'
+const ordersSide = ordersNode.locator('[data-testid="pod-lineage-side-up"]')
+await centreOn('stg_orders')
+// Why pan off it: a re-centre on a node already centred would move nothing.
+const flow = await dock.locator('.react-flow').boundingBox()
+await page.mouse.move(flow.x + 30, flow.y + flow.height - 30)
+await page.mouse.down()
+await page.mouse.move(flow.x + 150, flow.y + flow.height - 60, { steps: 6 })
+await page.mouse.up()
+await sleep(300)
+await clickSideSampled('hide the selected stg_orders:', ORDERS, ordersSide)
+await expectCount('nodes after collapsing orders parents:', 2)
+await clickSideSampled('bring the selected stg_orders back:', ORDERS, ordersSide)
+await expectCount('nodes after restoring orders parents:', 4)
 
 // 6a. a dragged node ignores the layout, so its own side button must not move it
 const header = stgNode.locator('text=stg_orders').first()
@@ -386,8 +418,9 @@ await expectCount('nodes after loading one more level:', 4)
 await expectStgInside('after loading one more level:')
 const downHandle = await stgNode.locator('[data-testid="pod-lineage-side-down"]').innerText()
 log('stg_orders downstream handle after the load:', downHandle)
-if (downHandle !== '+1') {
-  throw new Error(`stg_orders downstream handle reads ${downHandle}, expected +1`)
+// Why +2: orders_by_customer and order_statuses; orders is already on the canvas.
+if (downHandle !== '+2') {
+  throw new Error(`stg_orders downstream handle reads ${downHandle}, expected +2`)
 }
 await page.screenshot({ path: `${OUT}/lineage-3b-expand.png` })
 while ((await depthUp()) < 4) {
@@ -465,6 +498,72 @@ log(
     .innerText()
     .then((t) => t.replace(/\n+/g, ' '))
 )
+
+// 8c. a shared parent: status_report at upstream depth 1 shows orders_by_customer and
+// order_statuses, both fed by stg_orders. Loading stg_orders through one of them must
+// draw its edge to the other and clear the other's "+1".
+const statusRow = panel
+  .locator('[data-testid="pod-dbt-explorer-relation"]', { hasText: 'status_report' })
+  .first()
+await statusRow.hover()
+await statusRow.getByRole('button', { name: 'Show lineage' }).click({ force: true })
+await sleep(2500)
+const view = page.locator('[data-testid="pod-lineage-view"]:visible').first()
+const viewNodes = view.locator('[data-testid="pod-lineage-node"]')
+const viewDepthUp = async () =>
+  Number(await view.locator('[data-testid="pod-lineage-depth-up"]').innerText())
+while ((await viewDepthUp()) > 1) {
+  await view.getByRole('button', { name: 'One level less' }).first().click()
+  await sleep(400)
+}
+await sleep(800)
+const expectViewCount = async (label, want) => {
+  const got = await viewNodes.count()
+  log(label, got)
+  if (got !== want) {
+    throw new Error(`${label} ${got}, expected ${want}`)
+  }
+}
+await expectViewCount('status_report nodes at upstream depth 1:', 3)
+const sideOf = (name, side) =>
+  view.locator(`[data-node-id="model.demo.${name}"] [data-testid="pod-lineage-side-${side}"]`)
+const statusesUp = sideOf('order_statuses', 'up')
+log('order_statuses upstream handle before:', await statusesUp.innerText())
+if ((await statusesUp.innerText()) !== '+1') {
+  throw new Error('order_statuses should start with one parent not loaded')
+}
+// Why the tree: the depth change leaves orders_by_customer outside the viewport.
+await view.locator('[data-testid="pod-lineage-tree-toggle"]').click()
+await view
+  .locator('[data-testid="pod-lineage-tree"] button', { hasText: 'orders_by_customer' })
+  .first()
+  .click()
+await sleep(600)
+await sideOf('orders_by_customer', 'up').click({ timeout: 5000 })
+await sleep(1200)
+await expectViewCount('nodes after loading stg_orders:', 4)
+const sharedEdge = view.locator(
+  '[data-testid="rf__edge-n:model.demo.stg_orders->model.demo.order_statuses"]'
+)
+const statusesAfter = await statusesUp.innerText()
+log(
+  'shared parent: edge to order_statuses drawn',
+  (await sharedEdge.count()) === 1,
+  '| order_statuses upstream handle:',
+  statusesAfter
+)
+await page.screenshot({ path: `${OUT}/lineage-7-diamond.png` })
+if ((await sharedEdge.count()) !== 1) {
+  throw new Error('stg_orders -> order_statuses is missing after loading stg_orders')
+}
+if (statusesAfter.startsWith('+')) {
+  throw new Error(`order_statuses upstream handle still reads ${statusesAfter}`)
+}
+while ((await viewDepthUp()) < 4) {
+  await view.getByRole('button', { name: 'One level more' }).first().click()
+  await sleep(400)
+}
+await view.locator('[data-testid="pod-lineage-tree-toggle"]').click()
 
 // 9. put the dock height back for the next run
 const dockNow = page.locator('[data-testid="pod-dbt-dock"]').first()

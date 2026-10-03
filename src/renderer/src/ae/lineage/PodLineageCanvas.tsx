@@ -189,7 +189,11 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     layoutCache.current = { nodes: visibleNodes, edges: graph.edges, showColumns, result }
     return result
   }, [visibleNodes, graph.edges, showColumns])
-  const { placed, onToggleCollapse, onExpand } = useLineageAnchoredLayout(laidOut, dragged, props)
+  const { placed, anchored, onToggleCollapse, onExpand } = useLineageAnchoredLayout(
+    laidOut,
+    dragged,
+    props
+  )
   const positions = useTweenedPositions(placed)
 
   const rowsShown = useLineageRowsWindow(placed, dragged, columnsVisible)
@@ -411,7 +415,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     return () => cancelAnimationFrame(frame)
   }, [litKey, updateNodeInternals])
 
-  useLineageCentreOnSelect(selectedNodeId, props.centreKey, visible)
+  useLineageCentreOnSelect(selectedNodeId, props.centreKey, visible, anchored)
 
   return (
     <div
