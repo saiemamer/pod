@@ -5,6 +5,8 @@ export type AeToolCmdOverrides = {
   python?: string
   /** dbt-language-server binary; empty means Pod downloads the pinned release. */
   dbtLsp?: string
+  /** pod-dbt-mcp, the MCP server Claude Code agents get when the switch is on. */
+  dbtMcp?: string
 }
 
 export const AE_DBT_DISTRIBUTIONS = ['core', 'fusion'] as const
@@ -62,7 +64,7 @@ export function normalizeAeToolCmdOverrides(value: unknown): AeToolCmdOverrides 
     return {}
   }
   const overrides: AeToolCmdOverrides = {}
-  for (const tool of ['dbt', 'omni', 'python', 'dbtLsp'] as const) {
+  for (const tool of ['dbt', 'omni', 'python', 'dbtLsp', 'dbtMcp'] as const) {
     const path = optionalPath(value[tool])
     if (path) {
       overrides[tool] = path

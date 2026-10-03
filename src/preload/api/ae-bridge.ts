@@ -57,6 +57,10 @@ export const aeApi = {
     topics: (args) => ipcRenderer.invoke('ae:omni:topics', args),
     topic: (args) => ipcRenderer.invoke('ae:omni:topic', args)
   },
+  mcp: {
+    configPath: () => ipcRenderer.invoke('ae:mcp:configPath'),
+    writeConfig: () => ipcRenderer.invoke('ae:mcp:writeConfig')
+  },
   onChanged: (callback: () => void): (() => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('ae:changed', listener)

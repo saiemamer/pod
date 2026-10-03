@@ -83,6 +83,16 @@ pnpm build:cli   # optional, for the CLI steps
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-omni-smoke.mjs   # against pnpm dev on port 9333
 ```
 
+## dbt MCP server (Phase 4)
+
+`ui-mcp-smoke.mjs` sets Settings > Analytics Tools > "pod-dbt-mcp command" to the package's `src/server.js`, gives Claude a user flag of its own, and clicks the "dbt tools for Claude Code (MCP)" switch. On, it expects `<userData>/pod-mcp.json` naming the server and Claude's default arguments to read `<user flag> --mcp-config '<that file>'`. It then starts the server that file names, over MCP, in `dbt-demo`, and calls `dbt_list_models`, which goes through `out/bin/orca` to this Pod and the stand-in `dbt`. Off, only Pod's pair goes. With no Claude setting of the user's own, on adds the pair to the built-in default and off removes the `claude` key again, so the user keeps following the default. Last, with the server path pointing nowhere, the switch stays off and shows the reason. Settings written from the smoke's own window do not reach the open Settings page (`settings:changed` skips the window that made the change), so the script reopens Settings after each such write. It restores the settings and deletes the config file afterwards. Three screenshots: `mcp-1-off`, `mcp-2-on`, `mcp-3-missing-server`.
+
+```sh
+pnpm build:cli && pnpm --dir packages/pod-dbt-mcp install
+pnpm --dir packages/pod-dbt-mcp test   # the server alone, with a stand-in orca
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-mcp-smoke.mjs   # against pnpm dev on port 9333
+```
+
 **Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
 
 ## Domain setup on a real machine
