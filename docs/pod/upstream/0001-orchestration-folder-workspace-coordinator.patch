@@ -17,22 +17,80 @@ worktree is parented to the folder workspace through `parentWorkspace`, and a
 missing `--repo` gets an `invalid_argument` that says what to pass. Worktree
 coordinators resolve exactly as before.
 ---
- .../orchestration-worker-creation-target.ts   | 39 +++++++++++++
- .../methods/orchestration-worker-topology.ts  | 10 ++--
- ...orchestration-workers-new-worktree.test.ts | 55 +++++++++++++++++++
- .../rpc/methods/orchestration-workers.ts      | 22 +++++---
- 4 files changed, 114 insertions(+), 12 deletions(-)
- create mode 100644 src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
+ .../orchestration/worker/local-worker-start.ts     | 20 +++++---
+ .../orchestration/worker/worker-creation-target.ts | 39 +++++++++++++++
+ .../worker/worker-start-agent-placement.ts         | 13 ++---
+ .../worker/worker-worktree-creation.ts             | 10 ++--
+ .../worker/workers-new-worktree.test.ts            | 55 ++++++++++++++++++++++
+ 5 files changed, 120 insertions(+), 17 deletions(-)
 
-diff --git a/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts b/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
+diff --git a/src/main/runtime/rpc/methods/orchestration/worker/local-worker-start.ts b/src/main/runtime/rpc/methods/orchestration/worker/local-worker-start.ts
+index 7e10274435..fffed3607f 100644
+--- a/src/main/runtime/rpc/methods/orchestration/worker/local-worker-start.ts
++++ b/src/main/runtime/rpc/methods/orchestration/worker/local-worker-start.ts
+@@ -15,6 +15,7 @@ import {
+ import { EXISTING_WORKTREE_SETUP, placeWorkerAgent } from './worker-start-agent-placement'
+ import { awaitStructuredWorkerSetupGate } from './worker-start-structured-setup-gate'
+ import { assertOrchestrationWorktreeCreationSupported } from './folder-worktree-placement'
++import { resolveWorkerCreationTarget } from './worker-creation-target'
+ import type { WorkerStartInput } from './worker-start-schema'
+ import {
+   persistGatedSetupSpawnFailure,
+@@ -61,17 +62,22 @@ export async function startLocalWorker(args: {
+     params.from,
+     callerSession
+   )
+-  const creationWorktree = createsWorktree
+-    ? await runtime.showManagedWorktree(`id:${coordinatorWorktreeId}`)
++  const creationTarget = createsWorktree
++    ? await resolveWorkerCreationTarget({
++        runtime,
++        coordinatorWorktreeId,
++        requestedWorktree,
++        repo: params.repo
++      })
+     : undefined
+-  if (creationWorktree) {
++  if (creationTarget) {
+     await assertOrchestrationWorktreeCreationSupported({
+       runtime,
+-      repoSelector: params.repo ?? creationWorktree.repoId,
++      repoSelector: creationTarget.repoSelector,
+       existingPlacement: 'current or an exact existing folder workspace'
+     })
+   }
+-  let resolvedWorktree = creationWorktree
++  let resolvedWorktree = creationTarget
+     ? undefined
+     : requestedWorktree === 'current'
+       ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorWorktreeId}`)
+@@ -92,7 +98,7 @@ export async function startLocalWorker(args: {
+     mode,
+     resolvedWorktreeId: resolvedWorktree?.id ?? null,
+     name: params.name ?? null,
+-    repo: params.repo ?? creationWorktree?.repoId ?? null,
++    repo: creationTarget?.repoSelector ?? params.repo ?? null,
+     baseBranch: params.baseBranch ?? null,
+     terminal: params.terminal ?? null,
+     agent: agent ?? null,
+@@ -145,7 +151,7 @@ export async function startLocalWorker(args: {
+       taskId: task.id,
+       params,
+       requestedWorktree,
+-      creationWorktree,
++      creationTarget,
+       resolvedWorktree,
+       mode,
+       agent,
+diff --git a/src/main/runtime/rpc/methods/orchestration/worker/worker-creation-target.ts b/src/main/runtime/rpc/methods/orchestration/worker/worker-creation-target.ts
 new file mode 100644
-index 0000000000..a4ebeac5d4
+index 0000000000..34008a8281
 --- /dev/null
-+++ b/src/main/runtime/rpc/methods/orchestration-worker-creation-target.ts
++++ b/src/main/runtime/rpc/methods/orchestration/worker/worker-creation-target.ts
 @@ -0,0 +1,39 @@
-+import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
-+import type { OrcaRuntimeService } from '../../orca-runtime'
-+import { OrchestrationError } from '../../orchestration/orchestration-error'
++import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
++import type { OrcaRuntimeService } from '../../../../orca-runtime'
++import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 +
 +/** A folder parent goes by its workspace key, as `worktree create --parent-worktree folder:<id>` does. */
 +export type WorkerCreationTarget = {
@@ -69,19 +127,70 @@ index 0000000000..a4ebeac5d4
 +    parentWorktreeId: requestedWorktree === 'new-child' ? coordinator.id : undefined
 +  }
 +}
-diff --git a/src/main/runtime/rpc/methods/orchestration-worker-topology.ts b/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
-index 582d32058a..25db7d490f 100644
---- a/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
-+++ b/src/main/runtime/rpc/methods/orchestration-worker-topology.ts
-@@ -2,6 +2,7 @@ import type { AgentLaunchPreferences } from '../../../../shared/agent-session-ho
- import type { TuiAgent } from '../../../../shared/tui-agent'
- import type { OrcaRuntimeService } from '../../orca-runtime'
- import type { OrchestrationDb } from '../../orchestration/db'
-+import type { WorkerCreationTarget } from './orchestration-worker-creation-target'
+diff --git a/src/main/runtime/rpc/methods/orchestration/worker/worker-start-agent-placement.ts b/src/main/runtime/rpc/methods/orchestration/worker/worker-start-agent-placement.ts
+index 8d87ea894c..e6ebed8b49 100644
+--- a/src/main/runtime/rpc/methods/orchestration/worker/worker-start-agent-placement.ts
++++ b/src/main/runtime/rpc/methods/orchestration/worker/worker-start-agent-placement.ts
+@@ -29,6 +29,7 @@ import {
+   type WorkerSetupReceipt
+ } from './worker-topology'
+ import { createWorkerWorktree } from './worker-worktree-creation'
++import type { WorkerCreationTarget } from './worker-creation-target'
  
- export type WorkerEffect = {
-   kind: 'worktree' | 'terminal' | 'setup' | 'dispatch_input'
-@@ -109,7 +110,7 @@ export async function createWorkerWorktree(args: {
+ /** Only what the placement itself reads. The runtime's own worktree accessors are untyped, so
+  *  naming the two fields keeps `any` out of this module's unions. */
+@@ -52,8 +53,8 @@ type WorkerAgentPlacementArgs = {
+   taskId: string
+   params: WorkerStartInput
+   requestedWorktree: string
+-  /** The coordinator's worktree, present only when this start creates one. */
+-  creationWorktree: PlacedWorktree | undefined
++  /** Where the new worktree goes, present only when this start creates one. */
++  creationTarget: WorkerCreationTarget | undefined
+   /** The already-resolved placement, present only when this start does not create one. */
+   resolvedWorktree: PlacedWorktree | undefined
+   mode: WorkerStartModeReceipt
+@@ -78,8 +79,8 @@ export const EXISTING_WORKTREE_SETUP: WorkerSetupReceipt = {
+ export async function placeWorkerAgent(
+   args: WorkerAgentPlacementArgs
+ ): Promise<WorkerAgentPlacement> {
+-  if (args.creationWorktree) {
+-    return placeInCreatedWorktree(args, args.creationWorktree)
++  if (args.creationTarget) {
++    return placeInCreatedWorktree(args, args.creationTarget)
+   }
+   const worktree = requireWorktree(args.resolvedWorktree)
+   if (args.params.terminal) {
+@@ -107,7 +108,7 @@ export async function placeWorkerAgent(
+ 
+ async function placeInCreatedWorktree(
+   args: WorkerAgentPlacementArgs,
+-  coordinatorWorktree: PlacedWorktree
++  target: WorkerCreationTarget
+ ): Promise<WorkerAgentPlacement> {
+   args.onStage('worktree_create')
+   const created = await createWorkerWorktree({
+@@ -115,7 +116,7 @@ async function placeInCreatedWorktree(
+     db: args.db,
+     dispatchId: args.dispatchId,
+     requestedWorktree: args.requestedWorktree,
+-    coordinatorWorktree,
++    target,
+     params: args.params,
+     agent: args.agent as TuiAgent,
+     withAgentTerminal: args.mode.mode !== 'structured',
+diff --git a/src/main/runtime/rpc/methods/orchestration/worker/worker-worktree-creation.ts b/src/main/runtime/rpc/methods/orchestration/worker/worker-worktree-creation.ts
+index cbdab8d1f9..d353e8940a 100644
+--- a/src/main/runtime/rpc/methods/orchestration/worker/worker-worktree-creation.ts
++++ b/src/main/runtime/rpc/methods/orchestration/worker/worker-worktree-creation.ts
+@@ -12,13 +12,14 @@ import type { TuiAgent } from '../../../../../../shared/tui-agent'
+ import type { OrcaRuntimeService } from '../../../../orca-runtime'
+ import type { OrchestrationDb } from '../../../../orchestration/db'
+ import type { WorkerEffect, WorkerSetupReceipt } from './worker-topology'
++import type { WorkerCreationTarget } from './worker-creation-target'
+ 
+ export async function createWorkerWorktree(args: {
+   runtime: OrcaRuntimeService
    db: OrchestrationDb
    dispatchId: string
    requestedWorktree: string
@@ -90,8 +199,8 @@ index 582d32058a..25db7d490f 100644
    params: {
      repo?: string
      name?: string
-@@ -127,11 +128,11 @@ export async function createWorkerWorktree(args: {
-   terminalHandle: string
+@@ -42,11 +43,11 @@ export async function createWorkerWorktree(args: {
+   terminalHandle: string | undefined
    setupReceipt: WorkerSetupReceipt
  }> {
 -  const { runtime, db, dispatchId, requestedWorktree, coordinatorWorktree, params, effects } = args
@@ -104,8 +213,8 @@ index 582d32058a..25db7d490f 100644
      name: params.name as string,
      baseBranch: params.baseBranch,
      displayName: params.displayName,
-@@ -147,7 +148,8 @@ export async function createWorkerWorktree(args: {
-     ...(args.launchPreferences ? { startupLaunchPreferences: args.launchPreferences } : {}),
+@@ -67,7 +68,8 @@ export async function createWorkerWorktree(args: {
+       : {}),
      activate: false,
      lineage: {
 -      parentWorktree: requestedWorktree === 'new-child' ? coordinatorWorktree.id : undefined,
@@ -114,11 +223,11 @@ index 582d32058a..25db7d490f 100644
        noParent: requestedWorktree === 'new-top-level',
        callerTerminalHandle: params.from
      }
-diff --git a/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts b/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
-index c0ae7d5edd..eea1bee2d8 100644
---- a/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
-+++ b/src/main/runtime/rpc/methods/orchestration-workers-new-worktree.test.ts
-@@ -223,6 +223,61 @@ describe('orchestration new-worktree workers', () => {
+diff --git a/src/main/runtime/rpc/methods/orchestration/worker/workers-new-worktree.test.ts b/src/main/runtime/rpc/methods/orchestration/worker/workers-new-worktree.test.ts
+index fc7c1f3b26..cadd0c7956 100644
+--- a/src/main/runtime/rpc/methods/orchestration/worker/workers-new-worktree.test.ts
++++ b/src/main/runtime/rpc/methods/orchestration/worker/workers-new-worktree.test.ts
+@@ -224,6 +224,61 @@ describe('orchestration new-worktree workers', () => {
      expect(db.getDispatchContext(task.id)).toBeUndefined()
    })
  
@@ -177,75 +286,9 @@ index c0ae7d5edd..eea1bee2d8 100644
 +    expect(createWorktree).not.toHaveBeenCalled()
 +  })
 +
-   it('injects the execution host CLI command and Dispatch capability together', async () => {
+   it('injects the execution host CLI command without a Dispatch capability', async () => {
      mockCreatedWorktree()
      vi.mocked(runtime.getTerminalOrchestrationCliCommand).mockReturnValue('orca-ide')
-diff --git a/src/main/runtime/rpc/methods/orchestration-workers.ts b/src/main/runtime/rpc/methods/orchestration-workers.ts
-index 6127152593..b70208fdfc 100644
---- a/src/main/runtime/rpc/methods/orchestration-workers.ts
-+++ b/src/main/runtime/rpc/methods/orchestration-workers.ts
-@@ -5,6 +5,7 @@ import { defineMethod, type RpcMethod } from '../core'
- import { startFederatedWorker } from './orchestration-federated-worker-start'
- import { assertOrchestrationWorktreeCreationSupported } from './orchestration-folder-worktree-placement'
- import { WorkerStartParams } from './orchestration-worker-start-schema'
-+import { resolveWorkerCreationTarget } from './orchestration-worker-creation-target'
- import {
-   createExistingWorktreeWorkerTerminal,
-   createWorkerWorktree,
-@@ -81,17 +82,22 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
-       const { agent, launch } = prepareLocalWorkerStart({ params, createsWorktree, runtime })
- 
-       const coordinatorTerminal = await runtime.showTerminal(params.from)
--      const creationWorktree = createsWorktree
--        ? await runtime.showManagedWorktree(`id:${coordinatorTerminal.worktreeId}`)
-+      const creationTarget = createsWorktree
-+        ? await resolveWorkerCreationTarget({
-+            runtime,
-+            coordinatorWorktreeId: coordinatorTerminal.worktreeId,
-+            requestedWorktree,
-+            repo: params.repo
-+          })
-         : undefined
--      if (creationWorktree) {
-+      if (creationTarget) {
-         await assertOrchestrationWorktreeCreationSupported({
-           runtime,
--          repoSelector: params.repo ?? creationWorktree.repoId,
-+          repoSelector: creationTarget.repoSelector,
-           existingPlacement: 'current or an exact existing folder workspace'
-         })
-       }
--      let resolvedWorktree = creationWorktree
-+      let resolvedWorktree = creationTarget
-         ? undefined
-         : requestedWorktree === 'current'
-           ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorTerminal.worktreeId}`)
-@@ -117,7 +123,7 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
-         worktree: requestedWorktree,
-         resolvedWorktreeId: resolvedWorktree?.id ?? null,
-         name: params.name ?? null,
--        repo: params.repo ?? creationWorktree?.repoId ?? null,
-+        repo: creationTarget?.repoSelector ?? params.repo ?? null,
-         baseBranch: params.baseBranch ?? null,
-         terminal: params.terminal ?? null,
-         agent: agent ?? null,
-@@ -158,14 +164,14 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
-         state: 'not_applicable'
-       }
-       try {
--        if (creationWorktree) {
-+        if (creationTarget) {
-           failedStage = 'worktree_create'
-           const created = await createWorkerWorktree({
-             runtime,
-             db,
-             dispatchId: started.dispatch.id,
-             requestedWorktree,
--            coordinatorWorktree: creationWorktree,
-+            target: creationTarget,
-             params,
-             agent: agent as TuiAgent,
-             launchPreferences: launch.preferences,
 -- 
 2.52.0
 

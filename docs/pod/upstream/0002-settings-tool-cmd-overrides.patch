@@ -18,11 +18,11 @@ documented, persisted slot that round-trips like the other settings.
  2 files changed, 3 insertions(+)
 
 diff --git a/src/shared/default-global-settings.ts b/src/shared/default-global-settings.ts
-index 313e9fc6a9..135bd079fc 100644
+index 3c6a9d2aa5..154b4645bd 100644
 --- a/src/shared/default-global-settings.ts
 +++ b/src/shared/default-global-settings.ts
-@@ -201,6 +201,7 @@ export function buildDefaultSettings(args: {
-     minimaxUsageModels: 'general',
+@@ -217,6 +217,7 @@ export function buildDefaultSettings(args: {
+     minimaxEndpoint: 'overseas',
      geminiCliOAuthEnabled: false,
      agentCmdOverrides: {},
 +    toolCmdOverrides: {},
@@ -30,10 +30,10 @@ index 313e9fc6a9..135bd079fc 100644
      agentDefaultEnv: { ...DEFAULT_TUI_AGENT_ENV },
      agentYoloDefaultsMigrated: true,
 diff --git a/src/shared/global-settings-types.ts b/src/shared/global-settings-types.ts
-index bc590a19a2..c3e1ce7eec 100644
+index c1a9b7d2df..0620e5d7df 100644
 --- a/src/shared/global-settings-types.ts
 +++ b/src/shared/global-settings-types.ts
-@@ -364,6 +364,8 @@ export type GlobalSettings = {
+@@ -404,6 +404,8 @@ export type GlobalSettings = {
    geminiCliOAuthEnabled: boolean
    /** Per-agent CLI command overrides. A missing key means use the catalog default binary name. */
    agentCmdOverrides: Partial<Record<TuiAgent, string>>
