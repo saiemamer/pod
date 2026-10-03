@@ -57,10 +57,8 @@ spec so the worker knows where it is.
 
 ## Dispatch
 
-For each ready task, create a worktree of the right repo, then hand it to a worker.
-Two steps, because you sit in a folder workspace and `worker-start --worktree
-new-top-level` cannot resolve a folder as its parent (it fails with
-`selector_not_found`):
+For each ready task, create a worktree of the right repo under this folder
+workspace, then hand it to a worker:
 
 ```sh
 orca worktree create --repo id:<repo_id> --parent-worktree "$POD_WORKSPACE_KEY" --name <initiative-slug>-<part> --json

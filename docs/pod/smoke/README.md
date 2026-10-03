@@ -93,6 +93,15 @@ pnpm --dir packages/pod-dbt-mcp test   # the server alone, with a stand-in orca
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-mcp-smoke.mjs   # against pnpm dev on port 9333
 ```
 
+## Folder-workspace coordinator (Phase 4)
+
+`orchestration-folder-worker-smoke.mjs` checks the folder-coordinator fix (`docs/pod/upstream/0001-...`) through the real `orca` CLI. It creates a throwaway folder workspace in the `pod-smoke` group, opens a terminal there, binds a fresh run to it, and runs `orca orchestration worker-start --worktree new-child --repo id:<dbt-demo>`. It expects the worker's worktree in `dbt-demo` with the folder workspace as its parent (read from `window.api.worktrees.listLineage()`), then expects the same call without `--repo` to answer with what to pass. Claude's command points at `/bin/cat` for the run, so no agent starts and no usage is spent; the worker then stalls at prompt delivery, which the script expects. It removes the worktree, the terminal and the folder workspace and restores the agent settings afterwards. On the code before the fix the first `worker-start` fails with a bare `selector_not_found`.
+
+```sh
+pnpm build:cli
+node docs/pod/smoke/orchestration-folder-worker-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
+```
+
 **Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
 
 ## Domain setup on a real machine

@@ -1,0 +1,47 @@
+From 2776463ea666749160f52c4a1baed2f51a28aeb9 Mon Sep 17 00:00:00 2001
+From: Saiem Amer <saiem.amer07@gmail.com>
+Date: Sat, 3 Oct 2026 23:26:43 +0100
+Subject: [PATCH] feat(settings): add toolCmdOverrides for non-agent binaries
+
+agentCmdOverrides lets a user point Orca at a specific agent binary, but there
+is no matching place for the other command-line tools a workflow depends on
+(a data tool such as dbt, a language runtime, a project CLI). Forks and
+extensions that need one end up widening GlobalSettings themselves.
+
+Add an optional `toolCmdOverrides: Record<string, string>` beside
+agentCmdOverrides, keyed by tool name, defaulting to `{}`. A missing key means
+the tool on PATH. Nothing in Orca reads it yet; it gives such tools one
+documented, persisted slot that round-trips like the other settings.
+---
+ src/shared/default-global-settings.ts | 1 +
+ src/shared/global-settings-types.ts   | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/src/shared/default-global-settings.ts b/src/shared/default-global-settings.ts
+index 313e9fc6a9..135bd079fc 100644
+--- a/src/shared/default-global-settings.ts
++++ b/src/shared/default-global-settings.ts
+@@ -201,6 +201,7 @@ export function buildDefaultSettings(args: {
+     minimaxUsageModels: 'general',
+     geminiCliOAuthEnabled: false,
+     agentCmdOverrides: {},
++    toolCmdOverrides: {},
+     agentDefaultArgs: { ...DEFAULT_TUI_AGENT_ARGS },
+     agentDefaultEnv: { ...DEFAULT_TUI_AGENT_ENV },
+     agentYoloDefaultsMigrated: true,
+diff --git a/src/shared/global-settings-types.ts b/src/shared/global-settings-types.ts
+index bc590a19a2..c3e1ce7eec 100644
+--- a/src/shared/global-settings-types.ts
++++ b/src/shared/global-settings-types.ts
+@@ -364,6 +364,8 @@ export type GlobalSettings = {
+   geminiCliOAuthEnabled: boolean
+   /** Per-agent CLI command overrides. A missing key means use the catalog default binary name. */
+   agentCmdOverrides: Partial<Record<TuiAgent, string>>
++  /** Per-tool command overrides for non-agent binaries, keyed by tool name. A missing key means use the tool on PATH. */
++  toolCmdOverrides?: Record<string, string>
+   /** Custom CODEX_HOME for Codex session-history discovery (defaults to ~/.codex).
+    *  History-only: does not change which account/config/hooks Orca uses. */
+   codexSessionSourceHome?: {
+-- 
+2.52.0
+
