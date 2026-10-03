@@ -68,6 +68,36 @@ describe('selectDbtNeighbourhood', () => {
     expect(Object.values(hood.moreUpstream).reduce((a, b) => a + b, 0)).toBeGreaterThan(0)
   })
 
+  it('links a new parent to every known node it feeds and counts none of them', () => {
+    // a -> b, a -> c, b -> d, c -> d; the canvas holds b, c and d and expands b upstream.
+    const diamond = indexDbtGraph(
+      ['model.a', 'model.b', 'model.c', 'model.d'].map((id) => node(id)),
+      [
+        { source: 'model.a', target: 'model.b' },
+        { source: 'model.a', target: 'model.c' },
+        { source: 'model.b', target: 'model.d' },
+        { source: 'model.c', target: 'model.d' }
+      ]
+    )
+    const hood = selectDbtNeighbourhood(diamond, 'model.b', {
+      upstreamDepth: 1,
+      downstreamDepth: 0,
+      maxNodes: 100,
+      known: new Set(['model.b', 'model.c', 'model.d'])
+    })
+    expect(hood.nodeIds.sort()).toEqual(['model.a', 'model.b'])
+    expect(hood.edges).toEqual(
+      expect.arrayContaining([
+        { source: 'model.a', target: 'model.b' },
+        { source: 'model.a', target: 'model.c' },
+        { source: 'model.b', target: 'model.d' }
+      ])
+    )
+    expect(hood.edges).toHaveLength(3)
+    expect(hood.moreUpstream).toEqual({})
+    expect(hood.moreDownstream).toEqual({})
+  })
+
   it('ignores edges to nodes that are not in the graph', () => {
     const small = indexDbtGraph([node('model.a')], [{ source: 'model.zzz', target: 'model.a' }])
     expect(small.parents.get('model.a')).toBeUndefined()

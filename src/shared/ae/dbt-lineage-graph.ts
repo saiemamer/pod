@@ -50,6 +50,12 @@ export type DbtNeighbourhoodOptions = {
   upstreamDepth: number
   downstreamDepth: number
   maxNodes: number
+  /**
+   * Nodes the caller already shows: never selected again or counted as left out, and
+   * edges between them and the selection are returned, so a canvas expanding one level
+   * learns that a new parent also feeds a node it holds.
+   */
+  known?: ReadonlySet<string>
 }
 
 export type DbtNeighbourhood = {
@@ -71,6 +77,8 @@ export function selectDbtNeighbourhood(
   options: DbtNeighbourhoodOptions
 ): DbtNeighbourhood {
   const selected = new Set<string>([focus])
+  const known = options.known ?? new Set<string>()
+  const present = (id: string): boolean => selected.has(id) || known.has(id)
   const moreUpstream: Record<string, number> = {}
   const moreDownstream: Record<string, number> = {}
   let truncated = false
@@ -86,7 +94,7 @@ export function selectDbtNeighbourhood(
   ): Candidate[] => {
     const candidates: Candidate[] = []
     for (const id of frontier) {
-      const neighbours = (edges.get(id) ?? []).filter((n) => !selected.has(n))
+      const neighbours = (edges.get(id) ?? []).filter((n) => !present(n))
       if (!allowed) {
         if (neighbours.length > 0) {
           more[id] = neighbours.length
@@ -122,7 +130,7 @@ export function selectDbtNeighbourhood(
           continue
         }
         progressed = true
-        if (selected.has(candidate.id)) {
+        if (present(candidate.id)) {
           continue
         }
         if (selected.size >= options.maxNodes) {
@@ -154,8 +162,13 @@ export function selectDbtNeighbourhood(
   const edges: DbtGraphEdge[] = []
   for (const id of selected) {
     for (const parent of index.parents.get(id) ?? []) {
-      if (selected.has(parent)) {
+      if (present(parent)) {
         edges.push({ source: parent, target: id })
+      }
+    }
+    for (const child of index.children.get(id) ?? []) {
+      if (known.has(child) && !selected.has(child)) {
+        edges.push({ source: id, target: child })
       }
     }
   }

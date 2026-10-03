@@ -84,14 +84,23 @@ export function mergeLineageGraphs(base: DbtGraphResult, extra: DbtGraphResult):
   for (const edge of extra.edges) {
     edges.set(edgeKey(edge), edge)
   }
-  // Why replace per node: the expanded node's "more" counts are now known exactly,
-  // less the neighbours the canvas already held from the base graph.
+  // Why replace per node: the answer's counts are exact for its own nodes, less any
+  // neighbour the canvas held through a base edge the answer did not carry (an answer
+  // without `known`). The rest of the base drops each neighbour that has now arrived.
   const extraIds = new Set(extra.nodes.map((node) => node.uniqueId))
+  const extraEdges = new Set(extra.edges.map(edgeKey))
+  const baseIds = new Set(base.nodes.map((node) => node.uniqueId))
+  const baseEdges = new Set(base.edges.map(edgeKey))
   const held = (id: string, side: 'up' | 'down'): number => {
     let count = 0
     for (const edge of edges.values()) {
       const [self, other] = side === 'up' ? [edge.target, edge.source] : [edge.source, edge.target]
-      if (self === id && !extraIds.has(other) && nodes.has(other)) {
+      if (
+        self === id &&
+        !extraIds.has(other) &&
+        nodes.has(other) &&
+        !extraEdges.has(edgeKey(edge))
+      ) {
         count += 1
       }
     }
@@ -99,6 +108,24 @@ export function mergeLineageGraphs(base: DbtGraphResult, extra: DbtGraphResult):
   }
   const moreUpstream = { ...base.moreUpstream }
   const moreDownstream = { ...base.moreDownstream }
+  const drop = (into: Record<string, number>, id: string): void => {
+    if ((into[id] ?? 0) > 1) {
+      into[id] -= 1
+    } else {
+      delete into[id]
+    }
+  }
+  for (const edge of extra.edges) {
+    if (baseEdges.has(edgeKey(edge))) {
+      continue
+    }
+    if (!baseIds.has(edge.source) && baseIds.has(edge.target) && !extraIds.has(edge.target)) {
+      drop(moreUpstream, edge.target)
+    }
+    if (!baseIds.has(edge.target) && baseIds.has(edge.source) && !extraIds.has(edge.source)) {
+      drop(moreDownstream, edge.source)
+    }
+  }
   delete moreUpstream[extra.focus]
   delete moreDownstream[extra.focus]
   for (const [side, from, into] of [

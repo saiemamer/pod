@@ -37,7 +37,7 @@ Before pushing, run the full check with a bigger heap: `NODE_OPTIONS=--max-old-s
 
 ## Lineage canvas and Database explorer (Phase 3)
 
-`ui-lineage-smoke.mjs` adds a source and a downstream model to the smoke repo (`models/sources.yml`, `models/marts/order_summary.sql`, and a `stg_orders.sql` that reads the source), opens `orders.sql`, presses Cmd+Alt+L for the Lineage tab, clicks the `status` column and reads which columns lit up, opens the upstream/downstream list, collapses and restores one side, then switches the right sidebar to the Database tab, expands `orders`, filters on `status`, and uses "Show lineage" on `order_summary`. Five screenshots. The stand-in `dbt` now writes a four-node manifest (source, `stg_orders`, `orders`, `order_summary`) and a catalog with columns, so copy it again if yours predates Phase 3.
+`ui-lineage-smoke.mjs` adds a source and a downstream model to the smoke repo (`models/sources.yml`, `models/marts/order_summary.sql`, and a `stg_orders.sql` that reads the source), opens `orders.sql`, presses Cmd+Alt+L for the Lineage tab, clicks the `status` column and reads which columns lit up, opens the upstream/downstream list, collapses and restores one side, then switches the right sidebar to the Database tab, expands `orders`, filters on `status`, uses "Show lineage" on `order_summary` and `stg_orders`, then opens `status_report` at upstream depth 1 and loads `stg_orders` through `orders_by_customer`, checking that the edge to `order_statuses` appears and its "+1" clears (a shared parent). Side-button clicks are not forced; each asserts the node count, and the clicked node may move at most 4 px in any frame, including when the button brings a selected node back. The stand-in `dbt` writes a six-model manifest (source, `stg_orders`, `orders`, `order_summary`, `orders_by_customer`, `order_statuses`, `status_report`) and a catalog with columns, so copy it again if yours predates 2026-10-03.
 
 ```sh
 cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
@@ -49,7 +49,7 @@ POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/s
 
 ## Performance gate (before a merge or a release)
 
-`perf-fixture.mjs` writes a 1,000-node dbt project into the smoke repo (`perf/manifest.json`, `perf/catalog.json`, 940 model files under `models/perf/`), woven around the real `orders` models. The stand-in `dbt` serves it when `POD_STUB_MANIFEST` and `POD_STUB_CATALOG` are set, which `ui-lineage-perf.mjs` does through the dbt settings env. `graph-bench.mjs` times the graph code in Node; `ui-lineage-perf.mjs` drives the real app over DevTools and prints PASS/FAIL per check (graph IPC ≤ 300 ms, first Lineage open ≤ 1.5 s, zoom and pan frames avg ≤ 20 ms and p95 ≤ 33 ms, cold column lineage ≤ 8 s and warm ≤ 500 ms, column click to lit path ≤ 600 ms, no task over 150 ms across 20 tab round trips, post-GC heap growth ≤ 15 MB, Database panel open ≤ 800 ms and filter ≤ 250 ms with a thousand relations). It restores the settings and the four-node manifest afterwards.
+`perf-fixture.mjs` writes a 1,000-node dbt project into the smoke repo (`perf/manifest.json`, `perf/catalog.json`, 940 model files under `models/perf/`), woven around the real `orders` models. The stand-in `dbt` serves it when `POD_STUB_MANIFEST` and `POD_STUB_CATALOG` are set, which `ui-lineage-perf.mjs` does through the dbt settings env. `graph-bench.mjs` times the graph code in Node; `ui-lineage-perf.mjs` drives the real app over DevTools and prints PASS/FAIL per check (graph IPC ≤ 300 ms, first Lineage open ≤ 1.5 s, zoom and pan frames avg ≤ 20 ms and p95 ≤ 33 ms, cold column lineage ≤ 8 s and warm ≤ 500 ms, column click to lit path ≤ 600 ms, no task over 150 ms across 20 tab round trips, post-GC heap growth ≤ 15 MB, Database panel open ≤ 800 ms and filter ≤ 250 ms with a thousand relations). It restores the settings and the small default manifest afterwards.
 
 ```sh
 node docs/pod/smoke/perf-fixture.mjs
@@ -57,7 +57,7 @@ POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python npx tsx docs/pod/smoke/graph-ben
 POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/smoke/ui-lineage-perf.mjs   # against pnpm dev on 9333
 ```
 
-The report lands in `POD_SMOKE_OUT/pod-perf-report.json`. Delete `models/perf/` and `perf/` from the smoke repo afterwards if the four-node smoke should stay small.
+The report lands in `POD_SMOKE_OUT/pod-perf-report.json`. Delete `models/perf/` and `perf/` from the smoke repo afterwards if the default smoke repo should stay small.
 
 When a check fails, run it again with `POD_PERF_PROFILE=1`: the script then records a V8 CPU profile per timed step (`perf-profile-first-open.cpuprofile`, `column-click`, `depth-change`, `tab-cycles`, `panel-open`, `panel-filter`) next to the report. Open one in Chrome DevTools > Performance, or sum the self time per function from the JSON. The sampling costs a few percent, so the gate itself runs without it. Remember the dev build renders under React StrictMode, which runs every render twice, and that `(program)` in a profile is Blink's own style and layout work.
 

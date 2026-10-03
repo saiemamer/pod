@@ -58,19 +58,27 @@ export async function lineageExpansionMerged(merged: Promise<boolean>): Promise<
  *
  * A hold is armed by the click, or by the answer for an expansion, and is consumed by
  * the next layout; one that no layout consumed lapses after two frames so an unrelated
- * later layout (depth, Arrange, columns) never shifts the canvas.
+ * later layout (depth, Arrange, columns) never shifts the canvas. `anchored` says the
+ * current layout came from a side button, so nothing else should move the view.
  */
 export function useLineageAnchoredLayout(
   raw: LineageLayoutResult,
   dragged: Record<string, Point>,
   callbacks: { onToggleCollapse: SideCallback; onExpand: ExpandCallback }
-): { placed: LineageLayoutResult; onToggleCollapse: SideCallback; onExpand: SideCallback } {
+): {
+  placed: LineageLayoutResult
+  anchored: boolean
+  onToggleCollapse: SideCallback
+  onExpand: SideCallback
+} {
   const [offset, setOffset] = useState(NO_OFFSET)
   const [hold, setHold] = useState<LineageAnchorHold | null>(null)
+  const [anchoredLayout, setAnchoredLayout] = useState<LineageLayoutResult | null>(null)
   // Why during render: the shifted layout must reach the tween in the same pass, or
   // the node would start toward its unshifted spot.
   if (hold && hold.layout !== raw) {
     setHold(null)
+    setAnchoredLayout(raw)
     const next = lineageAnchorOffset(hold, raw, dragged, offset)
     if (next) {
       setOffset(next)
@@ -106,5 +114,5 @@ export function useLineageAnchoredLayout(
       void lineageExpansionMerged(expand(nodeId, side)).then((merged) => merged && arm(nodeId)),
     [arm, expand]
   )
-  return { placed, onToggleCollapse, onExpand }
+  return { placed, anchored: anchoredLayout === raw, onToggleCollapse, onExpand }
 }
