@@ -117,6 +117,20 @@ const podBuilderConfig = (text) =>
     .replace("owner: 'stablyai'", 'owner: podBrand.releaseOwner')
     .replace("?? 'orca'", '?? podBrand.releaseRepo')
 
+// Long enough that git still sees an edited move as a rename.
+const PR_WORKFLOW = [
+  'name: pr',
+  'on: pull_request',
+  'jobs:',
+  '  test:',
+  '    runs-on: ubuntu-latest',
+  '    steps:',
+  '      - uses: actions/checkout@v4',
+  '      - run: pnpm install',
+  '      - run: pnpm test',
+  ''
+].join('\n')
+
 const brandFiles = (tag) => ({
   'config/pod-brand.cjs': `module.exports = {\n  productName: 'Pod',\n  upstreamBaseTag: '${tag}'\n}\n`,
   'src/shared/brand.ts': `export const POD_UPSTREAM_BASE_TAG = '${tag}'\n`
@@ -132,7 +146,7 @@ function tagRelease(f, tag) {
 }
 
 // Orca v1.0.0 with Pod's commits on top, then Orca v1.1.0 editing next to each Pod touch.
-function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
+function forkedRepos({ podPackageExtra = {}, nextAppIdLine, podEditsMovedWorkflow = false } = {}) {
   const f = fixture()
   const { up, pod, git, read, commit } = f
   commit(up, 'orca 1.0.0', {
@@ -143,7 +157,7 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
     ),
     '.gitattributes': ATTRIBUTES,
     'config/electron-builder.config.cjs': builderConfig("[{ name: 'Orca' }]"),
-    '.github/workflows/pr.yml': 'name: pr\n',
+    '.github/workflows/pr.yml': PR_WORKFLOW,
     'src/app.ts': "export const greeting = 'hello'\n"
   })
   tagRelease(f, 'v1.0.0')
@@ -166,7 +180,12 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine } = {}) {
   })
   mkdirSync(join(pod, '.github/workflows-upstream'))
   git(pod, 'mv', '.github/workflows/pr.yml', '.github/workflows-upstream/pr.yml')
-  commit(pod, 'pod: move upstream CI aside', { '.github/workflows/pod-pr.yml': 'name: pod\n' })
+  commit(pod, 'pod: move upstream CI aside', {
+    '.github/workflows/pod-pr.yml': 'name: pod\n',
+    ...(podEditsMovedWorkflow
+      ? { '.github/workflows-upstream/pr.yml': PR_WORKFLOW.replace('pnpm test', 'pnpm test:pod') }
+      : {})
+  })
   const podPackage = JSON.parse(read(pod, 'package.json'))
   podPackage.dependencies = { tweetnacl: '^1.0.3', 'vscode-jsonrpc': '9.0.2', ws: '^8.0.0' }
   commit(pod, 'pod: LSP framing library', { 'package.json': json(podPackage) })
@@ -373,4 +392,49 @@ test('a refusal still writes the report into a directory that does not exist yet
   assert.equal(code, 1)
   assert.equal(report.status, 'error')
   assert.match(report.error, /refusing to rebase main/)
+})
+
+// An upstream release after v1.1.0 that deletes the workflow Pod moved aside.
+function upstreamDeletesMovedWorkflow(f) {
+  f.git(f.up, 'rm', '-q', '.github/workflows/pr.yml')
+  f.commit(f.up, 'orca 1.2.0: drop the pr workflow')
+  tagRelease(f, 'v1.2.0')
+}
+
+test('drops a workflow Pod moved aside once upstream deletes it', () => {
+  // Catches: the rename/delete stop on Pod's move-aside commit in run 37159854951
+  // (track-community-prs.yaml, deleted by Orca), which has only one right answer.
+  const f = forkedRepos()
+  const { pod, git, sync } = f
+  upstreamDeletesMovedWorkflow(f)
+
+  const { code, output, report } = sync('v1.2.0')
+
+  assert.equal(code, 0, output)
+  assert.ok(!existsSync(join(pod, '.github/workflows-upstream/pr.yml')))
+  assert.ok(!existsSync(join(pod, '.github/workflows/pr.yml')))
+  const moveCommit = report.resolved.find(
+    (entry) => entry.subject === 'pod: move upstream CI aside'
+  )
+  assert.deepEqual(moveCommit.files, [
+    '.github/workflows-upstream/pr.yml (dropped; upstream deleted it)'
+  ])
+  assert.equal(git(pod, 'status', '--porcelain'), '')
+})
+
+test('stops when Pod edited a moved workflow that upstream deletes', () => {
+  // Catches: dropping a workflow whose Pod edit nobody has looked at.
+  const f = forkedRepos({ podEditsMovedWorkflow: true })
+  upstreamDeletesMovedWorkflow(f)
+
+  const { code, output, report } = f.sync('v1.2.0')
+
+  assert.equal(code, 2, output)
+  assert.equal(report.commit.subject, 'pod: move upstream CI aside')
+  assert.deepEqual(report.needsPerson, [
+    {
+      path: '.github/workflows-upstream/pr.yml',
+      reason: "Pod's commit edits this workflow as well as moving it"
+    }
+  ])
 })
