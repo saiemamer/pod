@@ -63,11 +63,15 @@ export function readDbtCatalogSkips(catalogText: string): DbtCatalogSkip[] | nul
 }
 
 function datasetIn(text: string): string | undefined {
-  // BigQuery: "Dataset proj:ds" or ".../projects/proj/datasets/ds/..."; Snowflake and
-  // Postgres-likes: "Schema 'DB.SCHEMA'".
+  // BigQuery: "Dataset proj:ds", "Table proj:ds.__TABLES__" (or INFORMATION_SCHEMA) or
+  // ".../projects/proj/datasets/ds/..."; Snowflake and Postgres-likes: "Schema 'DB.SCHEMA'".
   const bigQuery = /\bDataset ([\w.-]+:[\w$-]+)/.exec(text)
   if (bigQuery) {
     return bigQuery[1]
+  }
+  const table = /\bTable ([\w.-]+:[\w$-]+)\./.exec(text)
+  if (table) {
+    return table[1]
   }
   const url = /projects\/([^/\s]+)\/datasets\/([^/?\s]+)/.exec(text)
   if (url) {
