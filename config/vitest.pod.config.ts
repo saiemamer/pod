@@ -20,6 +20,7 @@ const POD_IDENTITY_TEST_EXCLUDES = [
   'src/main/updater-release-builds.test.ts',
   'src/main/updater.build-channel-selection.test.ts',
   'src/main/updater.check-failure.test.ts',
+  'src/main/updater.feed-attempt-lifetime.test.ts',
   'src/main/updater.publishing-window-feed.test.ts',
   'src/renderer/src/components/UpdateCard.error-card.test.tsx',
   'src/renderer/src/components/settings/GeneralPane.section-lifetime.test.tsx',
