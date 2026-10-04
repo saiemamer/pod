@@ -4,14 +4,11 @@ import { Database, FileText, Info, Layers, Table2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
-import type { DbtGraphColumn, DbtGraphNode } from '../../../../shared/ae/dbt-graph-types'
+import type { DbtGraphNode } from '../../../../shared/ae/dbt-graph-types'
 import { lineageKind } from './lineage-canvas-state'
-import { useLineageColumnLit, useLineageNodeFooter } from './lineage-highlight-store'
-import {
-  LINEAGE_COLUMN_ROWS_MAX,
-  LINEAGE_COLUMN_ROW_HEIGHT,
-  LINEAGE_NODE_WIDTH
-} from './lineage-layout'
+import { PodLineageColumnList } from './PodLineageColumnList'
+import { LINEAGE_LAYER_LABELS, lineageLayer } from './lineage-layer'
+import { LINEAGE_NODE_WIDTH, lineageRowsHeight } from './lineage-layout'
 
 export type PodLineageNodeData = {
   node: DbtGraphNode
@@ -26,6 +23,9 @@ export type PodLineageNodeData = {
   sideDown: number
   collapsedUp: boolean
   collapsedDown: boolean
+  /** Every column listed in a scroll area instead of the first few. */
+  expanded: boolean
+  onToggleColumns: (nodeId: string) => void
   onColumnClick: (nodeId: string, column: string) => void
   onToggleCollapse: (nodeId: string, side: 'up' | 'down') => void
   onExpand: (nodeId: string, side: 'up' | 'down') => void
@@ -48,6 +48,8 @@ export function samePodLineageNodeData(a: PodLineageNodeData, b: PodLineageNodeD
     a.sideDown === b.sideDown &&
     a.collapsedUp === b.collapsedUp &&
     a.collapsedDown === b.collapsedDown &&
+    a.expanded === b.expanded &&
+    a.onToggleColumns === b.onToggleColumns &&
     a.onColumnClick === b.onColumnClick &&
     a.onToggleCollapse === b.onToggleCollapse &&
     a.onExpand === b.onExpand &&
@@ -70,67 +72,6 @@ const ResourceIcon = memo(function ResourceIcon({
     return <Layers className="size-3.5 shrink-0" />
   }
   return <Table2 className="size-3.5 shrink-0" />
-})
-
-/**
- * One column row. Reads its lit state from the highlight store, so a click re-renders
- * the rows it changed and no node; the handles exist only while lit, so React Flow
- * measures a few, not thousands.
- */
-const ColumnRow = memo(function ColumnRow({
-  nodeId,
-  column,
-  isFocusColumn,
-  onColumnClick
-}: {
-  nodeId: string
-  column: DbtGraphColumn
-  isFocusColumn: boolean
-  onColumnClick: PodLineageNodeData['onColumnClick']
-}): React.JSX.Element {
-  const isLit = useLineageColumnLit(nodeId, column.name)
-  return (
-    <button
-      type="button"
-      data-testid="pod-lineage-column"
-      data-lit={isLit ? 'true' : undefined}
-      className={cn(
-        'nodrag relative flex h-5 w-full items-center gap-1 px-2.5 text-left text-[11px] transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--foreground)_8%,var(--card))] motion-reduce:transition-none',
-        isLit && 'font-medium text-primary',
-        isFocusColumn && 'bg-accent'
-      )}
-      style={
-        isLit ? { background: 'color-mix(in srgb, var(--primary) 14%, var(--card))' } : undefined
-      }
-      onClick={(event) => {
-        event.stopPropagation()
-        onColumnClick(nodeId, column.name)
-      }}
-    >
-      {isLit && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          id={`in:${column.name}`}
-          className="!left-0 !size-1.5 !border-0 !bg-transparent"
-        />
-      )}
-      <span className="min-w-0 flex-1 truncate">{column.name}</span>
-      {column.dataType && (
-        <span className="shrink-0 truncate font-mono text-[10px] text-muted-foreground">
-          {column.dataType.toLowerCase()}
-        </span>
-      )}
-      {isLit && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          id={`out:${column.name}`}
-          className="!right-0 !size-1.5 !border-0 !bg-transparent"
-        />
-      )}
-    </button>
-  )
 })
 
 type SideButtonProps = {
@@ -195,19 +136,6 @@ const SideButton = memo(function SideButton({
   )
 })
 
-/** The "columns matched by name" line under the rows, shown while the node is on a lit path. */
-function NodeFooter({ nodeId }: { nodeId: string }): React.JSX.Element | null {
-  const shown = useLineageNodeFooter(nodeId)
-  if (!shown) {
-    return null
-  }
-  return (
-    <div className="mt-0.5 border-t border-border px-2.5 text-[10px] leading-4 text-muted-foreground">
-      {translate('pod.lineage.node.nameMatched', 'columns matched by name')}
-    </div>
-  )
-}
-
 /**
  * One model on the canvas. The border and the header wash carry the materialisation
  * colour (see lineage-theme.css); the focused model glows in the same colour.
@@ -216,14 +144,16 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
   const { node } = data
   const kind = lineageKind(node)
   const color = `var(--pod-lineage-${kind})`
-  const rows = data.showColumns ? node.columns.slice(0, LINEAGE_COLUMN_ROWS_MAX) : []
-  const hidden = data.showColumns ? node.columns.length - rows.length : 0
+  const showRows = data.showColumns && node.columns.length > 0
+  const layer = lineageLayer(node)
+  const isModel = node.resourceType === 'model'
   const inferred = node.columnSource !== 'catalog' && node.columns.length > 0
   return (
     <div
       data-testid="pod-lineage-node"
       data-node-id={node.uniqueId}
       data-kind={kind}
+      data-layer={layer ?? undefined}
       // Why the class: a node off a lit path is dimmed by lineage-theme.css through the
       // wrapper's class, so the node itself does not re-render for it.
       className="pod-lineage-box relative rounded-md border bg-card text-card-foreground transition-opacity"
@@ -285,6 +215,14 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
           <ResourceIcon node={node} />
         </span>
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.name}</span>
+        {layer && (
+          <span
+            data-testid="pod-lineage-layer"
+            className="shrink-0 rounded-sm border border-border px-1 text-[10px] leading-3.5 text-muted-foreground"
+          >
+            {LINEAGE_LAYER_LABELS[layer]}
+          </span>
+        )}
         {inferred && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -301,46 +239,32 @@ function PodLineageNodeComponent({ id, data }: NodeProps<PodLineageNodeType>): R
             </TooltipContent>
           </Tooltip>
         )}
-        <span className="shrink-0 text-[10px] leading-4" style={{ color }}>
-          {node.materialized ?? node.resourceType}
-        </span>
+        {/* Why models only: a source, seed or snapshot already says so in its layer label. */}
+        {(isModel || !layer) && (
+          <span className="shrink-0 text-[10px] leading-4" style={{ color }}>
+            {node.materialized ?? node.resourceType}
+          </span>
+        )}
       </div>
-      {rows.length > 0 &&
-        !data.rowsShown && (
-          // Why a stand-in: rows cost the most to render, so nodes far off screen carry a
-          // block of the same height until they come within a screen of the viewport.
-          <div
-            className="pod-lineage-rows pod-lineage-rows-pending rounded-b-[calc(var(--radius-md)-1px)]"
-            data-testid="pod-lineage-rows-pending"
-            style={{ height: (rows.length + (hidden > 0 ? 1 : 0)) * LINEAGE_COLUMN_ROW_HEIGHT }}
-          />
-        )}
-      {rows.length > 0 &&
-        data.rowsShown && (
-          // Why round the last row itself: clipping the list with overflow-hidden put it on
-          // its own compositing layer, which left a seam beside the border when zoomed.
-          <div className="pod-lineage-rows [&>*:last-child]:rounded-b-[calc(var(--radius-md)-1px)]">
-            {rows.map((column) => (
-              <ColumnRow
-                key={column.name}
-                nodeId={id}
-                column={column}
-                isFocusColumn={
-                  data.isFocus && data.focusColumn?.toLowerCase() === column.name.toLowerCase()
-                }
-                onColumnClick={data.onColumnClick}
-              />
-            ))}
-            {hidden > 0 && (
-              <div className="h-5 px-2.5 text-[11px] leading-5 text-muted-foreground">
-                {translate('pod.lineage.node.moreColumns', '+{{count}} more columns', {
-                  count: hidden
-                })}
-              </div>
-            )}
-            <NodeFooter nodeId={id} />
-          </div>
-        )}
+      {showRows && !data.rowsShown && (
+        // Why a stand-in: rows cost the most to render, so nodes far off screen carry a
+        // block of the same height until they come within a screen of the viewport.
+        <div
+          className="pod-lineage-rows pod-lineage-rows-pending rounded-b-[calc(var(--radius-md)-1px)]"
+          data-testid="pod-lineage-rows-pending"
+          style={{ height: lineageRowsHeight(node.columns.length, data.expanded) }}
+        />
+      )}
+      {showRows && data.rowsShown && (
+        <PodLineageColumnList
+          nodeId={id}
+          columns={node.columns}
+          expanded={data.expanded}
+          focusColumn={data.isFocus ? data.focusColumn : null}
+          onColumnClick={data.onColumnClick}
+          onToggleColumns={data.onToggleColumns}
+        />
+      )}
     </div>
   )
 }

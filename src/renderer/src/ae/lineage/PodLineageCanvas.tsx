@@ -25,8 +25,9 @@ import {
   type LineageHighlight
 } from './lineage-canvas-state'
 import { LineageHighlightContext, createLineageHighlightStore } from './lineage-highlight-store'
-import { layoutLineage, type LineageLayoutResult } from './lineage-layout'
+import { lineageOpenViewport } from './lineage-open-viewport'
 import { useLineageFirstMount } from './use-lineage-first-mount'
+import { useLineageLayout } from './use-lineage-layout'
 import { useLineageRowsWindow } from './use-lineage-rows-window'
 import { useTweenedPositions } from './use-tweened-positions'
 import { useLineageCentreOnSelect } from './use-lineage-centre-on-select'
@@ -106,9 +107,9 @@ function sameEdge(previous: Edge, next: Edge): boolean {
 
 /**
  * The graph itself. Sits inside the view's ReactFlowProvider so the toolbar can drive
- * zoom. Stays invisible until the nodes are measured and the viewport sits at 100
- * percent on the focused model, then fades in already in place; layout changes tween
- * the nodes to their new spots so edges travel with them.
+ * zoom. Stays invisible until the nodes are measured and the viewport has fitted the
+ * graph around the focused model (lineage-open-viewport.ts), then fades in already in
+ * place; layout changes tween the nodes to their new spots so edges travel with them.
  *
  * Node and edge objects keep their identity unless something they show changed: React
  * Flow skips an object it has seen, and the node component is memoised on its data, so
@@ -118,7 +119,8 @@ function sameEdge(previous: Edge, next: Edge): boolean {
 export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Element {
   const { graph, collapse, highlight, showColumns, arrangeKey, selectedNodeId } = props
   const columnsVisible = useStore((state) => lineageColumnsVisible(showColumns, state.transform[2]))
-  const { fitView } = useReactFlow()
+  const { setViewport } = useReactFlow()
+  const hasSize = useStore((state) => state.width > 0 && state.height > 0)
   const store = useStoreApi()
   const nodesInitialized = useNodesInitialized()
   const [dragged, setDragged] = useState<Record<string, Point>>({})
@@ -160,40 +162,22 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     }
     highlightStore.setState({ lit, footers })
   }, [highlight, visibleNodes, footers, highlightStore])
-  // Why a ref beside useMemo: StrictMode runs the calculation twice per change in
-  // development, and dagre on a hundred nodes is the slowest step of a pass.
-  const layoutCache = useRef<{
-    nodes: typeof visibleNodes
-    edges: typeof graph.edges
-    showColumns: boolean
-    result: LineageLayoutResult
-  } | null>(null)
-  const laidOut = useMemo(() => {
-    const cached = layoutCache.current
-    if (
-      cached &&
-      cached.nodes === visibleNodes &&
-      cached.edges === graph.edges &&
-      cached.showColumns === showColumns
-    ) {
-      return cached.result
-    }
-    const result = layoutLineage(
-      visibleNodes.map((node) => ({
-        id: node.uniqueId,
-        columnCount: node.columns.length,
-        showColumns
-      })),
-      graph.edges
-    )
-    layoutCache.current = { nodes: visibleNodes, edges: graph.edges, showColumns, result }
-    return result
-  }, [visibleNodes, graph.edges, showColumns])
-  const { placed, anchored, onToggleCollapse, onExpand } = useLineageAnchoredLayout(
-    laidOut,
-    dragged,
-    props
+  const { laidOut, expanded, toggleColumns } = useLineageLayout(
+    visibleNodes,
+    graph.edges,
+    showColumns
   )
+  const { onToggleCollapse: toggleCollapse, onExpand: expandSide } = props
+  const anchorCallbacks = useMemo(
+    () => ({
+      onToggleCollapse: toggleCollapse,
+      onExpand: expandSide,
+      onToggleColumns: toggleColumns
+    }),
+    [toggleCollapse, expandSide, toggleColumns]
+  )
+  const { placed, anchored, onToggleCollapse, onExpand, onToggleColumns } =
+    useLineageAnchoredLayout(laidOut, dragged, anchorCallbacks)
   const positions = useTweenedPositions(placed)
 
   const rowsShown = useLineageRowsWindow(placed, dragged, columnsVisible)
@@ -227,6 +211,8 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
         sideDown: sides[id]?.down ?? 0,
         collapsedUp: collapse.up.has(id),
         collapsedDown: collapse.down.has(id),
+        expanded: expanded.has(id),
+        onToggleColumns,
         onColumnClick: props.onColumnClick,
         onToggleCollapse,
         onExpand,
@@ -270,6 +256,8 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     props.onColumnClick,
     onToggleCollapse,
     onExpand,
+    expanded,
+    onToggleColumns,
     props.onOpen,
     sides,
     collapse
@@ -377,7 +365,7 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
   }
   useEffect(() => {
     const target = pendingFit.current
-    if (!target || !nodesInitialized) {
+    if (!target || !nodesInitialized || !hasSize) {
       return
     }
     // Why read the store: the subscribed flag can lag one render behind a node swap,
@@ -386,11 +374,15 @@ export function PodLineageCanvas(props: PodLineageCanvasProps): React.JSX.Elemen
     if (!focus?.measured?.width) {
       return
     }
+    const { width, height } = store.getState()
+    const viewport = lineageOpenViewport(placed, target, { width, height })
+    if (!viewport) {
+      return
+    }
     pendingFit.current = null
-    void fitView({ nodes: [{ id: target }], minZoom: 1, maxZoom: 1, duration: 0 }).then(() =>
-      setReady(true)
-    )
-  }, [nodesInitialized, fitView, nodes, fitFor, store])
+    // Why only here: a later resize or depth change keeps the view the person moved.
+    void setViewport(viewport, { duration: 0 }).then(() => setReady(true))
+  }, [nodesInitialized, hasSize, setViewport, nodes, fitFor, store, placed])
 
   // Why measure by hand: React Flow measures handles when a node mounts or resizes, and
   // a lit row adds handles to a node that does neither.

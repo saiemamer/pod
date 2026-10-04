@@ -33,6 +33,15 @@ export function useLineageColumnLit(nodeId: string, column: string): boolean {
   )
 }
 
+/**
+ * Lit column names on one node. The same set object until the node's own path changes,
+ * so a click re-renders the column lists on the path and no other.
+ */
+export function useLineageNodeLit(nodeId: string): ReadonlySet<string> {
+  const store = useContext(LineageHighlightContext)
+  return useZustandStore(store ?? FALLBACK, (state) => state.lit.get(nodeId) ?? NO_COLUMNS)
+}
+
 /** True while `nodeId` shows the "columns matched by name" footer. */
 export function useLineageNodeFooter(nodeId: string): boolean {
   const store = useContext(LineageHighlightContext)
