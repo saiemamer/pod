@@ -9,7 +9,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 
-const ORCA = process.env.POD_ORCA_BIN || 'orca'
+// Why `pod`: this server can run outside Pod's terminals, where `orca` may be stock Orca's.
+const ORCA = process.env.POD_ORCA_BIN || 'pod'
 // Why eleven minutes: Pod lets a dbt run take ten, and `show` waits on the warehouse.
 const TIMEOUT_MS = 11 * 60_000
 
@@ -48,7 +49,7 @@ function runOrca(args, cwd) {
         }
         const message =
           error?.code === 'ENOENT'
-            ? `Could not run ${ORCA}. Install Pod's orca command, or set POD_ORCA_BIN to it.`
+            ? `Could not run ${ORCA}. Turn on Settings > Shell command in Pod, or set POD_ORCA_BIN to Pod's CLI.`
             : stderr.trim() || error?.message || 'orca printed nothing'
         resolve({ ok: false, error: { message } })
       }

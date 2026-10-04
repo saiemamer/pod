@@ -24,13 +24,13 @@ Turn on Settings > Analytics Tools > "dbt tools for Claude Code (MCP)". Pod writ
     "pod-dbt": {
       "command": "node",
       "args": ["<clone>/packages/pod-dbt-mcp/src/server.js"],
-      "env": { "POD_ORCA_BIN": "/usr/local/bin/orca" }
+      "env": { "POD_ORCA_BIN": "/usr/local/bin/pod" }
     }
   }
 }
 ```
 
-`POD_ORCA_BIN` names the `orca` command to call; without it the server uses `orca` from PATH. Each tool takes an optional `path` inside the dbt project (default: the directory the server started in) and `project` when discovery picks the wrong one.
+`POD_ORCA_BIN` names Pod's CLI to call; without it the server uses `pod` from PATH, the shell command Pod installs (`orca` outside Pod's terminals may be stock Orca's). Each tool takes an optional `path` inside the dbt project (default: the directory the server started in) and `project` when discovery picks the wrong one.
 
 ## Test
 
