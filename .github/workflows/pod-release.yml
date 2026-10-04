@@ -6,6 +6,10 @@ name: Pod release (macOS, unsigned)
 # Computer Use helper needs Swift 6, which macOS 13 dev machines cannot build)
 # and publishes straight to the tag's GitHub release, which is also the
 # electron-updater feed (see src/shared/brand.ts).
+#
+# mode=trial builds and packages the dispatched branch as 0.0.0-trial.<run number>
+# and runs the packaged-app checks, but packages with --publish never, gets no
+# token for packaging and skips every release step, so it publishes nothing.
 
 on:
   push:
@@ -13,16 +17,24 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      mode:
+        description: release publishes the tag; trial builds the dispatched branch and publishes nothing
+        required: false
+        default: release
+        type: choice
+        options:
+          - release
+          - trial
       tag:
-        description: Existing tag to build (for example v0.1.0)
-        required: true
+        description: Existing tag to build in release mode (for example v0.1.0); leave empty for trial
+        required: false
         type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: pod-release-${{ inputs.tag || github.ref_name }}
+  group: pod-release-${{ inputs.mode == 'trial' && format('trial-{0}', github.ref_name) || inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -32,6 +44,32 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
+      - name: Resolve the Pod version
+        id: target
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode || 'release' }}
+          TAG_INPUT: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          if [[ "$MODE" == "trial" ]]; then
+            test -z "$TAG_INPUT" || { echo "::error::A trial builds the dispatched branch; leave tag empty"; exit 1; }
+            test "$REF_TYPE" = "branch" || { echo "::error::Dispatch a trial on a branch, not a $REF_TYPE"; exit 1; }
+            version="0.0.0-trial.$RUN_NUMBER"
+          else
+            test -n "$TAG" || { echo "::error::Release mode needs a tag"; exit 1; }
+            version="${TAG#v}"
+          fi
+          if [[ ! "$version" =~ ^0\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Tag $TAG is not a Pod 0.x.y version tag"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Mode $MODE, Pod $version"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -47,6 +85,9 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
 
       - name: Cache electron-builder downloads
         uses: actions/cache@v4
@@ -64,23 +105,25 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 30
-          command: pnpm install --frozen-lockfile
+          # Why both CPUs: the mac config packages x64 and arm64 from this arm64 runner,
+          # and beforePack fails a slice whose sherpa-onnx or @parcel/watcher variant is missing.
+          command: pnpm install --frozen-lockfile --cpu=current,x64,arm64
+
+      # Why: build:release ends with build:mobile-web, which resolves React Native and
+      # Expo from mobile/node_modules, and beforePack requires its out/mobile-web bundle.
+      - name: Install mobile dependencies
+        uses: ./.github/actions/install-mobile-dependencies
 
       # Why stamp instead of commit: upstream bumps package.json's version in every
       # release, so a committed Pod version would conflict on every rebase.
-      - name: Stamp the Pod version from the tag
+      - name: Stamp the Pod version
         shell: bash
         env:
-          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
           set -euo pipefail
-          version="${TAG#v}"
-          if [[ ! "$version" =~ ^0\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
-            echo "::error::Tag $TAG is not a Pod 0.x.y version tag"
-            exit 1
-          fi
-          npm pkg set version="$version"
-          echo "Building Pod $version on Orca $(node -p "require('./config/pod-brand.cjs').upstreamBaseTag")"
+          npm pkg set version="$VERSION"
+          echo "Building Pod $VERSION on Orca $(node -p "require('./config/pod-brand.cjs').upstreamBaseTag")"
 
       - name: Verify macOS entitlements
         run: pnpm verify:macos-entitlements
@@ -95,6 +138,7 @@ jobs:
       # releases and the DMGs sat on whichever came second (0.1.10's download URL
       # 404ed). One draft made here is what both targets attach to.
       - name: Create the draft release
+        if: inputs.mode != 'trial'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,15 +151,15 @@ jobs:
             gh release create "$TAG" --draft --title "${TAG#v}" --notes "Pod ${TAG#v}"
           fi
 
-      - name: Package and publish (unsigned)
+      - name: Package, and publish in release mode (unsigned)
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 45
           max_attempts: 2
           retry_wait_seconds: 30
-          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish ${{ inputs.mode == 'trial' && 'never' || 'always' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ inputs.mode != 'trial' && secrets.GITHUB_TOKEN || '' }}
           # Why: no Developer ID yet. Unsigned apps open via right-click, Open.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
@@ -124,7 +168,7 @@ jobs:
       - name: Verify the packaged app updates from Pod and its CLI starts
         shell: bash
         env:
-          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
           set -euo pipefail
           apps="$(find dist -maxdepth 2 -name 'Pod.app' -type d | sort)"
@@ -133,7 +177,7 @@ jobs:
             grep -q '^owner: saiemamer$' "$app/Contents/Resources/app-update.yml"
             grep -q '^repo: pod$' "$app/Contents/Resources/app-update.yml"
             cli_version="$("$app/Contents/Resources/bin/orca" --version)"
-            test "$cli_version" = "${TAG#v}" || { echo "::error::$app: bundled CLI reports $cli_version, tag is $TAG"; exit 1; }
+            test "$cli_version" = "$VERSION" || { echo "::error::$app: bundled CLI reports $cli_version, expected $VERSION"; exit 1; }
             echo "$app updates from saiemamer/pod; bundled CLI reports $cli_version"
           done
 
@@ -163,6 +207,7 @@ jobs:
       # Why last: the draft becomes visible to users and to the tap's bump job only
       # after the built apps proved they start.
       - name: Publish the release
+        if: inputs.mode != 'trial'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -179,6 +224,7 @@ jobs:
           echo "published $TAG with: $(tr '\n' ' ' <<< "$assets")"
 
       - name: Summary
+        if: inputs.mode != 'trial'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -189,4 +235,17 @@ jobs:
             echo "## Pod $TAG"
             echo
             gh release view "$TAG" --json assets --jq '.assets[] | "- " + .name + " (" + (.size|tostring) + " bytes)"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Trial summary
+        if: inputs.mode == 'trial'
+        shell: bash
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Pod trial $VERSION from ${GITHUB_REF_NAME} (nothing published)"
+            echo
+            find dist -maxdepth 1 -name '*.dmg' -exec stat -f '- %N (%z bytes)' {} \;
           } >> "$GITHUB_STEP_SUMMARY"
