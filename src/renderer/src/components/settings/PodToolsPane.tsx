@@ -1,10 +1,12 @@
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { AeToolCmdOverrides } from '../../../../shared/ae/dbt-settings-types'
+import { translate } from '@/i18n/i18n'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsRow } from './SettingsFormControls'
 import { PodPathInput } from './PodPathInput'
 import { getPodToolsSearchEntries } from './pod-tools-search'
 import { PodMcpSwitchRow } from './PodMcpSwitchRow'
+import { PodSetupButton } from '@/ae/PodSetupButton'
 
 type PodToolsPaneProps = {
   settings: GlobalSettings
@@ -35,6 +37,14 @@ export function PodToolsPane({ settings, updateSettings }: PodToolsPaneProps): R
   }
   return (
     <div className="flex flex-col gap-1">
+      <SettingsRow
+        label={translate('pod.setup.settingsLabel', 'Set up from repos')}
+        description={translate(
+          'pod.setup.settingsDescription',
+          'Pick your dbt and Omni repos; Pod finds the tools, profile and target and fills these in.'
+        )}
+        control={<PodSetupButton />}
+      />
       {TOOLS.map((tool, index) => {
         const entry = entries[index]
         return (

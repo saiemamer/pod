@@ -29,10 +29,24 @@ The DMG does not put `pod` on your PATH; turn on the Shell command switch in Pod
 
 ## First setup
 
-1. Settings > Analytics Tools > Tools: point Pod at `dbt`, the `omni` CLI and a Python with `sqlglot` (for column lineage). An empty field means Pod uses the one on your PATH. Pod downloads `dbt-language-server` itself unless you set a path.
+Pod needs two folders: your dbt repo and, if you have one, your Omni repo. On the landing page, or in Settings > Analytics Tools > Tools, choose **Set up from repos**, pick the two folders and press **Detect**. Pod then reads the repos and runs `--version` on the tools it finds; it runs nothing that can reach the warehouse or Omni. The summary lists each item it found, with its value, and each it did not, with what to do:
+
+- **dbt**: a virtual environment in or beside the repo (`.venv`, `venv`, `env`), then every `dbt` on your shell's PATH in order, then each pyenv Python. The first one that answers `dbt --version` wins, so a broken shim is skipped and named. Core or Fusion comes from the same answer.
+- **dbt project and profile**: the nearest `dbt_project.yml` and its `profile:`.
+- **Profiles folder**: `DBT_PROFILES_DIR`, the project folder, `local_profiles/`, `profiles/` and `.dbt/` in the repo, then `~/.dbt`. Pod reads only the profile's target names from `profiles.yml`, never its credentials.
+- **Default target**: the profile's own `target:`. If that looks like production (`prod`, `production`, `prd`, `live`), Pod does not pick it and asks you to choose one.
+- **Omni CLI and sign-in**: `omni` on your shell's PATH. The Omni CLI signs in with a profile made by `omni config init` (kept in `~/.config/omni-cli/config.json`) or an `OMNI_API_TOKEN`; Pod needs no API key when the CLI is already signed in. `OMNI_BASE_URL` from your shell goes into the domain's env. When the CLI reports an auth error, the Omni panel shows its message.
+- **Python with sqlglot** for column lineage. Without one, column lineage matches columns by name.
+
+**Apply** creates the domain (a project group named after the dbt repo, with roles `dbt` and `omni`), stores the profiles folder and target as the domain's dbt defaults, and sets the dbt, omni and Python paths and Core or Fusion in Settings. Applying again with the same answers changes nothing. The group's menu > New initiative… then starts a coordinator agent for a piece of work across the domain's repos.
+
+### Setting it up by hand
+
+If detection misses something, set it directly:
+
+1. Settings > Analytics Tools > Tools: point Pod at `dbt`, the `omni` CLI and a Python with `sqlglot`. An empty field means Pod uses the one on your PATH. Pod downloads `dbt-language-server` itself unless you set a path.
 2. Settings > Analytics Tools > dbt: the profiles directory, default target, and Core or Fusion.
-3. Add your repositories as a domain: Add a project > Import repositories from folder, choose the folder that holds your dbt and Omni clones, and answer "Yes, import as group". Then open the group's menu > Domain settings… to check each repo's role (dbt, omni, infra), the stakeholder teams, and the env for agents (for example `OMNI_BASE_URL`). Put secrets such as `OMNI_API_KEY` under Secrets in that dialog: Pod encrypts them with a key kept in the macOS Keychain and decrypts them only to hand them to the agents and tools it runs for that domain.
-4. The group's menu > New initiative… starts a coordinator agent for a piece of work across the domain's repos.
+3. Add your repositories as a domain: Add a project > Import repositories from folder, choose the folder that holds your dbt and Omni clones, and answer "Yes, import as group". Then open the group's menu > Domain settings… to check each repo's role (dbt, omni, infra), the stakeholder teams, and the env for agents (for example `OMNI_BASE_URL`). Put secrets such as `OMNI_API_KEY` under Secrets in that dialog: Pod encrypts them with a key kept in the macOS Keychain and decrypts them only to hand them to the agents and tools it runs for that domain. A key is needed only when the Omni CLI has no profile of its own.
 
 Optional: the dbt tools as an MCP server for Claude Code, set up from the same Tools page. See [`packages/pod-dbt-mcp/README.md`](../../packages/pod-dbt-mcp/README.md).
 

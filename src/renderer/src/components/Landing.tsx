@@ -17,6 +17,7 @@ import { translate } from '@/i18n/i18n'
 import { hasGitHubBackedProject, type PreflightIssue } from './landing-preflight-issues'
 import { useLandingPreflightRuntime } from './landing-preflight-runtime'
 import { useLandingOrcaStarState, type LandingStarState } from './landing-github-star-state'
+import { PodSetupButton } from '@/ae/PodSetupButton' // Pod
 
 type ShortcutItem = {
   id: string
@@ -281,6 +282,7 @@ export default function Landing(): React.JSX.Element {
           </p>
 
           <div className="flex items-center justify-center gap-2.5 flex-wrap">
+            <PodSetupButton whenNoDomain /> {/* Pod */}
             <button
               className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent transition-colors"
               onClick={() => openModal('add-repo')}
@@ -288,7 +290,6 @@ export default function Landing(): React.JSX.Element {
               <FolderPlus className="size-3.5" />
               {translate('auto.components.Landing.f9eaa9e12d', 'Add project')}
             </button>
-
             <button
               className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent transition-colors"
               onClick={() => openModal('new-workspace-composer', { telemetrySource: 'unknown' })}

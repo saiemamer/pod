@@ -53,6 +53,12 @@ import type {
   OmniTopicsResult,
   OmniValidateResult
 } from '../../shared/ae/omni-types'
+import type {
+  AeSetupApplyRequest,
+  AeSetupApplyResult,
+  AeSetupDetectRequest,
+  AeSetupDetection
+} from '../../shared/ae/setup-types'
 
 /** Pod: domains (folders of repos with roles) and initiatives (cross-repo runs). */
 export type AeApi = {
@@ -120,6 +126,11 @@ export type AeApi = {
     validate: (args: OmniPathRequest) => Promise<OmniValidateResult>
     topics: (args: OmniPathRequest) => Promise<OmniTopicsResult>
     topic: (args: OmniTopicRequest) => Promise<OmniTopicDetail>
+  }
+  /** First setup: detect tools and defaults from two repo folders, then apply them as one domain. */
+  setup: {
+    detect: (args: AeSetupDetectRequest) => Promise<AeSetupDetection>
+    apply: (args: AeSetupApplyRequest) => Promise<AeSetupApplyResult>
   }
   /** The dbt MCP server config Claude Code agents load through `--mcp-config`. */
   mcp: {
