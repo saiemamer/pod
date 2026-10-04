@@ -13,7 +13,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
+import { readIpcErrorMessage } from '@/lib/ipc-error'
 import { revealPodFolderWorkspace } from './reveal-folder-workspace'
+import { repoRole } from './domain-settings-form'
+import { useDetectedRepoRoles } from './use-detected-repo-roles'
 
 /** Pod: name an initiative, pick its repos, and open the main agent in the new initiative folder. */
 export function NewInitiativeDialog({
@@ -30,6 +33,8 @@ export function NewInitiativeDialog({
   const fetchAeDomains = useAppStore((s) => s.fetchAeDomains)
   const saveAeDomain = useAppStore((s) => s.saveAeDomain)
   const launchAeInitiative = useAppStore((s) => s.launchAeInitiative)
+  const aeInitiativeFolderPath = useAppStore((s) => s.aeInitiativeFolderPath)
+  const detectedRoles = useDetectedRepoRoles(groupId)
   const repos = useAppStore((s) => s.repos)
   const groupRepos = useMemo(
     () => repos.filter((repo) => repo.projectGroupId === groupId),
@@ -41,6 +46,7 @@ export function NewInitiativeDialog({
   const [excludedRepoIds, setExcludedRepoIds] = useState<ReadonlySet<string>>(() => new Set())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [folderPath, setFolderPath] = useState<string | null>(null)
   const trimmedTitle = title.trim()
   const repoIds = groupRepos.map((repo) => repo.id).filter((id) => !excludedRepoIds.has(id))
 
@@ -49,6 +55,21 @@ export function NewInitiativeDialog({
       void fetchAeDomains()
     }
   }, [aeLoaded, fetchAeDomains])
+
+  useEffect(() => {
+    if (!trimmedTitle) {
+      setFolderPath(null)
+      return
+    }
+    let cancelled = false
+    aeInitiativeFolderPath(groupId, trimmedTitle).then(
+      (path) => !cancelled && setFolderPath(path),
+      () => !cancelled && setFolderPath(null)
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [aeInitiativeFolderPath, groupId, trimmedTitle])
 
   const toggleRepo = (repoId: string, checked: boolean): void => {
     setExcludedRepoIds((current) => {
@@ -83,7 +104,13 @@ export function NewInitiativeDialog({
       await revealPodFolderWorkspace(initiative.coordinatorWorkspaceKey)
       onOpenChange(false)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
+      setError(
+        readIpcErrorMessage(caught) ??
+          translate(
+            'pod.initiative.new.failed',
+            'Pod could not start the initiative. Press Start initiative to try again.'
+          )
+      )
       setSubmitting(false)
     }
   }
@@ -100,7 +127,7 @@ export function NewInitiativeDialog({
           <DialogDescription className="text-xs">
             {translate(
               'pod.initiative.new.description',
-              'Creates initiatives/<slug>/INITIATIVE.md, a folder workspace for it, and opens the main agent there with the planning prompt drafted.'
+              'Creates a folder with INITIATIVE.md, a folder workspace for it, and opens the main agent there with the planning prompt drafted.'
             )}
           </DialogDescription>
         </DialogHeader>
@@ -116,6 +143,13 @@ export function NewInitiativeDialog({
               placeholder={translate('pod.initiative.new.namePlaceholder', 'OpenCX migration')}
               className="h-8 text-xs"
             />
+            {folderPath && (
+              <p className="break-all text-[11px] text-muted-foreground">
+                {translate('pod.initiative.new.folder', 'Folder: {{value0}}', {
+                  value0: folderPath
+                })}
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">
@@ -148,8 +182,7 @@ export function NewInitiativeDialog({
             ) : (
               <ul className="space-y-1">
                 {groupRepos.map((repo) => {
-                  const role =
-                    domain?.repos.find((entry) => entry.repoId === repo.id)?.role ?? 'other'
+                  const role = repoRole(repo.id, domain?.repos ?? [], detectedRoles ?? [])
                   const checkboxId = `${teamsListId}-${repo.id}`
                   return (
                     <li key={repo.id} className="flex items-center gap-2">

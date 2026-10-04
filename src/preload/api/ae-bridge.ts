@@ -16,7 +16,8 @@ export const aeApi = {
     list: (args) => ipcRenderer.invoke('ae:initiatives:list', args),
     save: (input) => ipcRenderer.invoke('ae:initiatives:save', input),
     remove: (args) => ipcRenderer.invoke('ae:initiatives:remove', args),
-    launch: (args) => ipcRenderer.invoke('ae:initiatives:launch', args)
+    launch: (args) => ipcRenderer.invoke('ae:initiatives:launch', args),
+    folderPath: (args) => ipcRenderer.invoke('ae:initiatives:folderPath', args)
   },
   dbt: {
     project: (args) => ipcRenderer.invoke('ae:dbt:project', args),

@@ -89,6 +89,8 @@ export type AeApi = {
       agent?: TuiAgent
       repoIds?: string[]
     }) => Promise<AeInitiative>
+    /** Where Start would make the folder, for a group with or without a domain yet. */
+    folderPath: (args: { groupId: string; title: string }) => Promise<string>
   }
   /** dbt for the editor: every call names a path inside the project; env values stay in main. */
   dbt: {

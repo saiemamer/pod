@@ -36,6 +36,7 @@ export type AeDomainsSlice = AeDbtResultsSlice & {
     agent?: TuiAgent
     repoIds?: string[]
   }) => Promise<AeInitiative>
+  aeInitiativeFolderPath: (groupId: string, title: string) => Promise<string | null>
   openAeDomainMainAgent: (
     domainId: string,
     agent?: TuiAgent
@@ -132,6 +133,8 @@ export const createAeDomainsSlice: StateCreator<AppState, [], [], AeDomainsSlice
       set({ aeInitiatives: [initiative, ...others] })
       return initiative
     },
+    aeInitiativeFolderPath: async (groupId, title) =>
+      (await aeApi()?.initiatives.folderPath({ groupId, title })) ?? null,
     openAeDomainMainAgent: async (domainId, agent) => {
       const api = aeApi()
       if (!api) {

@@ -1,4 +1,4 @@
-import type { AeDomainConfig, AeDomainRepo } from '../../../shared/ae/domain-types'
+import type { AeDomainConfig, AeDomainRepo, AeRepoRole } from '../../../shared/ae/domain-types'
 
 /** Pod: the Domain settings form as plain strings, and the conversions to and from a domain record. */
 export type DomainSettingsDraft = {
@@ -58,16 +58,19 @@ export function formatTeamLines(teams: string[]): string {
   return teams.join('\n')
 }
 
-/** Seed the form from the saved domain, or from the project group when no domain exists yet. */
+/**
+ * Seed the form from the saved domain, or from the project group when no domain exists yet. A
+ * repo without a saved role takes the role its checkout suggests.
+ */
 export function draftFromDomain(
   domain: AeDomainConfig | null,
-  group: { label: string; repoIds: string[] }
+  group: { label: string; repoIds: string[]; detectedRoles: AeDomainRepo[] }
 ): DomainSettingsDraft {
   return {
     name: domain?.name ?? group.label,
     repos: group.repoIds.map((repoId) => ({
       repoId,
-      role: domain?.repos.find((entry) => entry.repoId === repoId)?.role ?? 'other'
+      role: repoRole(repoId, domain?.repos ?? [], group.detectedRoles)
     })),
     teamsText: formatTeamLines(domain?.stakeholderTeams ?? []),
     envText: formatEnvLines(domain?.env ?? {}),
@@ -75,6 +78,18 @@ export function draftFromDomain(
     dbtProfilesDir: domain?.dbt?.profilesDir ?? '',
     defaultAgent: domain?.defaultAgent ?? ''
   }
+}
+
+export function repoRole(
+  repoId: string,
+  savedRoles: AeDomainRepo[],
+  detectedRoles: AeDomainRepo[]
+): AeRepoRole {
+  return (
+    savedRoles.find((entry) => entry.repoId === repoId)?.role ??
+    detectedRoles.find((entry) => entry.repoId === repoId)?.role ??
+    'other'
+  )
 }
 
 /** The save payload; undefined fields clear the stored value because the service merges over the existing record. */
