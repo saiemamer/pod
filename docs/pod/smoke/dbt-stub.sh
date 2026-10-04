@@ -3,6 +3,10 @@
 # The manifest is source -> stg_orders -> {orders -> order_summary, orders_by_customer, order_statuses},
 # and orders_by_customer + order_statuses -> status_report (a shared parent for the lineage smoke), so
 # the canvas, column lineage and the Database explorer have something to draw.
+# Setup detection runs `dbt --version` only, and expects dbt Core's layout.
+case " $* " in
+  *" --version "*) printf 'Core:\n  - installed: 1.9.0\n  - latest:    1.9.0\n'; exit 0 ;;
+esac
 sleep 1
 # Performance runs point POD_STUB_MANIFEST and POD_STUB_CATALOG at a generated fixture
 # (docs/pod/smoke/perf-fixture.mjs); the manifest below is the default.

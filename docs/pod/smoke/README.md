@@ -119,3 +119,11 @@ node docs/pod/smoke/domain-setup.mjs
 ```
 
 Secrets (`OMNI_API_KEY`) are added afterwards in the dialog, because the script never handles secret values.
+
+## First setup
+
+`ui-setup-smoke.mjs` makes two throwaway repos under `~/Projects/pod-smoke/setup/` (`dbt-setup` with `profiles.yml` at its root, a `prod` default target and a fake keyfile path; `omni-setup` with `model.yaml`), puts a broken `dbt` shim in `dbt-setup/.venv/bin` and the stand-in `dbt` in `setup/.venv/bin`, then opens Settings > Analytics Tools > Tools > Set up from repos. It checks that detection skips the broken shim and names it, finds the root `profiles.yml`, leaves the `prod` default unchosen and shows no credential, picks `dev`, applies, and checks the domain's roles, target, profiles folder and the dbt tool path. A second run through the dialog must report that nothing changed and leave the domain's `updatedAt` alone. It restores the tool settings afterwards. Two screenshots: `setup-1-summary`, `setup-2-summary`.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-setup-smoke.mjs   # against pnpm dev on port 9333
+```

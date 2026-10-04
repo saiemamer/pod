@@ -57,6 +57,10 @@ export const aeApi = {
     topics: (args) => ipcRenderer.invoke('ae:omni:topics', args),
     topic: (args) => ipcRenderer.invoke('ae:omni:topic', args)
   },
+  setup: {
+    detect: (args) => ipcRenderer.invoke('ae:setup:detect', args),
+    apply: (args) => ipcRenderer.invoke('ae:setup:apply', args)
+  },
   mcp: {
     configPath: () => ipcRenderer.invoke('ae:mcp:configPath'),
     writeConfig: () => ipcRenderer.invoke('ae:mcp:writeConfig')
