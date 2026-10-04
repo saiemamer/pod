@@ -1,4 +1,15 @@
-import { constants, cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import {
+  constants,
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync
+} from 'node:fs'
 import { basename, join, relative, sep } from 'node:path'
 import {
   getOrcaProfileDataFile,
@@ -46,6 +57,12 @@ function isLeftBehind(relativePath: string): boolean {
   return top === 'agent-hooks' && LEFT_BEHIND_AGENT_HOOK_FILES.has(basename(relativePath))
 }
 
+/** cpSync throws on sockets, FIFOs and devices, so anything else is skipped wherever it sits. */
+function isCopyableEntry(path: string): boolean {
+  const stats = lstatSync(path)
+  return stats.isFile() || stats.isDirectory() || stats.isSymbolicLink()
+}
+
 /** Copy (never move) Orca's data folder into `staging`, cloning on APFS. */
 export function copyOrcaUserData(source: string, staging: string): ProfileDatabaseOutcome {
   mkdirSync(staging)
@@ -53,14 +70,15 @@ export function copyOrcaUserData(source: string, staging: string): ProfileDataba
     recursive: true,
     mode: constants.COPYFILE_FICLONE,
     verbatimSymlinks: true,
-    filter: (path) => !isLeftBehind(relative(source, path))
+    preserveTimestamps: true,
+    filter: (path) => isCopyableEntry(path) && !isLeftBehind(relative(source, path))
   })
   return replaceNewerProfileDatabases(staging)
 }
 
 /**
  * Pod refuses a profile database saved by a newer Orca, so a newer one is swapped for its newest
- * JSON export. Opened in the staged copy only: SQLite may replay the WAL, and the source stays untouched.
+ * JSON snapshot. Opened in the staged copy only: SQLite may replay the WAL, and the source stays untouched.
  */
 function replaceNewerProfileDatabases(staging: string): ProfileDatabaseOutcome {
   const profilesDir = join(staging, 'profiles')
@@ -84,8 +102,12 @@ function replaceNewerProfileDatabases(staging: string): ProfileDatabaseOutcome {
       outcome = outcome === 'none' ? 'copied' : outcome
       continue
     }
-    if (newestExport !== undefined) {
+    // Why: Orca writes orca-data.json only after publishing the same snapshot as an export
+    // (profile-state-authority-exports.ts), so it is newer only when a JSON-era build edited it later.
+    if (newestExport !== undefined && !isLaterEdit(dataFile, newestExport)) {
       renameSync(newestExport, dataFile)
+    } else if (newestExport !== undefined) {
+      rmSync(newestExport, { force: true })
     }
     // Why: Orca treats a retained export or backup beside a missing database as lost state and refuses to start.
     const backups = profileStateDatabaseBackups(databaseFile).map(({ path }) => path)
@@ -95,6 +117,14 @@ function replaceNewerProfileDatabases(staging: string): ProfileDatabaseOutcome {
     outcome = 'replaced-by-json-export'
   }
   return outcome
+}
+
+function isLaterEdit(dataFile: string, exportFile: string): boolean {
+  return (
+    existsSync(dataFile) &&
+    statSync(dataFile).mtimeMs > statSync(exportFile).mtimeMs &&
+    !readFileSync(dataFile).equals(readFileSync(exportFile))
+  )
 }
 
 function readSchemaVersion(databaseFile: string): number {
