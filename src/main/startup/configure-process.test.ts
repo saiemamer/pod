@@ -23,6 +23,9 @@ vi.mock('electron', () => {
   }
 })
 
+// Pod: packaged runs move to Pod's folder (src/main/pod/pod-user-data.test.ts); keep this file off the real disk.
+vi.mock('../pod/pod-user-data', () => ({ applyPodUserDataFolder: vi.fn() }))
+
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()

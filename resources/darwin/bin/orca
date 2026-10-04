@@ -26,6 +26,8 @@ ELECTRON="$CONTENTS/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutabl
 # launcher model instead of requiring a separate npm-distributed binary.
 CLI="$CONTENTS/Resources/app.asar.unpacked/out/cli/index.js"
 
+# Pod: the app keeps its data in Application Support/Pod, so the CLI must look there too.
+export ORCA_USER_DATA_PATH="${ORCA_USER_DATA_PATH:-$HOME/Library/Application Support/Pod}"
 export ORCA_NODE_OPTIONS="${NODE_OPTIONS-}"
 export ORCA_NODE_REPL_EXTERNAL_MODULE="${NODE_REPL_EXTERNAL_MODULE-}"
 unset NODE_OPTIONS
