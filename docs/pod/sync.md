@@ -6,7 +6,7 @@ Three things keep a rebase small. Pod's own code lives in new files (`ae/` direc
 
 ## Where it stands (2026-10-04)
 
-Pod's `main` has been on Orca v1.4.219 since 2026-10-04; [`sync-log-v1.4.219.md`](./sync-log-v1.4.219.md) records that sync. The old `main`, on v1.4.197, is kept on GitHub as the branch `backup/main-before-v1.4.219`. The daily rehearsal below opened an issue for every stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift)); they stay open until someone closes them.
+Pod's `main` has been on Orca v1.4.219 since 2026-10-04; [`sync-log-v1.4.219.md`](./sync-log-v1.4.219.md) records that sync. The old `main`, on v1.4.197, is kept on GitHub as the branch `backup/main-before-v1.4.219`. The daily rehearsal below opened an issue for every stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift)); they were closed on 2026-10-04 with a note that Pod is on v1.4.219. The same day the job opened issue 21 for Orca v1.4.220, which stays open.
 
 No Pod release has been built on v1.4.219 yet. `pod-release.yml` needed two new install steps to build on it (see the sync log), and a `mode=trial` run of it, which publishes nothing, has to pass before the next release.
 
