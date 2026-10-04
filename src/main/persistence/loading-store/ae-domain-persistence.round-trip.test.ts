@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -22,25 +22,36 @@ vi.mock('electron', () => ({
 }))
 
 const { Store } = await import('./store')
+const { ProfileStateSqliteAuthority } =
+  await import('../profile-state/profile-state-sqlite-authority')
+const { getDefaultPersistedState } = await import('../../../shared/constants')
 
 const stores: InstanceType<typeof Store>[] = []
-afterEach(() => {
+afterEach(async () => {
   for (const store of stores.splice(0)) {
-    store.flush()
+    store.freezeWrites()
+    await store.flushAsync()
   }
+  vi.restoreAllMocks()
 })
 
-function openStore(dataFile: string): InstanceType<typeof Store> {
-  const store = new Store({ dataFile })
+// Why SQLite: since Orca v1.4.219 a writable Store persists to the profile-state database.
+function openStore(dir: string): InstanceType<typeof Store> {
+  vi.spyOn(ProfileStateSqliteAuthority.prototype, 'scheduleBackup').mockImplementation(() => {})
+  const databasePath = join(dir, 'profile-state.db')
+  const authority = new ProfileStateSqliteAuthority(databasePath, 'pod-test')
+  if (!existsSync(databasePath)) {
+    authority.writeSerializedState(Buffer.from(JSON.stringify(getDefaultPersistedState(dir))))
+  }
+  const store = new Store({ dataFile: join(dir, 'state.json'), profileStateAuthority: authority })
   stores.push(store)
   return store
 }
 
 describe('AeDomainPersistence', () => {
-  it('round-trips domains and initiatives through the real store file', () => {
+  it('round-trips domains and initiatives through the real profile-state database', () => {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pod-domains-')))
-    const dataFile = join(dir, 'state.json')
-    const first = openStore(dataFile)
+    const first = openStore(dir)
     expect(first.getAeDomains()).toEqual({})
 
     const saved = first.saveAeDomain({
@@ -70,7 +81,7 @@ describe('AeDomainPersistence', () => {
     })
     first.flush()
 
-    const second = openStore(dataFile)
+    const second = openStore(dir)
     expect(second.getAeDomain('group-1')).toEqual(saved)
     expect(second.getAeInitiatives('group-1').map((initiative) => initiative.title)).toEqual([
       'OpenCX migration'
@@ -79,7 +90,7 @@ describe('AeDomainPersistence', () => {
 
     second.removeAeDomain('group-1')
     second.flush()
-    const third = openStore(dataFile)
+    const third = openStore(dir)
     expect(third.getAeDomains()).toEqual({})
     expect(third.getAeInitiatives()).toEqual([])
   })
