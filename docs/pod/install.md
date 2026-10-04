@@ -48,7 +48,7 @@ Quit and reopen Pod afterwards, then check `orca --version`. Pod cannot replace 
 
 An update keeps your domains, initiatives, secrets and settings. They live in `~/Library/Application Support/Pod`, which no install or upgrade touches; [`sync.md`](./sync.md) explains why that holds across upstream Orca updates too.
 
-Pod 0.1.12 and older kept that data in `~/Library/Application Support/orca`. The first start after upgrading copies it into `Pod` once. Quit the old Pod (and stock Orca, if it is installed) before opening the new one; Pod refuses to start while either still has the old folder open. If stock Orca has never been on the Mac, the old folder is then renamed to `orca.moved-to-pod-<date>`; otherwise it stays where it is for Orca.
+Pod 0.1.12 and older kept that data in `~/Library/Application Support/orca`. The first start after upgrading copies it into `Pod` once. Quit the old Pod (and stock Orca, if it is installed) before opening the new one; Pod refuses to start while either still has the old folder open. The first start also stops the old Pod's terminal daemon, so any terminal sessions it still hosts end. If stock Orca has never been on the Mac, the old folder is then renamed to `orca.moved-to-pod-<date>`; otherwise it stays where it is for Orca.
 
 ## Uninstall
 

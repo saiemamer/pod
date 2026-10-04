@@ -7,8 +7,10 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync
 } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -27,7 +29,7 @@ let orca: string
 let pod: string
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'pod-user-data-'))
+  root = mkdtempSync(join(tmpdir(), 'pud-'))
   appData = join(root, 'Application Support')
   home = join(root, 'home')
   orca = join(appData, 'orca')
@@ -190,7 +192,7 @@ describe('movePodUserDataOnce', () => {
     chmodSync(unreadable, 0o000)
 
     try {
-      expect(() => move()).toThrow()
+      expect(() => move()).toThrow(`Pod could not copy its data from ${orca}. No data was changed`)
       expect(existsSync(pod)).toBe(false)
       expect(stagingFolders()).toEqual([])
     } finally {
@@ -198,6 +200,35 @@ describe('movePodUserDataOnce', () => {
     }
     expect(move()).toMatchObject({ kind: 'moved' })
     expect(existsSync(join(pod, 'codex-accounts', 'auth.json'))).toBe(true)
+  })
+
+  it('skips a socket outside the leave-behind list instead of failing the copy', async () => {
+    write(join(orca, 'profiles', 'local-default', 'orca-data.json'))
+    const server = createServer()
+    await new Promise<void>((resolve) => server.listen(join(orca, 'x.sock'), resolve))
+    try {
+      expect(move()).toMatchObject({ kind: 'moved' })
+    } finally {
+      await new Promise((resolve) => server.close(resolve))
+    }
+    expect(existsSync(join(pod, 'profiles', 'local-default', 'orca-data.json'))).toBe(true)
+    expect(existsSync(join(pod, 'x.sock'))).toBe(false)
+  })
+
+  it.each([
+    ['refuses while another Pod holds the move lock', '/Applications/Pod.app/Contents/MacOS/Pod'],
+    ['takes over a move lock whose pid now belongs to another process', '/usr/local/bin/node']
+  ])('%s', (_name, ownerCommand) => {
+    write(join(orca, 'profiles', 'local-default', 'orca-data.json'))
+    write(join(appData, 'Pod.moving.lock'), String(process.ppid))
+
+    const run = (): unknown => move({ describeProcess: () => ownerCommand })
+    if (ownerCommand.includes('/Pod.app/')) {
+      expect(run).toThrow(/Another Pod launch is copying/)
+      expect(existsSync(pod)).toBe(false)
+    } else {
+      expect(run()).toMatchObject({ kind: 'moved' })
+    }
   })
 
   it('drops a dead launch staging folder without its marker and copies afresh', () => {
@@ -322,11 +353,30 @@ describe('movePodUserDataOnce with a SQLite profile', () => {
       ),
       'backup'
     )
+    // Orca's clean quit publishes the export first, then rewrites orca-data.json.
+    utimesSync(join(profile(orca), 'orca-data.json'), 1_000, 1_000)
     markStockOrcaInstalled()
 
     expect(move()).toMatchObject({ kind: 'moved', profileDatabase: 'replaced-by-json-export' })
     expect(readdirSync(profile(pod)).sort()).toEqual(['orca-data.json'])
     expect(readFileSync(join(profile(pod), 'orca-data.json'), 'utf8')).toBe('export 5')
     expect(readFileSync(sourceDb).equals(sourceBytes)).toBe(true)
+  })
+
+  it('keeps an orca-data.json that an older build edited after the newest export', () => {
+    createDatabase(
+      join(profile(orca), 'profile-state.db'),
+      PROFILE_STATE_DATABASE_SCHEMA_VERSION + 1
+    )
+    write(join(profile(orca), 'orca-data.json.sqlite-export.5.json'), 'export 5')
+    utimesSync(join(profile(orca), 'orca-data.json.sqlite-export.5.json'), 1_000, 1_000)
+    write(join(profile(orca), 'orca-data.json'), 'edited by an older Pod')
+    markStockOrcaInstalled()
+
+    expect(move()).toMatchObject({ kind: 'moved', profileDatabase: 'replaced-by-json-export' })
+    expect(readdirSync(profile(pod)).sort()).toEqual(['orca-data.json'])
+    expect(readFileSync(join(profile(pod), 'orca-data.json'), 'utf8')).toBe(
+      'edited by an older Pod'
+    )
   })
 })

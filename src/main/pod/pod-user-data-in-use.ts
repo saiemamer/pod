@@ -45,6 +45,15 @@ function readRuntimePid(folder: string): number | null {
   return null
 }
 
+/** A recorded pid counts only while it is still a Pod process, not whatever reused it. */
+export function isPodAppProcess(pid: number, describeProcess: DescribeProcess): boolean {
+  return (
+    pid !== process.pid &&
+    isProcessRunning(pid) &&
+    describeProcess(pid)?.includes('/Pod.app/') === true
+  )
+}
+
 /** Chromium's lock is a symlink to `<host>-<pid>`. */
 function readSingletonLockPid(folder: string): number | null {
   try {
@@ -86,12 +95,7 @@ export function stopStalePodDaemon(folder: string, describeProcess: DescribeProc
   for (const name of names) {
     try {
       const pid = Number.parseInt(readFileSync(join(daemonDir, name), 'utf8').trim(), 10)
-      if (
-        Number.isSafeInteger(pid) &&
-        pid !== process.pid &&
-        isProcessRunning(pid) &&
-        describeProcess(pid)?.includes('/Pod.app/')
-      ) {
+      if (isPodAppProcess(pid, describeProcess)) {
         process.kill(pid, 'SIGTERM')
       }
     } catch (error) {

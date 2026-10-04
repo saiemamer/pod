@@ -17,7 +17,7 @@ import { copyOrcaUserData, type ProfileDatabaseOutcome } from './pod-user-data-c
 import {
   assertNoAppUsesFolder,
   describeProcessWithPs,
-  isProcessRunning,
+  isPodAppProcess,
   stopStalePodDaemon,
   type DescribeProcess
 } from './pod-user-data-in-use'
@@ -76,7 +76,7 @@ export function movePodUserDataOnce(options: PodUserDataMoveOptions): PodUserDat
     return { kind: 'already-moved' }
   }
   const describeProcess = options.describeProcess ?? describeProcessWithPs
-  const releaseLock = acquireMoveLock(options.appDataDir)
+  const releaseLock = acquireMoveLock(options.appDataDir, describeProcess)
   let profileDatabase: ProfileDatabaseOutcome
   try {
     settleEarlierStaging(options.appDataDir, target)
@@ -99,7 +99,11 @@ export function movePodUserDataOnce(options: PodUserDataMoveOptions): PodUserDat
       writeFileSync(join(staging, ORIGIN_MARKER_FILE), `${JSON.stringify(origin, null, 2)}\n`)
     } catch (error) {
       rmSync(staging, { recursive: true, force: true })
-      throw error
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `Pod could not copy its data from ${source}. No data was changed, and that folder is as it was. ${reason}`,
+        { cause: error }
+      )
     }
     publishStaging(staging, target)
   } finally {
@@ -108,8 +112,8 @@ export function movePodUserDataOnce(options: PodUserDataMoveOptions): PodUserDat
   return { kind: 'moved', oldFolder: retireOldFolder(source, options), profileDatabase }
 }
 
-/** Two Pod launches must not copy at once; a lock left by a dead launch is taken over. */
-function acquireMoveLock(appDataDir: string): () => void {
+/** Two Pod launches must not copy at once; a lock whose owner is no longer Pod is taken over. */
+function acquireMoveLock(appDataDir: string, describeProcess: DescribeProcess): () => void {
   const lockPath = join(appDataDir, MOVE_LOCK_FILE)
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -122,7 +126,7 @@ function acquireMoveLock(appDataDir: string): () => void {
         throw error
       }
       const owner = Number.parseInt(readFileSync(lockPath, 'utf8'), 10)
-      if (isProcessRunning(owner) && owner !== process.pid) {
+      if (isPodAppProcess(owner, describeProcess)) {
         throw new Error('Another Pod launch is copying its data. Open Pod again in a moment.')
       }
       unlinkSync(lockPath)
