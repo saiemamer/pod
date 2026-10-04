@@ -14,6 +14,14 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-smoke.mjs
 
 The dev instance keeps its own data directory, so the installed Pod is untouched. Re-runs skip the import when a `pod-smoke` group with repos already exists and delete empty duplicates from earlier runs.
 
+## Group without a folder
+
+`ui-group-initiative-smoke.mjs` makes a group the way the project menu's "New group from project" does (a name only, no folder), moves `dbt-demo` into it, and opens Domain settings without pressing Detect: the role must read `dbt`. It then puts a file named `initiatives` in `~/Pod/pod-smoke-no-folder/`, opens New initiative, checks the dialog names the folder `~/Pod/pod-smoke-no-folder/initiatives/pod-smoke-test`, presses Start, and expects a plain error with no "Error invoking remote method" text and no initiative record. With the file gone, a second press must make exactly one initiative with its `INITIATIVE.md`. Claude opens with the prompt drafted, not sent. It removes the initiative's workspace, the domain, the group and `~/Pod/pod-smoke-no-folder` afterwards and moves `dbt-demo` back. On the code before the fix the role reads `other` and the start fails on `mkdir '/initiatives/pod-smoke-test'`. Three screenshots: `group-initiative-1-roles` to `group-initiative-3-started`.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-group-initiative-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
+```
+
 For the orchestration half (run-create, task-create, two-step dispatch, `check --wait`), build the CLI once with `pnpm build:cli` and use `out/bin/orca` with `--from <coordinator terminal handle>`; the steps and what they taught are in `docs/pod/PLAN.md` under "Phase 1 outcome".
 
 ## Test rules
@@ -57,15 +65,6 @@ POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/s
 ```
 
 `POD_SMOKE_PYTHON` is written into the dev instance's `toolCmdOverrides.python`; leave it out and column lineage falls back to name matching, which the toolbar's engine label shows. The same venv runs the gated unit test: `POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python pnpm test:pod src/main/ae/dbt/dbt-column-lineage.test.ts`.
-
-## Catalog under a personal target
-
-`ui-catalog-smoke.mjs` sets `POD_STUB_DOCS` in the dbt env so the stand-in `dbt` plays a personal target. With `broken`, `docs generate` prints Python warnings and a compile error and writes no catalog; with `unbuilt`, it stops in that compile unless `--no-compile` is passed, and otherwise writes a catalog without `orders`, lists two refused datasets under `errors` and exits 1, as dbt Core does. The script removes `target/catalog.json`, opens the Database tab on `dbt-demo`, and checks: the empty state says the button reads from the warehouse and can take a minute or two; a run shows its elapsed time; the failure names `order_summary` and the missing table with no warning line, and Details holds dbt's text; the failure is still there after switching to Explorer and back; with `unbuilt` the run is a result that counts and lists the two datasets, `orders` is still listed and marked not built, and `stg_orders` is not. It restores the dbt env and regenerates the full catalog afterwards. Three screenshots: `catalog-1-empty` (first run in a session only), `catalog-2-failed`, `catalog-3-partial`.
-
-```sh
-cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
-POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-catalog-smoke.mjs   # against pnpm dev on port 9333, after ui-lineage-smoke.mjs
-```
 
 ## Performance gate (before a merge or a release)
 

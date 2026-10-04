@@ -32,6 +32,7 @@ export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:initiatives:save',
   'ae:initiatives:remove',
   'ae:initiatives:launch',
+  'ae:initiatives:folderPath',
   'ae:domains:openMainAgent'
 ] as const
 
@@ -114,6 +115,11 @@ export function registerAeDomainHandlers(
     ): Promise<AeInitiative> => {
       return launchAeInitiative(service, args)
     }
+  )
+  ipcMain.handle(
+    'ae:initiatives:folderPath',
+    (_event, args: { groupId: string; title: string }): string =>
+      service.initiativeFolderPath(args.groupId, args.title)
   )
   ipcMain.handle(
     'ae:domains:openMainAgent',
