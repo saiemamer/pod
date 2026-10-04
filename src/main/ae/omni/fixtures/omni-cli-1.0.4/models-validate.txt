@@ -1,0 +1,16 @@
+Validate model
+
+Usage:
+  omni models validate <modelid> [flags]
+
+Flags:
+      --branchid string   Branch ID to validate
+  -h, --help              help for validate
+      --limit string      Maximum number of validation issues to return
+
+Global Flags:
+      --base-url string   API base URL (overrides profile)
+      --compact           compact JSON output (no indentation)
+  -o, --format string     output format: json, human, auto (default auto: human on TTY, json when piped)
+  -p, --profile string    config profile to use
+      --token string      API token (overrides profile/env)
