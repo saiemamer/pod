@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 import { joinPath } from '@/lib/path'
 import { useActiveWorktree } from '@/store/selectors'
 import type { DbtCatalogTree } from '../../../../shared/ae/dbt-graph-types'
+import type { DbtCatalogRun } from '../../../../shared/ae/dbt-types'
+import PodDbtCatalogStatus from './PodDbtCatalogStatus'
 import {
   defaultExpandedRows,
   flattenCatalogTree,
@@ -18,8 +20,9 @@ import { openPodDbtFile, openPodDbtLineageFor, type PodDbtOpenTarget } from './p
 import { podDbtErrorMessage } from './pod-dbt-run-target'
 
 /**
- * Pod: the Database tab of the right sidebar. Reads target/catalog.json of the dbt
- * project in the active worktree: database, schema, relation, column, with types.
+ * Pod: the Database tab of the right sidebar. Lists every relation in the manifest of
+ * the dbt project in the active worktree (database, schema, relation, column), with
+ * column types from target/catalog.json where the relation is built.
  */
 export default function PodDbtExplorerPanel(): React.JSX.Element {
   const worktree = useActiveWorktree()
@@ -27,6 +30,8 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
   const worktreeId = worktree?.id ?? null
   const [tree, setTree] = useState<DbtCatalogTree | null>(null)
   const [projectName, setProjectName] = useState<string>('')
+  const [target, setTarget] = useState<string | undefined>(undefined)
+  const [run, setRun] = useState<DbtCatalogRun | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
@@ -45,13 +50,27 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
     void (async () => {
       try {
         const project = await api.project({ path: worktreePath })
-        const next = await api.catalogTree({ path: worktreePath })
+        const [next, lastRun] = await Promise.all([
+          api.catalogTree({ path: worktreePath }),
+          api.catalogRun({ path: worktreePath })
+        ])
         if (cancelled) {
           return
         }
         setProjectName(project.project.name)
+        setTarget(project.target)
         setTree(next)
+        setRun(lastRun)
         setExpanded((current) => (current.size > 0 ? current : defaultExpandedRows(next)))
+        if (lastRun?.status === 'running') {
+          // Why wait in main: the run outlives this panel, which unmounts when the
+          // sidebar switches tabs; reopening picks up the same run.
+          const finished = await api.catalogRun({ path: worktreePath, wait: true })
+          if (!cancelled) {
+            setRun(finished)
+            setReloadKey((key) => key + 1)
+          }
+        }
       } catch (cause) {
         if (!cancelled) {
           setTree(null)
@@ -102,16 +121,18 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
     if (!api || !worktreePath) {
       return
     }
-    setLoading(true)
     setError(null)
+    setRun({ status: 'running', startedAt: Date.now(), commands: [] })
     try {
-      await api.ensureCatalog({ path: worktreePath, force: true })
+      const result = await api.ensureCatalog({ path: worktreePath, force: true })
+      setRun(result.run ?? null)
       setReloadKey((key) => key + 1)
     } catch (cause) {
+      setRun(null)
       setError(podDbtErrorMessage(cause))
-      setLoading(false)
     }
   }
+  const running = run?.status === 'running'
 
   const targetFor = (row: PodExplorerRow): PodDbtOpenTarget | null => {
     if (!row.relation?.path || !tree || !worktreeId) {
@@ -138,10 +159,10 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
               variant="ghost"
               size="icon-xs"
               aria-label={translate('pod.dbt.explorer.refresh', 'Refresh catalog')}
-              disabled={loading || !worktreePath}
+              disabled={loading || running || !worktreePath}
               onClick={() => void refreshCatalog()}
             >
-              {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {loading || running ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>
@@ -149,7 +170,16 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
           </TooltipContent>
         </Tooltip>
       </div>
-      {tree?.exists && (
+      {worktreePath && !error && tree && (
+        <PodDbtCatalogStatus
+          key={run ? `${run.startedAt}:${run.status}` : 'none'}
+          run={run}
+          catalogExists={tree.exists}
+          target={target}
+          onGenerate={() => void refreshCatalog()}
+        />
+      )}
+      {tree && tree.relationCount > 0 && (
         <div className="border-b border-border/60 px-2 py-1">
           <Input
             value={filter}
@@ -170,13 +200,6 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
           />
         )}
         {worktreePath && error && <Empty text={error} destructive />}
-        {worktreePath && !error && tree && !tree.exists && (
-          <Empty text={translate('pod.dbt.explorer.noCatalog', 'No catalog yet for this project.')}>
-            <Button type="button" variant="outline" size="xs" onClick={() => void refreshCatalog()}>
-              {translate('pod.dbt.explorer.generate', 'Generate catalog')}
-            </Button>
-          </Empty>
-        )}
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index]
@@ -216,19 +239,10 @@ export default function PodDbtExplorerPanel(): React.JSX.Element {
   )
 }
 
-function Empty({
-  text,
-  destructive,
-  children
-}: {
-  text: string
-  destructive?: boolean
-  children?: React.ReactNode
-}): React.JSX.Element {
+function Empty({ text, destructive }: { text: string; destructive?: boolean }): React.JSX.Element {
   return (
     <div className="flex flex-col items-start gap-2 px-3 py-2 text-xs">
       <span className={destructive ? 'text-destructive' : 'text-muted-foreground'}>{text}</span>
-      {children}
     </div>
   )
 }
@@ -245,6 +259,7 @@ function ExplorerRow({
   onLineage: () => void
 }): React.JSX.Element {
   const canOpen = row.kind === 'relation' && Boolean(row.relation?.path)
+  const notBuilt = row.kind === 'relation' && row.relation?.notBuilt === true
   return (
     <div
       className="group flex h-6 items-center gap-1 pr-2 text-xs animate-in fade-in-0 duration-150 hover:bg-accent hover:text-accent-foreground motion-reduce:animate-none"
@@ -274,13 +289,24 @@ function ExplorerRow({
         <span
           className={cn(
             'min-w-0 flex-1 truncate',
-            row.kind === 'column' && 'font-mono text-[11px]'
+            row.kind === 'column' && 'font-mono text-[11px]',
+            notBuilt && 'text-muted-foreground'
           )}
         >
           {row.label}
         </span>
-        {row.meta && (
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{row.meta}</span>
+        {notBuilt ? (
+          <span
+            className="shrink-0 text-[10px] text-muted-foreground"
+            title={translate('pod.dbt.explorer.notBuiltTitle', 'Not built under this target')}
+            data-testid="pod-dbt-explorer-not-built"
+          >
+            {translate('pod.dbt.explorer.notBuilt', 'not built')}
+          </span>
+        ) : (
+          row.meta && (
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{row.meta}</span>
+          )
         )}
       </button>
       {/* Why a fixed slot: every row reserves the action's width, so the right-hand

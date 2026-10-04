@@ -121,11 +121,48 @@ export type DbtCatalogRequest = DbtPathRequest & {
 
 export type DbtCatalogResult = {
   /** 'skipped' when parseOnLoad is off or the project was already refreshed this session. */
-  outcome: 'refreshed' | 'skipped' | 'running'
+  outcome: 'refreshed' | 'skipped' | 'running' | 'failed'
   commands: string[]
   durationMs: number
   manifest: DbtManifestSummary
   catalog: DbtCatalogSummary
+  /** The run this call started or found, absent when nothing ran this session. */
+  run?: DbtCatalogRun
+}
+
+/** A dataset or schema dbt could not read while writing the catalog. */
+export type DbtCatalogSkip = {
+  /** e.g. `proj:dataset`; absent when dbt's text names none. */
+  dataset?: string
+  message: string
+}
+
+/** Why a catalog run wrote no catalog, in plain words, with dbt's own text kept for details. */
+export type DbtCatalogFailure = {
+  /** Which step stopped and where, e.g. "Stopped at model orders (models/orders.sql)". */
+  title: string
+  /** What is missing or refused, from dbt's error line. */
+  reason?: string
+  /** What the person can do next. */
+  hint: string
+  /** dbt's output without Python warning lines. */
+  details: string
+}
+
+/** The last catalog run for a project, kept in main for the session. */
+export type DbtCatalogRun = {
+  status: 'running' | 'ok' | 'partial' | 'failed'
+  startedAt: number
+  durationMs?: number
+  commands: string[]
+  /** Set on 'partial': the catalog was written, these could not be read. */
+  skipped?: DbtCatalogSkip[]
+  failure?: DbtCatalogFailure
+}
+
+export type DbtCatalogRunRequest = DbtPathRequest & {
+  /** Resolve once an in-flight run ends instead of returning its running state. */
+  wait?: boolean
 }
 
 export type DbtResolveRefRequest = DbtPathRequest & {

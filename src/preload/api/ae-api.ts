@@ -22,6 +22,8 @@ import type {
 import type {
   DbtCatalogRequest,
   DbtCatalogResult,
+  DbtCatalogRun,
+  DbtCatalogRunRequest,
   DbtCompileRequest,
   DbtExportCsvRequest,
   DbtExportCsvResult,
@@ -98,6 +100,8 @@ export type AeApi = {
     modelInfo: (args: DbtModelRequest) => Promise<DbtModelInfo>
     lineage: (args: DbtLineageRequest) => Promise<DbtLineageResult>
     ensureCatalog: (args: DbtCatalogRequest) => Promise<DbtCatalogResult>
+    /** The last catalog run for the project this session, or null. */
+    catalogRun: (args: DbtCatalogRunRequest) => Promise<DbtCatalogRun | null>
     resolveRef: (args: DbtResolveRefRequest) => Promise<DbtResolveRefResult>
     exportCsv: (args: DbtExportCsvRequest) => Promise<DbtExportCsvResult>
     /** Lineage graph around a model, from manifest and catalog on disk. */

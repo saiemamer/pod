@@ -1,7 +1,12 @@
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { AeDbtService } from '../../ae/dbt/dbt-service'
-import { ensureDbtCatalog, exportDbtCsv, resolveDbtRefRequest } from '../../ae/dbt/dbt-artifact-ops'
+import {
+  dbtCatalogRunRequest,
+  ensureDbtCatalog,
+  exportDbtCsv,
+  resolveDbtRefRequest
+} from '../../ae/dbt/dbt-artifact-ops'
 import type { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
 import {
   dbtCatalogTreeRequest,
@@ -19,6 +24,7 @@ import type {
 } from '../../../shared/ae/dbt-lsp-types'
 import type {
   DbtCatalogRequest,
+  DbtCatalogRunRequest,
   DbtCompileRequest,
   DbtExportCsvRequest,
   DbtLineageRequest,
@@ -39,6 +45,7 @@ export const AE_DBT_IPC_CHANNELS = [
   'ae:dbt:modelInfo',
   'ae:dbt:lineage',
   'ae:dbt:ensureCatalog',
+  'ae:dbt:catalogRun',
   'ae:dbt:resolveRef',
   'ae:dbt:exportCsv',
   'ae:dbt:graph',
@@ -79,6 +86,9 @@ export function registerAeDbtHandlers(
   ipcMain.handle('ae:dbt:lineage', (_event, args: DbtLineageRequest) => service.lineage(args))
   ipcMain.handle('ae:dbt:ensureCatalog', (_event, args: DbtCatalogRequest) =>
     ensureDbtCatalog(service, args)
+  )
+  ipcMain.handle('ae:dbt:catalogRun', (_event, args: DbtCatalogRunRequest) =>
+    dbtCatalogRunRequest(service, args)
   )
   ipcMain.handle('ae:dbt:resolveRef', (_event, args: DbtResolveRefRequest) =>
     resolveDbtRefRequest(service, args)

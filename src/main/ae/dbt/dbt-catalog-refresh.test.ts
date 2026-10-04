@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  dbtCatalogCommands,
   DbtCatalogSessionLedger,
   parseDbtCatalogSummary,
   summarizeDbtCatalog
@@ -32,11 +31,6 @@ function project(): DbtProjectInfo {
 }
 
 describe('catalog refresh', () => {
-  it('runs parse then docs generate on Core and one compile on Fusion', () => {
-    expect(dbtCatalogCommands('core')).toEqual([['parse'], ['docs', 'generate']])
-    expect(dbtCatalogCommands('fusion')).toEqual([['compile', '--write-catalog']])
-  })
-
   it('summarizes catalog.json without keeping columns in memory', () => {
     const text = JSON.stringify({
       metadata: { generated_at: '2026-09-07T10:00:00Z' },
