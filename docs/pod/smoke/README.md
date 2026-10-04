@@ -14,6 +14,14 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-smoke.mjs
 
 The dev instance keeps its own data directory, so the installed Pod is untouched. Re-runs skip the import when a `pod-smoke` group with repos already exists and delete empty duplicates from earlier runs.
 
+## Group without a folder
+
+`ui-group-initiative-smoke.mjs` makes a group the way the project menu's "New group from project" does (a name only, no folder), moves `dbt-demo` into it, and opens Domain settings without pressing Detect: the role must read `dbt`. It then puts a file named `initiatives` in `~/Pod/pod-smoke-no-folder/`, opens New initiative, checks the dialog names the folder `~/Pod/pod-smoke-no-folder/initiatives/pod-smoke-test`, presses Start, and expects a plain error with no "Error invoking remote method" text and no initiative record. With the file gone, a second press must make exactly one initiative with its `INITIATIVE.md`. Claude opens with the prompt drafted, not sent. It removes the initiative's workspace, the domain, the group and `~/Pod/pod-smoke-no-folder` afterwards and moves `dbt-demo` back. On the code before the fix the role reads `other` and the start fails on `mkdir '/initiatives/pod-smoke-test'`. Three screenshots: `group-initiative-1-roles` to `group-initiative-3-started`.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-group-initiative-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
+```
+
 For the orchestration half (run-create, task-create, two-step dispatch, `check --wait`), build the CLI once with `pnpm build:cli` and use `out/bin/orca` with `--from <coordinator terminal handle>`; the steps and what they taught are in `docs/pod/PLAN.md` under "Phase 1 outcome".
 
 ## Test rules

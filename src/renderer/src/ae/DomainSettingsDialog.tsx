@@ -26,6 +26,7 @@ import { ALL_TUI_AGENTS, TUI_AGENT_DISPLAY_NAMES } from '../../../shared/tui-age
 import type { TuiAgent } from '../../../shared/tui-agent'
 import { DomainSecretsSection } from './DomainSecretsSection'
 import { revealPodFolderWorkspace } from './reveal-folder-workspace'
+import { useDetectedRepoRoles } from './use-detected-repo-roles'
 import {
   domainInputFromDraft,
   draftFromDomain,
@@ -55,6 +56,7 @@ export function DomainSettingsDialog({
     () => repos.filter((repo) => repo.projectGroupId === groupId),
     [repos, groupId]
   )
+  const detectedRoles = useDetectedRepoRoles(groupId)
   const [draft, setDraft] = useState<DomainSettingsDraft | null>(null)
   const [busy, setBusy] = useState<'save' | 'detect' | 'agent' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,9 +67,11 @@ export function DomainSettingsDialog({
     }
   }, [aeLoaded, fetchAeDomains])
 
-  // Why: the form seeds once the store has loaded domains; seeding earlier would show an empty domain for a second.
-  if (aeLoaded && draft === null) {
-    setDraft(draftFromDomain(domain, { label, repoIds: groupRepos.map((repo) => repo.id) }))
+  // Why: the form seeds once domains and detected roles are in; seeding earlier would show every repo as other.
+  if (aeLoaded && detectedRoles && draft === null) {
+    setDraft(
+      draftFromDomain(domain, { label, repoIds: groupRepos.map((repo) => repo.id), detectedRoles })
+    )
   }
 
   const patch = (changes: Partial<DomainSettingsDraft>): void => {

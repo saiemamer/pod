@@ -27,7 +27,7 @@ describe('domain settings form', () => {
     expect(parseTeamLines('Channels\n Channels \nDev-rel\n')).toEqual(['Channels', 'Dev-rel'])
   })
 
-  it('seeds every group repo, keeping saved roles and defaulting the rest to other', () => {
+  it('seeds every group repo: a hand-set role wins, an unsaved repo takes its detected role', () => {
     const domain: AeDomainConfig = {
       id: 'g1',
       name: 'MEX',
@@ -38,13 +38,24 @@ describe('domain settings form', () => {
       createdAt: 1,
       updatedAt: 1
     }
-    const draft = draftFromDomain(domain, { label: 'group', repoIds: ['r1', 'r2'] })
+    const detectedRoles = [
+      { repoId: 'r1', role: 'omni' as const },
+      { repoId: 'r2', role: 'dbt' as const }
+    ]
+    const draft = draftFromDomain(domain, {
+      label: 'group',
+      repoIds: ['r1', 'r2', 'r3'],
+      detectedRoles
+    })
     expect(draft.name).toBe('MEX')
     expect(draft.repos).toEqual([
       { repoId: 'r1', role: 'dbt' },
-      { repoId: 'r2', role: 'other' }
+      { repoId: 'r2', role: 'dbt' },
+      { repoId: 'r3', role: 'other' }
     ])
-    expect(draftFromDomain(null, { label: 'group', repoIds: [] }).name).toBe('group')
+    const fresh = draftFromDomain(null, { label: 'group', repoIds: ['r2'], detectedRoles })
+    expect(fresh.name).toBe('group')
+    expect(fresh.repos).toEqual([{ repoId: 'r2', role: 'dbt' }])
   })
 
   it('clears dbt defaults and the default agent when the fields are empty', () => {

@@ -52,10 +52,12 @@ function storeWith(domainEnv: Record<string, string>): Store {
     createdAt: 0,
     updatedAt: 0
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the omni and domain services call only these store methods.
   return {
     getSettings: () => ({ toolCmdOverrides: { omni: STUB } }),
     getAeDomains: () => ({ mex: domain }),
     getAeDomain: (id: string) => (id === 'mex' ? domain : null),
+    getRepos: () => [],
     getRepo: () => null
   } as unknown as Store
 }

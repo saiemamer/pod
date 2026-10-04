@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import { isAbsolute, join, parse, relative } from 'node:path'
 import type { Store } from '../persistence'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import type { Repo } from '../../shared/repo-types'
+import type { ProjectGroup } from '../../shared/project-group-types'
 import type {
   AeDomainConfig,
   AeDomainRepo,
@@ -42,11 +45,31 @@ export class AeDomainService {
   }
 
   listDomains(): AeDomainConfig[] {
-    return Object.values(this.store.getAeDomains()).sort((a, b) => a.name.localeCompare(b.name))
+    return Object.values(this.store.getAeDomains())
+      .map((domain) => this.withJoinedRepoRoles(domain))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
   getDomain(domainId: string): AeDomainConfig | null {
-    return this.store.getAeDomain(domainId)
+    const domain = this.store.getAeDomain(domainId)
+    return domain ? this.withJoinedRepoRoles(domain) : null
+  }
+
+  /** Why: the role list is saved with the domain, so a repo that joins the group later reads its detected role until a save records one. */
+  private withJoinedRepoRoles(domain: AeDomainConfig): AeDomainConfig {
+    const joined = this.reposInGroup(domain.id).filter(
+      (repo) => !domain.repos.some((entry) => entry.repoId === repo.id)
+    )
+    if (joined.length === 0) {
+      return domain
+    }
+    return {
+      ...domain,
+      repos: [
+        ...domain.repos,
+        ...joined.map((repo) => ({ repoId: repo.id, role: detectAeRepoRole(repo.path) }))
+      ]
+    }
   }
 
   /** Why the group check: a domain is a project group plus Pod data, never a free-floating record. */
@@ -101,9 +124,25 @@ export class AeDomainService {
         return { domain, role: entry.role }
       }
     }
-    const repo = this.store.getRepo(repoId)
-    const domain = repo?.projectGroupId ? this.store.getAeDomain(repo.projectGroupId) : null
-    return domain ? { domain, role: 'other' } : null
+    return null
+  }
+
+  /** Where "Start initiative" makes the folder for this title; the New initiative dialog shows it before the start. */
+  initiativeFolderPath(groupId: string, title: string): string {
+    return join(this.domainFolder(groupId), 'initiatives', aeInitiativeSlug(title))
+  }
+
+  /**
+   * The group's folder when it has a usable one, else Pod's own `~/Pod/<group name>`. A group
+   * made with "New group from project" has no folder, and a folder at the disk root or inside a
+   * repo would put initiative notes where they do not belong.
+   */
+  domainFolder(groupId: string): string {
+    const group = this.store.getProjectGroups().find((entry) => entry.id === groupId)
+    if (!group) {
+      throw new Error(`Project group "${groupId}" not found`)
+    }
+    return usableGroupFolder(group, this.store.getRepos()) ?? podDefaultGroupFolder(group)
   }
 
   setSecret(domainId: string, name: string, value: string): void {
@@ -172,9 +211,10 @@ export class AeDomainService {
       ? this.store.getAeInitiatives().find((entry) => entry.id === input.id)
       : undefined
     const slug = input.slug ?? existing?.slug ?? aeInitiativeSlug(input.title)
-    const group = this.store.getProjectGroups().find((entry) => entry.id === domain.id)
     const folderPath =
-      input.folderPath ?? existing?.folderPath ?? `${group?.parentPath ?? ''}/initiatives/${slug}`
+      input.folderPath ??
+      existing?.folderPath ??
+      join(this.domainFolder(domain.id), 'initiatives', slug)
     const now = Date.now()
     const saved = this.store.saveAeInitiative({
       id: existing?.id ?? input.id ?? randomUUID(),
@@ -211,6 +251,22 @@ export class AeDomainService {
   get runtimeService(): OrcaRuntimeService {
     return this.runtime
   }
+}
+
+function usableGroupFolder(group: ProjectGroup, repos: Repo[]): string | null {
+  const folder = group.parentPath
+  if (!folder || !isAbsolute(folder) || parse(folder).root === folder) {
+    return null
+  }
+  const insideRepo = repos.some((repo) => {
+    const path = relative(repo.path, folder)
+    return path === '' || (!path.startsWith('..') && !isAbsolute(path))
+  })
+  return insideRepo ? null : folder
+}
+
+function podDefaultGroupFolder(group: ProjectGroup): string {
+  return join(homedir(), 'Pod', aeInitiativeSlug(group.name))
 }
 
 let installed: AeDomainService | null = null
