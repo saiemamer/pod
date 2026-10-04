@@ -12,6 +12,7 @@ import type {
   OmniValidateResult
 } from '../../../../shared/ae/omni-types'
 import { podDbtErrorMessage } from '../dbt/pod-dbt-run-target'
+import { OmniErrorNote } from './OmniErrorNote'
 import { OmniTopicBrowser } from './OmniTopicBrowser'
 import { useOmniPanel } from './use-omni-panel'
 
@@ -57,7 +58,7 @@ export default function OmniPanel(): React.JSX.Element {
         {!worktreePath && (
           <Note text={translate('pod.omni.noWorktree', 'Open a worktree of an Omni repo.')} />
         )}
-        {error && <Note text={error} destructive />}
+        {error && <OmniErrorNote text={error} />}
         {worktreePath && context && !context.binary && (
           <Note
             text={translate(
@@ -262,7 +263,7 @@ function OmniModelPicker({
                 'This repo is in no domain. Export OMNI_MODEL_ID, or add the repo to a domain to choose here.'
               )}
       </p>
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {error && <OmniErrorNote text={error} />}
       {context.binary && !result && !error && (
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />

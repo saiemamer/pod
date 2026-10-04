@@ -1,10 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { AeSetupDetection, AeSetupItem, AeOmniSignIn } from '../../../shared/ae/setup-types'
 import { findDbtProjectFile, readDbtProject } from '../dbt/dbt-project-discovery'
 import { DBT_PROFILES_FILE, findDbtProfilesDir } from '../dbt/dbt-profiles-search'
 import { detectAeRepoRole } from '../domain-repo-role'
+import { readOmniCliProfile } from '../omni/omni-cli-sign-in'
 import {
   probeDbt,
   probeOmni,
@@ -65,19 +66,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Where the Omni CLI keeps its profiles (`omni config init`), per its README. */
-function omniCliConfigPaths(env: NodeJS.ProcessEnv, home: string | null): string[] {
-  const roots = [env.XDG_CONFIG_HOME?.trim(), home ? join(home, '.config') : undefined]
-  return roots
-    .filter((root): root is string => Boolean(root))
-    .map((root) => join(root, 'omni-cli', 'config.json'))
-}
-
 function omniSignIn(env: NodeJS.ProcessEnv, home: string | null): AeOmniSignIn {
   if (env.OMNI_API_TOKEN?.trim() || env.OMNI_API_KEY?.trim()) {
     return 'token-env'
   }
-  return omniCliConfigPaths(env, home).some((path) => existsSync(path)) ? 'cli-profile' : 'none'
+  // Why not the file alone: a config with no default profile or no token fails every call.
+  return readOmniCliProfile(env, home)?.signedIn ? 'cli-profile' : 'none'
 }
 
 export async function detectAeSetup(
@@ -277,14 +271,14 @@ function omniSignInItem(d: Omit<AeSetupDetection, 'items'>): AeSetupItem {
       key: 'omniSignIn',
       label: 'Omni sign-in',
       status: 'found',
-      value: 'Omni CLI profile (omni config init)',
-      hint: `Pod lets the CLI use its own profile; no API key needed.${baseUrl}`
+      value: 'Omni CLI profile (omni config init or omni config login)',
+      hint: `Pod lets the CLI use its own signed-in profile; no API key needed.${baseUrl}`
     }
   }
   return {
     key: 'omniSignIn',
     label: 'Omni sign-in',
     status: 'missing',
-    hint: `No Omni CLI profile and no OMNI_API_TOKEN. Run \`omni config init\` in a terminal, or add OMNI_API_KEY under Secrets in Domain settings.${baseUrl}`
+    hint: `The Omni CLI has no signed-in profile in ~/.config/omni-cli/config.json and no OMNI_API_TOKEN is set. Run \`omni config init\` in a terminal (an API key or a browser sign-in), or add OMNI_API_KEY under Secrets in Domain settings.${baseUrl}`
   }
 }

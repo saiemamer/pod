@@ -173,7 +173,29 @@ describe('AeOmniService', () => {
     const topic = await service.topic({ path: repo, topic: 'tickets' })
     expect(topic.views.map((view) => view.name)).toEqual(['tickets', 'customers'])
     await expect(service.topic({ path: repo, topic: 'missing' })).rejects.toThrow(
-      'Omni API 404: Topic missing not found'
+      'Omni answered HTTP 404: Topic missing not found.'
+    )
+  })
+
+  it('sends only flags the CLI has, so the stand-in that rejects unknown ones answers every call', async () => {
+    const service = makeService()
+    await service.models({ path: repo })
+    await service.branch({ path: repo, create: true })
+    await service.validate({ path: repo })
+    await service.topics({ path: repo })
+    expect(calls()).toContain(
+      `models list --pagesize 100 --modelid ${MODEL} --include activeBranches`
+    )
+    expect(calls()).toContain(`models validate ${MODEL} --branchid `)
+    expect(calls()).toContain('models list --pagesize 100 --cursor page-2')
+  })
+
+  it('reports a CLI with no sign-in in plain words', async () => {
+    const service = makeService({
+      domainEnv: { OMNI_MODEL_ID: MODEL, OMNI_API_KEY: '' }
+    })
+    await expect(service.validate({ path: repo })).rejects.toThrow(
+      /the Omni CLI is not signed in[\s\S]*Details from omni:\n\$ omni-stub\.sh models list/
     )
   })
 
