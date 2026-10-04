@@ -1,6 +1,7 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { PreloadApi } from '../api-types'
 import type { DbtLspEvent } from '../../shared/ae/dbt-lsp-types'
+import type { DbtPrepareState } from '../../shared/ae/dbt-readiness-types'
 
 export const aeApi = {
   domains: {
@@ -35,6 +36,14 @@ export const aeApi = {
     columnLineage: (args) => ipcRenderer.invoke('ae:dbt:columnLineage', args),
     catalogTree: (args) => ipcRenderer.invoke('ae:dbt:catalogTree', args),
     lineageEngine: (args) => ipcRenderer.invoke('ae:dbt:lineageEngine', args),
+    readiness: (args) => ipcRenderer.invoke('ae:dbt:readiness', args),
+    prepare: (args) => ipcRenderer.invoke('ae:dbt:prepare', args),
+    onPrepareEvent: (callback: (state: DbtPrepareState) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: DbtPrepareState): void =>
+        callback(payload)
+      ipcRenderer.on('ae:dbt:prepare:event', listener)
+      return () => ipcRenderer.removeListener('ae:dbt:prepare:event', listener)
+    },
     lsp: {
       status: (args) => ipcRenderer.invoke('ae:dbt:lsp:status', args),
       open: (args) => ipcRenderer.invoke('ae:dbt:lsp:open', args),

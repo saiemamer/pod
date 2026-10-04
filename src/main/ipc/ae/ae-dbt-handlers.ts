@@ -8,6 +8,7 @@ import {
   resolveDbtRefRequest
 } from '../../ae/dbt/dbt-artifact-ops'
 import type { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
+import type { DbtCopyPreparer } from '../../ae/dbt/dbt-copy-prepare'
 import {
   dbtCatalogTreeRequest,
   dbtColumnLineageRequest,
@@ -52,6 +53,8 @@ export const AE_DBT_IPC_CHANNELS = [
   'ae:dbt:columnLineage',
   'ae:dbt:catalogTree',
   'ae:dbt:lineageEngine',
+  'ae:dbt:readiness',
+  'ae:dbt:prepare',
   'ae:dbt:lsp:status',
   'ae:dbt:lsp:open',
   'ae:dbt:lsp:change',
@@ -64,12 +67,15 @@ export const AE_DBT_IPC_CHANNELS = [
 
 /** Renderer-bound push channel for diagnostics and server status. */
 export const AE_DBT_LSP_EVENT_CHANNEL = 'ae:dbt:lsp:event'
+/** Renderer-bound push channel for a copy's preparation progress. */
+export const AE_DBT_PREPARE_EVENT_CHANNEL = 'ae:dbt:prepare:event'
 
 /** Pod: dbt operations for the editor. Errors carry dbt's own message, so the renderer shows it as is. */
 export function registerAeDbtHandlers(
   service: AeDbtService,
   lsp: DbtLspService,
   lineage: DbtLineageServices,
+  preparer: DbtCopyPreparer,
   _mainWindow: BrowserWindow
 ): void {
   for (const channel of AE_DBT_IPC_CHANNELS) {
@@ -108,6 +114,8 @@ export function registerAeDbtHandlers(
   ipcMain.handle('ae:dbt:lineageEngine', (_event, args: DbtPathRequest) =>
     dbtLineageEngineRequest(service, lineage, args)
   )
+  ipcMain.handle('ae:dbt:readiness', (_event, args: DbtPathRequest) => preparer.readiness(args))
+  ipcMain.handle('ae:dbt:prepare', (_event, args: DbtPathRequest) => preparer.prepare(args))
   ipcMain.handle('ae:dbt:lsp:status', (_event, args: DbtLspDocumentRequest) => lsp.status(args))
   ipcMain.handle('ae:dbt:lsp:open', (_event, args: DbtLspOpenRequest) => lsp.open(args))
   ipcMain.handle('ae:dbt:lsp:change', (_event, args: DbtLspChangeRequest) => lsp.change(args))

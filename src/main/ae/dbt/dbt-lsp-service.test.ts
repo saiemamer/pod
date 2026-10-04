@@ -31,6 +31,7 @@ afterEach(() => {
 })
 
 function fakeDbt(overrides: Partial<DbtContext> = {}): AeDbtService {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the language-server service calls only resolve().
   return {
     resolve: async (request: { path: string }) => {
       if (!request.path.startsWith(project)) {
@@ -46,12 +47,14 @@ function fakeDbt(overrides: Partial<DbtContext> = {}): AeDbtService {
           targetPath: 'target'
         },
         repoRoot: join(root, 'repo'),
+        primaryRoot: null,
         worktree: null,
         domainId: null,
         binary: null,
         profiles: { source: 'dbt' },
         envFiles: [],
         env: { PATH: '/nonexistent' },
+        secretValues: [],
         settings: { ...DEFAULT_AE_DBT_SETTINGS },
         toolOverrides: { dbtLsp: wrapper },
         ...overrides

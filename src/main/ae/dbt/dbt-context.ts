@@ -17,6 +17,7 @@ import type {
 import { discoverDbtProject, type DbtProjectInfo } from './dbt-project-discovery'
 import { findDbtProfilesDir, type DbtProfilesLocation } from './dbt-profiles-search'
 import { loadDbtEnvFiles } from './dbt-env-file'
+import { findPrimaryCheckout } from './dbt-copy-readiness'
 import { resolveDbtBinary, type DbtBinary } from './dbt-runner'
 import { dbtManifestPath, loadDbtManifest } from './dbt-manifest'
 import { summarizeDbtCatalog } from './dbt-catalog-refresh'
@@ -29,6 +30,8 @@ import { summarizeDbtCatalog } from './dbt-catalog-refresh'
 export type DbtContext = {
   project: DbtProjectInfo
   repoRoot: string | null
+  /** Main checkout when repoRoot is a linked worktree of it. */
+  primaryRoot: string | null
   worktree: { id: string; repoId: string; path: string } | null
   domainId: string | null
   binary: DbtBinary | null
@@ -37,6 +40,8 @@ export type DbtContext = {
   envFiles: string[]
   /** The child environment. Stays in the main process. */
   env: NodeJS.ProcessEnv
+  /** Values from env files and secrets, to mask in any dbt text shown to a person. */
+  secretValues: string[]
   settings: AeDbtSettings
   toolOverrides: AeToolCmdOverrides
 }
@@ -77,13 +82,15 @@ export async function resolveDbtContext(
   if (!project) {
     throw new DbtProjectNotFoundError(path)
   }
+  const primaryRoot = repoRoot ? findPrimaryCheckout(repoRoot) : null
   const files = loadDbtEnvFiles({
     projectDir: project.projectDir,
     repoRoot,
+    primaryRoot,
     envFile: settings.envFile
   })
-  const domainEnv =
-    domain && deps.domains ? { ...domain.env, ...deps.domains.readSecrets(domain.id) } : {}
+  const secrets = domain && deps.domains ? deps.domains.readSecrets(domain.id) : {}
+  const domainEnv = domain ? { ...domain.env, ...secrets } : {}
   // Why this order: env files are the project's defaults, the real environment beats
   // them, and what someone typed into Pod (domain env, secrets, dbt settings) beats both.
   const env: NodeJS.ProcessEnv = {
@@ -96,6 +103,7 @@ export async function resolveDbtContext(
   return {
     project,
     repoRoot,
+    primaryRoot,
     worktree,
     domainId: domain?.id ?? null,
     binary: resolveDbtBinary(overrides.dbt, env),
@@ -108,6 +116,7 @@ export async function resolveDbtContext(
     }),
     envFiles: files.files,
     env,
+    secretValues: [...Object.values(files.values), ...Object.values(secrets)],
     settings,
     toolOverrides: overrides
   }

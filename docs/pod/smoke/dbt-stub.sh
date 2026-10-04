@@ -21,6 +21,16 @@ wide_node() {
   done
   printf '}}'
 }
+# A project that lists packages needs them installed before parse, as dbt Core does;
+# deps "installs" one (the fresh-copy smoke).
+case " $* " in
+  *" deps "*) mkdir -p dbt_packages/dbt_utils; exit 0 ;;
+  *" parse "*)
+    if [ -f packages.yml ] && [ ! -d dbt_packages/dbt_utils ]; then
+      echo "Compilation Error: 1 package(s) specified in packages.yml, but only 0 package(s) installed in dbt_packages. Run \"dbt deps\" to install package dependencies."
+      exit 1
+    fi ;;
+esac
 # Performance runs point POD_STUB_MANIFEST and POD_STUB_CATALOG at a generated fixture
 # (docs/pod/smoke/perf-fixture.mjs); the manifest below is the default.
 if [ -n "$POD_STUB_MANIFEST" ]; then

@@ -12,7 +12,12 @@ import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-lau
 import { installAeDbtService } from '../../ae/dbt/dbt-service'
 import { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
 import { installDbtLineageServices } from '../../ae/dbt/dbt-lineage-ops'
-import { AE_DBT_LSP_EVENT_CHANNEL, registerAeDbtHandlers } from './ae-dbt-handlers'
+import { installDbtCopyPreparer } from '../../ae/dbt/dbt-copy-prepare'
+import {
+  AE_DBT_LSP_EVENT_CHANNEL,
+  AE_DBT_PREPARE_EVENT_CHANNEL,
+  registerAeDbtHandlers
+} from './ae-dbt-handlers'
 import { installAeOmniService } from '../../ae/omni/omni-service'
 import { registerAeOmniHandlers } from './ae-omni-handlers'
 import { registerAeMcpHandlers } from './ae-mcp-handlers'
@@ -56,7 +61,16 @@ export function registerAeDomainHandlers(
   })
   // Why: a language server left behind keeps a dbt project's files open after Pod quits.
   getAppEnvironment().onWillQuit(() => void lsp.stopAll())
-  registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), mainWindow)
+  const preparer = installDbtCopyPreparer({
+    dbt,
+    restartLsp: (projectDir) => lsp.restart({ path: projectDir }),
+    emit: (state) => {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(AE_DBT_PREPARE_EVENT_CHANNEL, state)
+      }
+    }
+  })
+  registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), preparer, mainWindow)
   registerAeOmniHandlers(installAeOmniService({ store, runtime, domains: service }))
   registerAeMcpHandlers(store)
   registerAeSetupHandlers(mainWindow, store, service)

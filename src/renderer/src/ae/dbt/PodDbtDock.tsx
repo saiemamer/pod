@@ -16,6 +16,7 @@ import {
   type PodDbtResultState
 } from '@/store/slices/ae-dbt-results'
 import { PodDbtConnectionView } from './PodDbtConnectionView'
+import { PodDbtReadinessNotice } from './PodDbtReadinessNotice'
 import { PodDbtResultsGrid } from './PodDbtResultsGrid'
 import { ensurePodDbtLanguageClient } from './dbt-lsp-client'
 import { startPodDbtRun } from './pod-dbt-run'
@@ -27,6 +28,8 @@ import { POD_DBT_DOCK_VIEWS, usePodDbtDockMotion } from './use-pod-dbt-dock-moti
 const PodDbtLineageView = lazy(() => import('@/ae/lineage/PodDbtLineageView'))
 /** Header row plus the top border. */
 const POD_DBT_DOCK_COLLAPSED_HEIGHT = 33
+// Why: a failed run is not retried for the person once the copy is ready; they rerun it.
+const noop = (): void => undefined
 
 type PodDbtDockProps = {
   activeFile: { id: string; filePath: string; language: string }
@@ -174,9 +177,13 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
     }
     if (state.status === 'error' && state.error) {
       return (
-        <pre className="h-full overflow-auto scrollbar-editor whitespace-pre-wrap p-3 font-mono text-xs text-destructive">
-          {state.error}
-        </pre>
+        <div className="flex h-full items-start justify-center overflow-auto scrollbar-editor">
+          <PodDbtReadinessNotice filePath={activeFile.filePath} onReady={noop}>
+            <pre className="h-full w-full whitespace-pre-wrap p-3 font-mono text-xs text-destructive">
+              {state.error}
+            </pre>
+          </PodDbtReadinessNotice>
+        </div>
       )
     }
     if (bodyView === 'compiled') {
