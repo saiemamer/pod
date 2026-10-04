@@ -1,26 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import upstreamConfig from './vitest.config'
-
-// Why: these need a live shell, node-pty, or a real Chrome; upstream's unit-tests.yml
-// excludes the same files on its runners.
-const UPSTREAM_CI_EXCLUDES = [
-  'src/main/daemon/repro-13767-shell-ready-marker-lost-to-exec.test.ts',
-  'src/main/daemon/shell-ready.test.ts',
-  'src/main/daemon/node-pty-fd-leak.test.ts',
-  'src/main/providers/local-pty-shell-ready-zsh-launch-environment.test.ts',
-  'src/main/providers/__tests__/shell-ready-framework-example.test.ts',
-  'src/main/pty/omp-shell-wrapper.node-pty.test.ts',
-  'src/main/shell-startup-feature-channel.test.ts',
-  'src/main/terminal-history-fish-session.node-pty.test.ts',
-  'src/main/zsh-scoped-histfile.live-shell.test.ts',
-  'src/main/zsh-startup-hook-user-config-equivalence.live-shell.test.ts',
-  'src/main/zsh-wrapper-version-mismatch.live-shell.test.ts',
-  'src/renderer/src/components/terminal-pane/fish-color-scheme-child-stdin.node-pty.test.ts',
-  'src/shared/fish-query-reply-child-stdin.node-pty.test.ts',
-  'src/shared/pty-reply-echo-shapes.node-pty.test.ts',
-  'src/shared/startup-shell-portability.live-shell.test.ts',
-  'src/shared/posix-command-path-lookup.test.ts'
-]
+// Why: upstream applies this list only on its balanced CI shards; it holds the tests that need
+// a live shell, node-pty, or a real Chrome.
+import { UNIT_EXCLUDE } from './scripts/ci-unit-files.mjs'
 
 // Why: these assert Orca's own bundle id, release repository, or feed URLs, which Pod
 // replaces through src/shared/brand.ts, or the exact version line, which Pod suffixes with
@@ -64,9 +46,10 @@ export default defineConfig({
   test: {
     ...upstreamConfig.test,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // Why: upstream's CI jobs set it, and the browser-manager tests assert it before each case.
+    env: { ...upstreamConfig.test?.env, ORCA_BACKGROUND_LAUNCH: '1' },
     exclude: [
-      ...(upstreamConfig.test?.exclude ?? []),
-      ...UPSTREAM_CI_EXCLUDES,
+      ...UNIT_EXCLUDE,
       ...POD_IDENTITY_TEST_EXCLUDES,
       ...POD_MOVED_WORKFLOW_TEST_EXCLUDES,
       ...UPSTREAM_RED_AT_BASE_TAG_EXCLUDES
