@@ -9,6 +9,8 @@ export const POD_APP_ID = 'io.github.saiemamer.pod'
 /** Packaged Pod's data folder under appData; Orca's is `orca`, so both apps fit on one Mac. */
 export const POD_USER_DATA_DIR_NAME = 'Pod'
 export const POD_RELEASE_REPO = 'saiemamer/pod'
+/** Settings > Shell command and the cask link this name; `orca` stays stock Orca's. */
+export const POD_SHELL_COMMAND_NAME = 'pod'
 export const POD_RELEASES_URL = `https://github.com/${POD_RELEASE_REPO}/releases`
 export const POD_HOMEBREW_TAP = 'saiemamer/pod'
 /** The upstream Orca tag Pod is currently rebased onto. Shown next to the Pod version. */

@@ -11,6 +11,8 @@
  * unsets it before the user's own config (or anything it spawns) can see it.
  */
 
+import { BUNDLED_CLI_BIN_DIR_ENV } from './pod/pod-cli-path-restore'
+
 export const SHELL_STARTUP_FEATURE_ENV = 'ORCA_SHELL_FEATURES'
 
 export const SHELL_STARTUP_FEATURES = [
@@ -31,7 +33,8 @@ const OVERLAY_ENV_KEYS = [
   'ORCA_OMP_STATUS_EXTENSION',
   'ORCA_CODEX_HOME',
   'ORCA_AGENT_TEAMS_SHIM_DIR',
-  'ORCA_REMOTE_CLI_BIN_DIR'
+  'ORCA_REMOTE_CLI_BIN_DIR',
+  BUNDLED_CLI_BIN_DIR_ENV
 ] as const
 
 export type ShellStartupFeatureInput = {

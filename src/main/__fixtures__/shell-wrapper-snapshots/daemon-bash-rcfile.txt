@@ -30,6 +30,13 @@ __orca_restore_agent_teams_path() {
   export PATH="${ORCA_AGENT_TEAMS_SHIM_DIR}:$PATH"
 }
 __orca_restore_agent_teams_path
+# Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
+if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
+  case "$PATH" in
+    "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
+    *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
+  esac
+fi
 # Why: user startup files may set the default OpenCode config after Orca's
 # spawn env; restore the Orca-managed config dir before the first prompt.
 [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"

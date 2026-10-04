@@ -19,6 +19,7 @@ import { resolvePathEnvKey } from '../pty/windows-environment-path'
 import { ensureLinuxTerminalOrcaCliShimDir } from './linux-terminal-orca-cli-shim'
 import { getBundledLauncherPath } from './bundled-cli-launcher-path'
 import { DEV_COMMAND_NAME } from './cli-install-constants'
+import { BUNDLED_CLI_BIN_DIR_ENV } from '../pod/pod-cli-path-restore'
 
 export type OrcaCliChildPathOptions = {
   isPackaged: boolean
@@ -42,6 +43,8 @@ export function prependOrcaCliDirToChildPath(
   // Why: matches node:path's `delimiter` for the running platform, but stays correct when a test
   // drives a foreign platform through the seam.
   const pathDelimiter = platform === 'win32' ? ';' : delimiter
+  // Why: an inherited value names another launch's CLI.
+  delete env[BUNDLED_CLI_BIN_DIR_ENV]
   // Why: dev mode needs the launcher PATH override so `orca` resolves to the dev build instead of the production binary at /usr/local/bin/orca.
   if (!opts.isPackaged) {
     const devCliBin = join(opts.userDataPath, 'cli', 'bin')
@@ -68,6 +71,10 @@ export function prependOrcaCliDirToChildPath(
     env[resolvePathEnvKey(env, platform)] = inheritedPath
       ? `${bundledCliBin}${pathDelimiter}${inheritedPath}`
       : bundledCliBin
+    if (platform === 'darwin') {
+      // Why: the shell wrappers re-prepend it after a login shell's path_helper reorders PATH.
+      env[BUNDLED_CLI_BIN_DIR_ENV] = bundledCliBin
+    }
     // Why the native launcher on Windows: `orca.cmd` refuses message bodies cmd.exe would mangle.
     return getBundledLauncherPath(platform, opts.resourcesPath)
   }

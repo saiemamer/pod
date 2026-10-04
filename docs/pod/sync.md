@@ -68,6 +68,8 @@ Fetch only the two tags, as above. Never push upstream tags to saiemamer/pod: `p
 
 At a stop the script hands over, find the file in `FORK_TOUCHPOINTS.md`, take upstream's version of the lines around the touch, and re-apply Pod's touch as the register describes it.
 
+The shell wrapper snapshots in `src/main/__fixtures__/shell-wrapper-snapshots/` are generated, so never merge them by hand: take upstream's files, finish the wrapper source files, run `pnpm test:pod src/main/shell-wrapper-generated-file-snapshot.test.ts -u`, and check that `git diff` against upstream's files shows only Pod's PATH restore block (`src/main/pod/pod-cli-path-restore.ts`).
+
 When the script has finished:
 
 1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and the RPC params catalog (`pnpm run generate:rpc-params-catalog`), and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.

@@ -1,0 +1,385 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Saiem Amer <saiem.amer07@gmail.com>
+Date: Sun, 4 Oct 2026 19:30:00 +0100
+Subject: [PATCH] fix(terminal): keep the app's own orca first on PATH after
+ login startup files
+
+Orca prepends its bundled `Contents/Resources/bin` to the PATH of every
+terminal it opens, so agents reach this app's CLI as bare `orca`. Terminals
+start as login shells, though, and on macOS `/etc/zprofile` runs path_helper,
+which moves the `/etc/paths` entries (starting with `/usr/local/bin`) back in
+front. When `/usr/local/bin/orca` belongs to another install (an RC beside
+stable, an older copy left behind, a fork), `orca` in an Orca terminal runs
+that CLI instead, and `orca orchestration ...` talks to the wrong app or fails
+on a command it does not have. orca-cli-child-path.ts already noted the
+reorder but nothing undid it.
+
+Name the bundled folder in the PTY env as ORCA_BUNDLED_CLI_BIN_DIR on packaged
+macOS, count it as an overlay key so the pane is wrapped, and re-prepend it
+from the zsh deferred hook and both bash rcfiles after the user's startup
+files have run. The block does nothing unless the folder holds an executable
+`orca`, so the relay and SSH copies of the wrapper are inert. Each pane with
+the variable is now wrapped, which also gives it the OSC 133 markers and the
+zsh history handling that panes with a Codex home already get.
+
+The new test runs real zsh and bash for the local and daemon wrappers, with
+a `.zprofile` / `.bash_profile` that puts a stand-in `orca` first; it fails
+without either the restore block or the overlay key.
+---
+ .../shell-wrapper-snapshots/daemon-bash-rcfile.txt |    7 +
+ .../shell-wrapper-snapshots/daemon-zsh-zshenv.txt  |    7 +
+ .../shell-wrapper-snapshots/local-bash-rcfile.txt  |    7 +
+ .../shell-wrapper-snapshots/local-zsh-zshenv.txt   |    7 +
+ .../shell-wrapper-snapshots/relay-zsh-zshenv.txt   |    7 +
+ src/main/bundled-cli-path-restore.test.ts          |  103 ++++++++++++++++++++
+ src/main/bundled-cli-path-restore.ts               |   21 ++++
+ src/main/cli/orca-cli-child-path.ts                |    7 +
+ src/main/daemon/daemon-bash-shell-ready-rcfile.ts  |    2 
+ .../providers/local-pty-shell-ready-bash-rcfile.ts |    2 
+ src/main/shell-startup-features.ts                 |    5 +
+ src/main/zsh-startup-wrapper-builder.ts            |    2 
+ 12 files changed, 176 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/__fixtures__/shell-wrapper-snapshots/daemon-bash-rcfile.txt b/src/main/__fixtures__/shell-wrapper-snapshots/daemon-bash-rcfile.txt
+index bfbd9b4..c47f264 100644
+--- a/src/main/__fixtures__/shell-wrapper-snapshots/daemon-bash-rcfile.txt
++++ b/src/main/__fixtures__/shell-wrapper-snapshots/daemon-bash-rcfile.txt
+@@ -30,6 +30,13 @@ __orca_restore_agent_teams_path() {
+   export PATH="${ORCA_AGENT_TEAMS_SHIM_DIR}:$PATH"
+ }
+ __orca_restore_agent_teams_path
++# Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
++if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++  case "$PATH" in
++    "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++    *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
++  esac
++fi
+ # Why: user startup files may set the default OpenCode config after Orca's
+ # spawn env; restore the Orca-managed config dir before the first prompt.
+ [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"
+diff --git a/src/main/__fixtures__/shell-wrapper-snapshots/daemon-zsh-zshenv.txt b/src/main/__fixtures__/shell-wrapper-snapshots/daemon-zsh-zshenv.txt
+index 12d37e0..3fa0b8a 100644
+--- a/src/main/__fixtures__/shell-wrapper-snapshots/daemon-zsh-zshenv.txt
++++ b/src/main/__fixtures__/shell-wrapper-snapshots/daemon-zsh-zshenv.txt
+@@ -72,6 +72,13 @@ __orca_deferred_init() {
+     __orca_restore_agent_teams_path
+     [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"
+     [[ -n "${ORCA_MIMOCODE_HOME:-}" ]] && export MIMOCODE_HOME="${ORCA_MIMOCODE_HOME}"
++    # Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
++    if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++      case "$PATH" in
++        "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++        *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
++      esac
++    fi
+     # Why: OMP does not auto-load Orca's managed status extension; wrap only
+     # interactive launch invocations so subcommands such as `omp config` keep
+     # their normal argv shape.
+diff --git a/src/main/__fixtures__/shell-wrapper-snapshots/local-bash-rcfile.txt b/src/main/__fixtures__/shell-wrapper-snapshots/local-bash-rcfile.txt
+index d947f95..23a5dd8 100644
+--- a/src/main/__fixtures__/shell-wrapper-snapshots/local-bash-rcfile.txt
++++ b/src/main/__fixtures__/shell-wrapper-snapshots/local-bash-rcfile.txt
+@@ -40,6 +40,13 @@ if [ -n "${ORCA_WSL_CLI_DIR:-}" ]; then
+     printf 'Orca CLI unavailable: cannot run %s. Check WSL Windows-drive mount options.\n' "$ORCA_WSL_CLI_DIR/${ORCA_CLI_COMMAND:-}" >&2
+   fi
+ fi
++# Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
++if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++  case "$PATH" in
++    "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++    *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
++  esac
++fi
+ # Why: user startup files may set the default OpenCode config after Orca's
+ # spawn env; restore the Orca-managed config dir before the first prompt.
+ [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"
+diff --git a/src/main/__fixtures__/shell-wrapper-snapshots/local-zsh-zshenv.txt b/src/main/__fixtures__/shell-wrapper-snapshots/local-zsh-zshenv.txt
+index 93fb79a..4f4b628 100644
+--- a/src/main/__fixtures__/shell-wrapper-snapshots/local-zsh-zshenv.txt
++++ b/src/main/__fixtures__/shell-wrapper-snapshots/local-zsh-zshenv.txt
+@@ -79,6 +79,13 @@ __orca_deferred_init() {
+     __orca_restore_agent_teams_path
+     [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"
+     [[ -n "${ORCA_MIMOCODE_HOME:-}" ]] && export MIMOCODE_HOME="${ORCA_MIMOCODE_HOME}"
++    # Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
++    if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++      case "$PATH" in
++        "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++        *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
++      esac
++    fi
+     # Why: OMP does not auto-load Orca's managed status extension; wrap only
+     # interactive launch invocations so subcommands such as `omp config` keep
+     # their normal argv shape.
+diff --git a/src/main/__fixtures__/shell-wrapper-snapshots/relay-zsh-zshenv.txt b/src/main/__fixtures__/shell-wrapper-snapshots/relay-zsh-zshenv.txt
+index 4299ebb..6107fc0 100644
+--- a/src/main/__fixtures__/shell-wrapper-snapshots/relay-zsh-zshenv.txt
++++ b/src/main/__fixtures__/shell-wrapper-snapshots/relay-zsh-zshenv.txt
+@@ -46,6 +46,13 @@ __orca_deferred_init() {
+     [[ -n "${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="${ORCA_OPENCODE_CONFIG_DIR}"
+     [[ -n "${ORCA_MIMOCODE_HOME:-}" ]] && export MIMOCODE_HOME="${ORCA_MIMOCODE_HOME}"
+     [[ -n "${ORCA_REMOTE_CLI_BIN_DIR:-}" ]] && case ":$PATH:" in *:"${ORCA_REMOTE_CLI_BIN_DIR}":*) ;; *) export PATH="${ORCA_REMOTE_CLI_BIN_DIR}:$PATH" ;; esac
++    # Why: a login shell's path_helper can put another app's `orca` ahead of this app's CLI.
++    if [ -n "${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++      case "$PATH" in
++        "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++        *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR${PATH:+:$PATH}" ;;
++      esac
++    fi
+     # Why: OMP does not auto-load Orca's managed status extension; wrap only
+     # interactive launch invocations so subcommands such as `omp config` keep
+     # their normal argv shape.
+diff --git a/src/main/bundled-cli-path-restore.test.ts b/src/main/bundled-cli-path-restore.test.ts
+new file mode 100644
+index 0000000..d5db28f
+--- /dev/null
++++ b/src/main/bundled-cli-path-restore.test.ts
+@@ -0,0 +1,103 @@
++/**
++ * Real-shell proof that `orca` in a terminal this app opens runs its own CLI, even when the
++ * login startup files put another install's `/usr/local/bin/orca` first (what macOS
++ * path_helper does). The user's `.zprofile` / `.bash_profile` here prepends a stand-in folder.
++ */
++import { spawnSync } from 'node:child_process'
++import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import { join } from 'node:path'
++import { afterEach, beforeEach, describe, expect, it } from 'vitest'
++import { prependOrcaCliDirToChildPath } from './cli/orca-cli-child-path'
++import { getShellLaunchConfig as getDaemonShellLaunchConfig } from './daemon/shell-ready'
++import { getShellLaunchConfig as getLocalShellLaunchConfig } from './providers/local-pty-shell-ready'
++import { selectShellStartupFeatures } from './shell-startup-features'
++
++const hasShell = (shell: string): boolean =>
++  process.platform !== 'win32' && spawnSync(shell, ['--version']).status === 0
++
++function writeOrca(binDir: string, says: string): void {
++  mkdirSync(binDir, { recursive: true })
++  writeFileSync(join(binDir, 'orca'), `#!/bin/sh\necho ${says}\n`, { mode: 0o755 })
++}
++
++const LAUNCHERS = {
++  local: getLocalShellLaunchConfig,
++  daemon: (shell: string, features: Parameters<typeof getLocalShellLaunchConfig>[1]) =>
++    getDaemonShellLaunchConfig(shell, features)
++} as const
++
++describe.skipIf(process.platform === 'win32')('orca inside an Orca terminal', () => {
++  let root = ''
++  let previousUserDataPath: string | undefined
++
++  beforeEach(() => {
++    root = mkdtempSync(join(tmpdir(), 'orca-bundled-cli-path-'))
++    previousUserDataPath = process.env.ORCA_USER_DATA_PATH
++    process.env.ORCA_USER_DATA_PATH = join(root, 'userData')
++  })
++
++  afterEach(() => {
++    if (previousUserDataPath === undefined) {
++      delete process.env.ORCA_USER_DATA_PATH
++    } else {
++      process.env.ORCA_USER_DATA_PATH = previousUserDataPath
++    }
++    rmSync(root, { recursive: true, force: true })
++  })
++
++  const cases = (['zsh', 'bash'] as const).flatMap((shell) =>
++    (['local', 'daemon'] as const).map((transport) => [shell, transport] as const)
++  )
++
++  it.each(cases)(
++    '%s (%s) runs this app’s orca after the login PATH puts another first',
++    (shell, transport) => {
++      if (!hasShell(shell)) {
++        return
++      }
++      const home = join(root, 'home')
++      const otherBin = join(root, 'usr-local-bin')
++      const resourcesPath = join(root, 'Orca.app', 'Contents', 'Resources')
++      writeOrca(otherBin, 'OTHER_ORCA')
++      writeOrca(join(resourcesPath, 'bin'), 'APP_ORCA')
++      mkdirSync(home, { recursive: true })
++      const profile = `export PATH="${otherBin}:$PATH"\n`
++      writeFileSync(join(home, shell === 'zsh' ? '.zprofile' : '.bash_profile'), profile)
++
++      // The PTY env Orca builds for a plain pane: no startup command, no readiness wait.
++      const env: Record<string, string> = { HOME: home, PATH: '/usr/bin:/bin' }
++      prependOrcaCliDirToChildPath(env, {
++        isPackaged: true,
++        userDataPath: process.env.ORCA_USER_DATA_PATH!,
++        resourcesPath,
++        platform: 'darwin'
++      })
++      const shellPath = spawnSync('sh', ['-c', `command -v ${shell}`], {
++        encoding: 'utf8'
++      }).stdout.trim()
++      const features = selectShellStartupFeatures({
++        shellPath,
++        env,
++        hasStartupCommand: false,
++        waitsForShellReady: false,
++        emitsStartupIdentity: false
++      })
++      const launch = LAUNCHERS[transport](shellPath, features)
++
++      // Why `-l` when unwrapped: that is what the PTY launch plans fall back to.
++      const result = spawnSync(shellPath, [...(launch.args ?? ['-l']), '-i'], {
++        // Why ORCA_ORIG_ZDOTDIR: the wrapper hands ZDOTDIR back to it, and it must be the sandbox home.
++        env: { ...env, ...launch.env, ORCA_ORIG_ZDOTDIR: home },
++        cwd: home,
++        // Why stdin: an interactive zsh still runs its precmd hooks, where the wrapper's restores live.
++        input: 'orca\nexit\n',
++        encoding: 'utf8',
++        timeout: 20_000
++      })
++
++      expect(result.stdout).toContain('APP_ORCA')
++      expect(result.stdout).not.toContain('OTHER_ORCA')
++    }
++  )
++})
+diff --git a/src/main/bundled-cli-path-restore.ts b/src/main/bundled-cli-path-restore.ts
+new file mode 100644
+index 0000000..973a317
+--- /dev/null
++++ b/src/main/bundled-cli-path-restore.ts
+@@ -0,0 +1,21 @@
++/**
++ * Keeps this app's own `orca` first on PATH in the terminals it opens.
++ *
++ * The PTY env puts the bundled `bin` first, but a macOS login shell runs `path_helper` from
++ * `/etc/zprofile`, which moves `/usr/local/bin` back in front. When that folder holds another
++ * install's `orca` (an RC beside stable, an older copy, a fork), agents in this app's
++ * terminals reach that CLI instead. The shell wrappers re-prepend the folder after the user's
++ * startup files have run.
++ */
++
++/** Set on the PTY env by `prependOrcaCliDirToChildPath` for packaged macOS builds. */
++export const BUNDLED_CLI_BIN_DIR_ENV = 'ORCA_BUNDLED_CLI_BIN_DIR'
++
++/** POSIX, so the zsh hook and both bash rcfiles share it; `-x` makes it a no-op on SSH hosts. */
++export const BUNDLED_CLI_BIN_DIR_RESTORE = `# Why: a login shell's path_helper can put another app's \`orca\` ahead of this app's CLI.
++if [ -n "\${ORCA_BUNDLED_CLI_BIN_DIR:-}" ] && [ -x "$ORCA_BUNDLED_CLI_BIN_DIR/orca" ]; then
++  case "$PATH" in
++    "$ORCA_BUNDLED_CLI_BIN_DIR"|"$ORCA_BUNDLED_CLI_BIN_DIR":*) ;;
++    *) export PATH="$ORCA_BUNDLED_CLI_BIN_DIR\${PATH:+:$PATH}" ;;
++  esac
++fi`
+diff --git a/src/main/cli/orca-cli-child-path.ts b/src/main/cli/orca-cli-child-path.ts
+index 2a8136c..79bad9e 100644
+--- a/src/main/cli/orca-cli-child-path.ts
++++ b/src/main/cli/orca-cli-child-path.ts
+@@ -19,6 +19,7 @@ import { resolvePathEnvKey } from '../pty/windows-environment-path'
+ import { ensureLinuxTerminalOrcaCliShimDir } from './linux-terminal-orca-cli-shim'
+ import { getBundledLauncherPath } from './bundled-cli-launcher-path'
+ import { DEV_COMMAND_NAME } from './cli-install-constants'
++import { BUNDLED_CLI_BIN_DIR_ENV } from '../bundled-cli-path-restore'
+ 
+ export type OrcaCliChildPathOptions = {
+   isPackaged: boolean
+@@ -42,6 +43,8 @@ export function prependOrcaCliDirToChildPath(
+   // Why: matches node:path's `delimiter` for the running platform, but stays correct when a test
+   // drives a foreign platform through the seam.
+   const pathDelimiter = platform === 'win32' ? ';' : delimiter
++  // Why: an inherited value names another launch's CLI.
++  delete env[BUNDLED_CLI_BIN_DIR_ENV]
+   // Why: dev mode needs the launcher PATH override so `orca` resolves to the dev build instead of the production binary at /usr/local/bin/orca.
+   if (!opts.isPackaged) {
+     const devCliBin = join(opts.userDataPath, 'cli', 'bin')
+@@ -68,6 +71,10 @@ export function prependOrcaCliDirToChildPath(
+     env[resolvePathEnvKey(env, platform)] = inheritedPath
+       ? `${bundledCliBin}${pathDelimiter}${inheritedPath}`
+       : bundledCliBin
++    if (platform === 'darwin') {
++      // Why: the shell wrappers re-prepend it after a login shell's path_helper reorders PATH.
++      env[BUNDLED_CLI_BIN_DIR_ENV] = bundledCliBin
++    }
+     // Why the native launcher on Windows: `orca.cmd` refuses message bodies cmd.exe would mangle.
+     return getBundledLauncherPath(platform, opts.resourcesPath)
+   }
+diff --git a/src/main/daemon/daemon-bash-shell-ready-rcfile.ts b/src/main/daemon/daemon-bash-shell-ready-rcfile.ts
+index 76f05e9..02d4975 100644
+--- a/src/main/daemon/daemon-bash-shell-ready-rcfile.ts
++++ b/src/main/daemon/daemon-bash-shell-ready-rcfile.ts
+@@ -2,6 +2,7 @@ import { getPosixOmpShellWrapper } from '../pty/omp-shell-wrapper'
+ import { getPosixCodexShellLaunchPreflight } from '../../shared/codex-shell-function'
+ import { BASH_PROMPT_COMMAND_COMPOSITION_BLOCK } from '../bash-prompt-command-composition'
+ import { BASH_FEATURE_CHANNEL_BLOCK, SHELL_STARTUP_IDENTITY_MARKER_BLOCK } from '../shell-templates'
++import { BUNDLED_CLI_BIN_DIR_RESTORE } from '../bundled-cli-path-restore'
+ 
+ export function getDaemonBashShellReadyRcfileContent(): string {
+   return `# Orca daemon bash shell-ready wrapper
+@@ -34,6 +35,7 @@ __orca_restore_agent_teams_path() {
+   export PATH="\${ORCA_AGENT_TEAMS_SHIM_DIR}:$PATH"
+ }
+ __orca_restore_agent_teams_path
++${BUNDLED_CLI_BIN_DIR_RESTORE}
+ # Why: user startup files may set the default OpenCode config after Orca's
+ # spawn env; restore the Orca-managed config dir before the first prompt.
+ [[ -n "\${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="\${ORCA_OPENCODE_CONFIG_DIR}"
+diff --git a/src/main/providers/local-pty-shell-ready-bash-rcfile.ts b/src/main/providers/local-pty-shell-ready-bash-rcfile.ts
+index 0bbcd07..3e47fcd 100644
+--- a/src/main/providers/local-pty-shell-ready-bash-rcfile.ts
++++ b/src/main/providers/local-pty-shell-ready-bash-rcfile.ts
+@@ -6,6 +6,7 @@
+  */
+ import { BASH_PROMPT_COMMAND_COMPOSITION_BLOCK } from '../bash-prompt-command-composition'
+ import { WSL_MANAGED_CLI_PATH_RESTORE } from '../wsl-managed-cli-path-restore'
++import { BUNDLED_CLI_BIN_DIR_RESTORE } from '../bundled-cli-path-restore'
+ import { getPosixOmpShellWrapper } from '../pty/omp-shell-wrapper'
+ import { getPosixCodexShellLaunchPreflight } from '../../shared/codex-shell-function'
+ import { getBashStartupCommandPromptBlock } from '../pty/posix-shell-startup-command'
+@@ -47,6 +48,7 @@ __orca_restore_agent_teams_path() {
+ }
+ __orca_restore_agent_teams_path
+ ${WSL_MANAGED_CLI_PATH_RESTORE}
++${BUNDLED_CLI_BIN_DIR_RESTORE}
+ # Why: user startup files may set the default OpenCode config after Orca's
+ # spawn env; restore the Orca-managed config dir before the first prompt.
+ [[ -n "\${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="\${ORCA_OPENCODE_CONFIG_DIR}"
+diff --git a/src/main/shell-startup-features.ts b/src/main/shell-startup-features.ts
+index 9551896..4ce39d3 100644
+--- a/src/main/shell-startup-features.ts
++++ b/src/main/shell-startup-features.ts
+@@ -11,6 +11,8 @@
+  * unsets it before the user's own config (or anything it spawns) can see it.
+  */
+ 
++import { BUNDLED_CLI_BIN_DIR_ENV } from './bundled-cli-path-restore'
++
+ export const SHELL_STARTUP_FEATURE_ENV = 'ORCA_SHELL_FEATURES'
+ 
+ export const SHELL_STARTUP_FEATURES = [
+@@ -31,7 +33,8 @@ const OVERLAY_ENV_KEYS = [
+   'ORCA_OMP_STATUS_EXTENSION',
+   'ORCA_CODEX_HOME',
+   'ORCA_AGENT_TEAMS_SHIM_DIR',
+-  'ORCA_REMOTE_CLI_BIN_DIR'
++  'ORCA_REMOTE_CLI_BIN_DIR',
++  BUNDLED_CLI_BIN_DIR_ENV
+ ] as const
+ 
+ export type ShellStartupFeatureInput = {
+diff --git a/src/main/zsh-startup-wrapper-builder.ts b/src/main/zsh-startup-wrapper-builder.ts
+index 4fb4f8d..41c7b6b 100644
+--- a/src/main/zsh-startup-wrapper-builder.ts
++++ b/src/main/zsh-startup-wrapper-builder.ts
+@@ -28,6 +28,7 @@
+  */
+ import { getPosixOmpShellWrapper } from './pty/omp-shell-wrapper'
+ import { WSL_MANAGED_CLI_PATH_RESTORE } from './wsl-managed-cli-path-restore'
++import { BUNDLED_CLI_BIN_DIR_RESTORE } from './bundled-cli-path-restore'
+ import { getPosixCodexShellLaunchPreflight } from '../shared/codex-shell-function'
+ import {
+   getZshShellReadyMarkerRegistrationBlock,
+@@ -124,6 +125,7 @@ function getOverlayRestoreBlocks(spec: ZshStartupHookSpec): (string | null)[] {
+     OPENCODE_CONFIG_DIR_RESTORE,
+     MIMOCODE_HOME_RESTORE,
+     spec.restores.remoteCliBinDir ? REMOTE_CLI_BIN_DIR_RESTORE : null,
++    BUNDLED_CLI_BIN_DIR_RESTORE,
+     getPosixOmpShellWrapper(),
+     spec.restores.codexHome ? CODEX_HOME_RESTORE : null
+   ]
+-- 
+2.43.0

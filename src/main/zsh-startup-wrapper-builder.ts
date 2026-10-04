@@ -28,6 +28,7 @@
  */
 import { getPosixOmpShellWrapper } from './pty/omp-shell-wrapper'
 import { WSL_MANAGED_CLI_PATH_RESTORE } from './wsl-managed-cli-path-restore'
+import { BUNDLED_CLI_BIN_DIR_RESTORE } from './pod/pod-cli-path-restore'
 import { getPosixCodexShellLaunchPreflight } from '../shared/codex-shell-function'
 import {
   getZshShellReadyMarkerRegistrationBlock,
@@ -124,6 +125,7 @@ function getOverlayRestoreBlocks(spec: ZshStartupHookSpec): (string | null)[] {
     OPENCODE_CONFIG_DIR_RESTORE,
     MIMOCODE_HOME_RESTORE,
     spec.restores.remoteCliBinDir ? REMOTE_CLI_BIN_DIR_RESTORE : null,
+    BUNDLED_CLI_BIN_DIR_RESTORE,
     getPosixOmpShellWrapper(),
     spec.restores.codexHome ? CODEX_HOME_RESTORE : null
   ]

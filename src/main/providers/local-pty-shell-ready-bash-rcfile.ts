@@ -6,6 +6,7 @@
  */
 import { BASH_PROMPT_COMMAND_COMPOSITION_BLOCK } from '../bash-prompt-command-composition'
 import { WSL_MANAGED_CLI_PATH_RESTORE } from '../wsl-managed-cli-path-restore'
+import { BUNDLED_CLI_BIN_DIR_RESTORE } from '../pod/pod-cli-path-restore'
 import { getPosixOmpShellWrapper } from '../pty/omp-shell-wrapper'
 import { getPosixCodexShellLaunchPreflight } from '../../shared/codex-shell-function'
 import { getBashStartupCommandPromptBlock } from '../pty/posix-shell-startup-command'
@@ -47,6 +48,7 @@ __orca_restore_agent_teams_path() {
 }
 __orca_restore_agent_teams_path
 ${WSL_MANAGED_CLI_PATH_RESTORE}
+${BUNDLED_CLI_BIN_DIR_RESTORE}
 # Why: user startup files may set the default OpenCode config after Orca's
 # spawn env; restore the Orca-managed config dir before the first prompt.
 [[ -n "\${ORCA_OPENCODE_CONFIG_DIR:-}" ]] && export OPENCODE_CONFIG_DIR="\${ORCA_OPENCODE_CONFIG_DIR}"

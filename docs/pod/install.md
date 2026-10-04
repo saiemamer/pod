@@ -1,8 +1,8 @@
 # Installing Pod
 
-Pod runs on macOS 12 (Monterey) or newer, on Apple silicon and Intel. It installs as `Pod.app` plus the `orca` command, which agents use to call Pod.
+Pod runs on macOS 12 (Monterey) or newer, on Apple silicon and Intel. It installs as `Pod.app` plus the `pod` command. Inside the terminals Pod opens, the same CLI is also `orca`, which is the name Pod's agents, skills and the coordinator use.
 
-Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca's `~/Library/Application Support/orca`. The two still share the `orca` command and `~/.orca`, so for now Homebrew refuses Pod while the `orca` cask is installed.
+Pod and stock Orca can be installed on the same Mac. Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca's `~/Library/Application Support/orca`; its shell command is `pod`, so `orca` outside Pod stays stock Orca's; and `orca://` links open stock Orca. The two still share `~/.orca` (hook scripts, keybindings, tracker credentials) and the Keychain item `orca Safe Storage`. Expect macOS to ask once whether the second app may use that item; if you allow it, each app can decrypt the other's stored secrets.
 
 ## Install with Homebrew
 
@@ -10,12 +10,12 @@ Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca
 brew install --cask saiemamer/pod/pod
 ```
 
-That installs the app into `/Applications` and links `orca` into Homebrew's bin folder (`/opt/homebrew/bin` on Apple silicon, `/usr/local/bin` on Intel). Pod builds are not signed with an Apple Developer ID, so the cask clears macOS's quarantine flag after every install and upgrade, and Pod opens on a normal double-click.
+That installs the app into `/Applications` and links `pod` into Homebrew's bin folder (`/opt/homebrew/bin` on Apple silicon, `/usr/local/bin` on Intel). Pod builds are not signed with an Apple Developer ID, so the cask clears macOS's quarantine flag after every install and upgrade, and Pod opens on a normal double-click.
 
 Check it worked:
 
 ```sh
-orca --version
+pod --version
 ```
 
 ## Install from the DMG
@@ -25,7 +25,7 @@ Without Homebrew, download `pod-macos-arm64.dmg` (Apple silicon) or `pod-macos-x
 - macOS 14 and older: in Finder, right-click (or Control-click) Pod in Applications, choose Open, then Open again in the dialog.
 - macOS 15 and newer, where right-click Open no longer skips the check: double-click Pod, close the warning, then open System Settings > Privacy & Security, scroll to Security, click "Open Anyway" next to the Pod message and confirm with your password.
 
-The DMG does not put `orca` on your PATH; turn on the Shell command switch in Pod's Settings > General, CLI section, which links it into `/usr/local/bin` (or `~/.local/bin` where that folder is missing). A DMG install also has to be repeated by hand for every update, so prefer Homebrew.
+The DMG does not put `pod` on your PATH; turn on the Shell command switch in Pod's Settings > General, CLI section, which links it into `/usr/local/bin` (or `~/.local/bin` where that folder is missing). A DMG install also has to be repeated by hand for every update, so prefer Homebrew.
 
 ## First setup
 
@@ -44,7 +44,7 @@ When a release is out, Pod shows an update card with an "Update with Homebrew" b
 brew upgrade --cask pod
 ```
 
-Quit and reopen Pod afterwards, then check `orca --version`. Pod cannot replace itself in place, because macOS only lets a signed app do that.
+Quit and reopen Pod afterwards, then check `pod --version`. Pod cannot replace itself in place, because macOS only lets a signed app do that.
 
 An update keeps your domains, initiatives, secrets and settings. They live in `~/Library/Application Support/Pod`, which no install or upgrade touches; [`sync.md`](./sync.md) explains why that holds across upstream Orca updates too.
 
@@ -53,7 +53,7 @@ Pod 0.1.12 and older kept that data in `~/Library/Application Support/orca`. The
 ## Uninstall
 
 ```sh
-brew uninstall --cask pod          # removes the app and the orca link, keeps your data
+brew uninstall --cask pod          # removes the app and the pod link, keeps your data
 brew uninstall --zap --cask pod    # also deletes ~/Library/Application Support/Pod and Pod's caches
 ```
 
