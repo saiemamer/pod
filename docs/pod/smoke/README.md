@@ -75,6 +75,14 @@ cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-catalog-smoke.mjs   # against pnpm dev on port 9333, after ui-lineage-smoke.mjs
 ```
 
+## Editor and panel fixes (2026-10-04)
+
+`ui-panels-smoke.mjs` checks four fixes from the 0.1.13 test on the smoke dbt repo. In the file explorer, a right-click on `models/marts/orders.sql` must offer "Show lineage" and open the dock's Lineage tab, and a right-click on `dbt_project.yml` must not offer it. A hover on `ref('stg_orders')` must render in the body-level overflow host, lie inside the window, and have no corner covered by another element. With the Database tab open, six drags of the right panel's edge must leave the tab open (the persistence echo used to switch it to Explorer). A drag of the dock handle must keep the dock's height within 2 px of the pointer at every step. It prints PASS or FAIL per check and exits 1 on a FAIL. One screenshot of the hover and one of the Database tab after the resizes.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-panels-smoke.mjs   # against pnpm dev on port 9333
+```
+
 ## Performance gate (before a merge or a release)
 
 `perf-fixture.mjs` writes a 1,000-node dbt project into the smoke repo (`perf/manifest.json`, `perf/catalog.json`, 940 model files under `models/perf/`), woven around the real `orders` models. The stand-in `dbt` serves it when `POD_STUB_MANIFEST` and `POD_STUB_CATALOG` are set, which `ui-lineage-perf.mjs` does through the dbt settings env. `graph-bench.mjs` times the graph code in Node; `ui-lineage-perf.mjs` drives the real app over DevTools and prints PASS/FAIL per check (graph IPC ≤ 300 ms, first Lineage open ≤ 1.5 s, zoom and pan frames avg ≤ 20 ms and p95 ≤ 33 ms, cold column lineage ≤ 8 s and warm ≤ 500 ms, column click to lit path ≤ 600 ms, no task over 150 ms across 20 tab round trips, post-GC heap growth ≤ 15 MB, Database panel open ≤ 800 ms and filter ≤ 250 ms with a thousand relations). It restores the settings and the small default manifest afterwards.

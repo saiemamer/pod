@@ -44,6 +44,7 @@ import {
   shouldShowViewFileAction
 } from './file-explorer-row-action-visibility'
 import { copyFileToOsClipboard, downloadRemoteFile } from './file-explorer-row-file-transfer'
+import { PodDbtLineageMenuItem } from '@/ae/dbt/PodDbtLineageMenuItem' // Pod
 
 const isMac = navigator.userAgent.includes('Mac')
 
@@ -247,6 +248,8 @@ export function FileExplorerRowContextMenu({
           )}
         </ContextMenuItem>
       )}
+      {/* Pod */}
+      <PodDbtLineageMenuItem filePath={node.path} isDirectory={node.isDirectory} />
       {showRemoteDownloadAction && (
         <ContextMenuItem onSelect={handleDownload}>
           <Download />

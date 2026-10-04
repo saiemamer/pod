@@ -220,9 +220,11 @@ export function PodDbtDock({ activeFile }: PodDbtDockProps): React.JSX.Element |
       data-testid="pod-dbt-dock"
       // Why the classes: the dock rises into place when it first appears, and its height
       // eases when collapsed or expanded; a drag resize follows the pointer directly.
+      // Why transition-none: duration-200 (for the entry animation) with no transition
+      // property would ease every property, height included, behind the pointer.
       className={`relative flex shrink-0 flex-col border-t border-border/60 bg-background animate-in fade-in-0 slide-in-from-bottom-2 duration-200 motion-reduce:animate-none ${
         resizing
-          ? ''
+          ? 'transition-none'
           : 'transition-[height] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none'
       }`}
       style={{ height: state.collapsed ? POD_DBT_DOCK_COLLAPSED_HEIGHT : dockHeight }}

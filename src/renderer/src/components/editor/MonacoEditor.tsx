@@ -25,6 +25,7 @@ import { useMonacoEditorMount } from './use-monaco-editor-mount'
 import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 import { snapshotMonacoViewState } from './monaco-view-state-persistence'
 import { MonacoMarkdownAnnotationOverlay } from './MonacoMarkdownAnnotationOverlay'
+import { usePodMonacoOverflowWidgets } from '@/ae/pod-monaco-overflow-widgets' // Pod
 
 type MonacoEditorProps = {
   fileId: string
@@ -190,6 +191,7 @@ export default function MonacoEditor({
     conflictDecorationsEnabled
   })
 
+  const podOverflowWidgets = usePodMonacoOverflowWidgets() // Pod
   const handleMount = useMonacoEditorMount({
     fileId,
     filePath,
@@ -258,6 +260,7 @@ export default function MonacoEditor({
           // Defense-in-depth only — it does NOT guard the Monarch embed recursion,
           // which overflowed at ~17_000 chars, under this cap. See the budget module.
           maxTokenizationLineLength: MAX_TOKENIZATION_LINE_LENGTH,
+          ...podOverflowWidgets, // Pod
           // Why: only the file editor honors this; Monaco 0.55 DiffEditor hard-overrides minimap.enabled=false on sub-editors (see diffEditorEditors._adjustOptionsForSubEditor).
           minimap: { enabled: settings?.editorMinimapEnabled ?? false },
           scrollBeyondLastLine: false,
