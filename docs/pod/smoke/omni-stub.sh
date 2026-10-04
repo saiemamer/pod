@@ -1,18 +1,15 @@
 #!/bin/sh
-# Stand-in for the Omni CLI (github.com/exploreomni/cli) for Pod's smoke runs: answers
+# Stand-in for the Omni CLI 1.0.4 (github.com/exploreomni/cli) for Pod's smoke runs: answers
 # the `omni models` subcommands Pod uses with JSON shaped like Omni's OpenAPI spec, and
-# keeps created branches in a state directory. It never touches the network.
+# keeps created branches in a state directory. It never touches the network. Like the real
+# CLI it rejects a flag the subcommand lacks, prints `Error: ...` and the usage on stderr,
+# and on an API error prints the response body on stdout.
 state="${POD_OMNI_STUB_STATE:-${TMPDIR:-/tmp}/pod-omni-stub}"
 mkdir -p "$state"
 touch "$state/branches"
 token=no
 [ -n "$OMNI_API_TOKEN" ] && token=yes
 printf 'token=%s %s\n' "$token" "$*" >> "$state/calls.log"
-
-if [ "$token" = no ]; then
-  echo '{"error":"Unauthorized","status":401,"body":{"detail":"Unauthorized: Missing or invalid API key","status":401}}' >&2
-  exit 1
-fi
 
 model_id=11111111-1111-4111-8111-111111111111
 group="$1"
@@ -26,20 +23,58 @@ body=""
 with_branches=no
 filter_model=""
 cursor=""
+
+fail() {
+  printf 'Error: %s\nUsage:\n  omni %s %s [flags]\n' "$1" "$group" "$cmd" >&2
+  exit 1
+}
+
+# Why: an HTTP error prints the body on stdout and only the status on stderr.
+api_error() {
+  printf '{"detail":"%s"}\n' "$2"
+  fail "API returned HTTP $1"
+}
+
+if [ "$group" != models ]; then
+  echo "Error: unknown command \"$group\" for \"omni\"" >&2
+  exit 1
+fi
+
+# The subcommand flags `omni models <cmd> --help` lists in 1.0.4.
+case "$cmd" in
+  list) flags=' basemodelid connectionid cursor include includedeleted modelid modelkind name pagesize sortdirection sortfield ' ;;
+  create-branch) flags=' name ' ;;
+  validate) flags=' branchid limit ' ;;
+  commit) flags=' body json-body ' ;;
+  list-topics | get-topic) flags=' branch-id ' ;;
+  *) flags=' ' ;;
+esac
 while [ $# -gt 0 ]; do
   case "$1" in
-    --branch-id) branch_id="$2"; shift 2 ;;
+    --compact) shift; continue ;;
+    --format | -o | --profile | -p | --token | --base-url) shift 2; continue ;;
+    --*)
+      case "$flags" in
+        *" ${1#--} "*) ;;
+        *) fail "unknown flag: $1" ;;
+      esac
+      ;;
+  esac
+  case "$1" in
+    --branchid | --branch-id) branch_id="$2"; shift 2 ;;
     --name) name="$2"; shift 2 ;;
     --body) body="$2"; shift 2 ;;
-    --model-id) filter_model="$2"; shift 2 ;;
+    --modelid) filter_model="$2"; shift 2 ;;
     --include) [ "$2" = activeBranches ] && with_branches=yes; shift 2 ;;
     --cursor) cursor="$2"; shift 2 ;;
-    --format | --page-size) shift 2 ;;
-    --compact) shift ;;
-    --*) shift ;;
+    --*) shift 2 ;;
     *) if [ -z "$pos1" ]; then pos1="$1"; else pos2="$1"; fi; shift ;;
   esac
 done
+
+if [ "$token" = no ]; then
+  fail 'no API token configured. Set OMNI_API_TOKEN, use --token, or run `omni config init`'
+fi
 
 branches_json() {
   printf '{"id":"b0000000-0000-4000-8000-000000000099","name":"someone-else"}'
@@ -47,11 +82,6 @@ branches_json() {
     [ -n "$id" ] && printf ',{"id":"%s","name":"%s"}' "$id" "$bname"
   done < "$state/branches"
 }
-
-if [ "$group" != models ]; then
-  echo "Error: unknown command \"$group\" for \"omni\"" >&2
-  exit 1
-fi
 
 case "$cmd" in
   list)
@@ -83,7 +113,7 @@ case "$cmd" in
   commit)
     case "$body" in
       *branch_id*commit_message*) ;;
-      *) echo '{"error":"Bad Request","status":400,"body":{"detail":"branch_id and commit_message are required","status":400}}' >&2; exit 1 ;;
+      *) api_error 400 'branch_id and commit_message are required' ;;
     esac
     echo '{"did_sync":true,"git_sha":"4f2c9e1","in_sync":true,"pr_url":"https://git.example.invalid/omni-demo/pull/7"}'
     ;;
@@ -94,13 +124,11 @@ case "$cmd" in
     ;;
   get-topic)
     if [ "$pos2" = missing ]; then
-      echo '{"error":"Not Found","status":404,"body":{"detail":"Topic missing not found","status":404}}' >&2
-      exit 1
+      api_error 404 'Topic missing not found'
     fi
     printf '{"success":true,"topic":{"name":"%s","label":"Tickets","base_view_name":"tickets","description":"Support tickets with their latest status","views":[{"name":"tickets","label":"Tickets","dimensions":[{"field_name":"ticket_id"},{"field_name":"channel"},{"field_name":"created_at"}],"measures":[{"field_name":"count"},{"field_name":"avg_resolution_hours"}]},{"name":"customers","label":"Customers","dimensions":[{"field_name":"customer_id"},{"field_name":"segment"}],"measures":[{"field_name":"count"}]}],"relationships":[{"left_view_name":"tickets","right_view_name":"customers","join_type":"always_left","type":"many_to_one"}]}}\n' "$pos2"
     ;;
   *)
-    echo "Error: unknown command \"$cmd\" for \"omni models\"" >&2
-    exit 1
+    fail "unknown command \"$cmd\" for \"omni models\""
     ;;
 esac

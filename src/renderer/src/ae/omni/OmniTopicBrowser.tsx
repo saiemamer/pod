@@ -9,6 +9,7 @@ import type {
   OmniTopicSummary
 } from '../../../../shared/ae/omni-types'
 import { podDbtErrorMessage } from '../dbt/pod-dbt-run-target'
+import { OmniErrorNote } from './OmniErrorNote'
 
 /**
  * Pod: topics of the worktree's Omni model branch (or the shared model before the
@@ -92,7 +93,7 @@ export function OmniTopicBrowser({
           className="h-6 text-xs"
         />
       )}
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {error && <OmniErrorNote text={error} />}
       {!topics && !error && (
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />
@@ -155,7 +156,11 @@ function TopicDetail({
     )
   }
   if (typeof detail === 'string') {
-    return <p className="py-1 pl-5 text-[11px] text-destructive">{detail}</p>
+    return (
+      <div className="py-1 pl-5">
+        <OmniErrorNote text={detail} />
+      </div>
+    )
   }
   return (
     <div

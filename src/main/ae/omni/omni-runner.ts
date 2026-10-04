@@ -3,6 +3,7 @@ import { runProcess } from '../../../shared/child-process/run-process'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import type { OmniBinary, OmniContextSummary } from '../../../shared/ae/omni-types'
 import { findOnPath } from '../dbt/dbt-runner'
+import { withOmniDetails } from '../../../shared/ae/omni-error-text'
 
 /**
  * Pod: the one place an Omni CLI process is started. The binary comes from Settings >
@@ -64,13 +65,15 @@ export type OmniRunDeps = {
   now?: () => number
 }
 
+/** `message` carries the plain summary and, after a marker, the CLI's own text. */
 export class OmniCliError extends Error {
   constructor(
-    message: string,
+    readonly summary: string,
     readonly status: number | null,
-    readonly command: string
+    readonly command: string,
+    readonly details = ''
   ) {
-    super(message)
+    super(withOmniDetails(summary, details))
     this.name = 'OmniCliError'
   }
 }
@@ -121,7 +124,7 @@ export async function runOmni(
   }
 }
 
-/** Runs the command and parses stdout as JSON, or throws with the CLI's own error message. */
+/** Runs the command and parses stdout as JSON, or throws with a plain account of what failed. */
 export async function runOmniJson(
   invocation: OmniInvocation,
   deps?: OmniRunDeps
@@ -129,7 +132,7 @@ export async function runOmniJson(
   const result = await runOmni(invocation, deps)
   if (!result.ok) {
     const failure = describeOmniFailure(result)
-    throw new OmniCliError(failure.message, failure.status, result.command)
+    throw new OmniCliError(failure.summary, failure.status, result.command, failure.details)
   }
   const text = result.stdout.trim()
   if (!text) {
@@ -139,58 +142,137 @@ export async function runOmniJson(
     return JSON.parse(text)
   } catch {
     throw new OmniCliError(
-      `omni printed something other than JSON (${result.command})`,
+      `Pod ran \`${shortCommand(result.command)}\` and the Omni CLI printed something other than JSON.`,
       null,
-      result.command
+      result.command,
+      capDetails(`$ ${result.command}\n\n${text}`)
     )
   }
 }
 
+export type OmniFailure = { summary: string; status: number | null; details: string }
+
+const OMNI_DETAILS_LIMIT = 4000
+const USAGE_ERROR =
+  /^(unknown (flag|shorthand flag|command)|accepts \d+ arg|requires at least|invalid argument|flag needs an argument)/
+
 /**
- * A failed API call leaves one JSON document on stderr, `{"error", "status", "body"}`;
- * a usage error leaves plain text. Either way the message names what went wrong.
+ * Omni CLI 1.0.4 prints `Error: <what>` and then the command's usage on stderr for every
+ * failure. An API error also leaves the response body on stdout, and stderr then reads
+ * `Error: API returned HTTP <status>`. The summary says what Pod ran and what went wrong;
+ * the CLI's text goes into `details`.
  */
-export function describeOmniFailure(result: OmniRunResult): {
-  message: string
-  status: number | null
-} {
+export function describeOmniFailure(result: OmniRunResult): OmniFailure {
+  const command = shortCommand(result.command)
+  const ran = `Pod ran \`${command}\``
+  const details = capDetails(
+    [`$ ${result.command}`, result.stderr.trim(), result.stdout.trim()].filter(Boolean).join('\n\n')
+  )
   if (result.timedOut) {
     return {
-      message: `omni timed out after ${Math.round(result.durationMs / 1000)}s (${result.command})`,
-      status: null
+      summary: `${ran} and the Omni CLI gave no answer within ${Math.round(result.durationMs / 1000)}s.`,
+      status: null,
+      details
     }
   }
-  const stderr = result.stderr.trim()
-  const envelope = parseErrorEnvelope(stderr)
-  if (envelope) {
-    return envelope
+  if (result.code === null) {
+    return {
+      summary: `Pod could not start the Omni CLI for \`${command}\`. Check its path in Settings > Analytics Tools.`,
+      status: null,
+      details
+    }
   }
-  const lines = stderr.split('\n').filter((line) => line.trim().length > 0)
-  const tail = lines.slice(0, 6).join('\n')
+  const cliError = readCliError(result.stderr)
+  const statusMatch = /^API returned HTTP (\d{3})$/.exec(cliError)
+  if (statusMatch) {
+    const status = Number(statusMatch[1])
+    return {
+      summary: describeHttpFailure(ran, status, readBodyDetail(result.stdout)),
+      status,
+      details
+    }
+  }
+  if (cliError.startsWith('no API token configured')) {
+    return {
+      summary: `Pod could not run \`${command}\`: the Omni CLI is not signed in. Run \`omni config init\` in a terminal (it asks for your Omni address, then an API key or a browser sign-in), or add OMNI_API_KEY to the domain's secrets.`,
+      status: null,
+      details
+    }
+  }
+  if (cliError.startsWith('no API base URL configured')) {
+    return {
+      summary: `Pod could not run \`${command}\`: the Omni CLI does not know your Omni address. Set OMNI_BASE_URL (for example https://yourcompany.omniapp.co) in Domain settings > Environment, or run \`omni config init\` in a terminal.`,
+      status: null,
+      details
+    }
+  }
+  if (/^endpoint .* (does not use HTTPS|is not a recognized Omni domain)/.test(cliError)) {
+    return {
+      summary: `Pod could not run \`${command}\`: the Omni CLI refused to send the token to the Omni address it was given. OMNI_BASE_URL must be an https:// address on omniapp.co.`,
+      status: null,
+      details
+    }
+  }
+  if (USAGE_ERROR.test(cliError)) {
+    return {
+      summary: `${ran}, and this Omni CLI does not accept that command (${cliError}). Pod's Omni commands are written for Omni CLI 1.0.4; another version may have renamed them.`,
+      status: null,
+      details
+    }
+  }
   return {
-    message: tail || `omni exited with code ${result.code ?? 'unknown'} (${result.command})`,
-    status: null
+    summary: cliError
+      ? `${ran} and the Omni CLI failed: ${cliError}`
+      : `${ran} and the Omni CLI exited with code ${result.code}.`,
+    status: null,
+    details
   }
 }
 
-function parseErrorEnvelope(text: string): { message: string; status: number | null } | null {
-  if (!text.startsWith('{')) {
-    return null
+function describeHttpFailure(ran: string, status: number, detail: string): string {
+  const said = detail ? `: ${detail}` : ''
+  if (status === 401) {
+    return `Omni did not accept the sign-in when ${ran} (HTTP 401${said}). The token may be wrong or expired: run \`omni config login\` in a terminal, or replace OMNI_API_KEY in the domain's secrets.`
   }
+  if (status === 403) {
+    return `Omni refused ${ran.replace(/^Pod ran /, '')} for this account (HTTP 403${said}). The token may not have access to this model.`
+  }
+  return `${ran} and Omni answered HTTP ${status}${said}.`
+}
+
+/** The `Error: ...` line cobra prints before the usage. */
+function readCliError(stderr: string): string {
+  const line = stderr
+    .split('\n')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith('Error: '))
+  return line ? line.slice('Error: '.length).trim() : ''
+}
+
+/** The CLI's own pick from an error body: `detail`, then `message`, then `error`. */
+function readBodyDetail(stdout: string): string {
   try {
-    const parsed = JSON.parse(text) as Record<string, unknown>
-    const status = typeof parsed.status === 'number' ? parsed.status : null
-    const body = parsed.body as Record<string, unknown> | undefined
-    const detail =
-      (typeof body?.detail === 'string' && body.detail) ||
-      (typeof body?.message === 'string' && body.message) ||
-      (typeof parsed.error === 'string' && parsed.error) ||
-      ''
-    if (!detail) {
-      return null
+    const parsed: unknown = JSON.parse(stdout.trim())
+    if (typeof parsed !== 'object' || parsed === null) {
+      return ''
     }
-    return { message: status ? `Omni API ${status}: ${detail}` : detail, status }
+    for (const key of ['detail', 'message', 'error']) {
+      const value: unknown = Reflect.get(parsed, key)
+      if (typeof value === 'string' && value) {
+        return value
+      }
+    }
   } catch {
-    return null
+    // Not JSON: the raw body stays in the details.
   }
+  return ''
+}
+
+/** Why: ids and request bodies belong in the details, not the summary. */
+function shortCommand(command: string): string {
+  return command.split(' ').slice(0, 3).join(' ')
+}
+
+function capDetails(text: string): string {
+  return text.length > OMNI_DETAILS_LIMIT ? `${text.slice(0, OMNI_DETAILS_LIMIT)}\n…` : text
 }

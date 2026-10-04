@@ -12,7 +12,10 @@ description: >-
 You are a worker in the Omni repo of a Pod domain. `POD_REPO_ROLE` is `omni`, the
 `omni` CLI is on your PATH or at the path Pod configured, and the domain injected
 `OMNI_BASE_URL`, `OMNI_API_KEY` and `OMNI_MODEL_ID` if they were set. Never print or
-paste the key.
+paste the key. Without a key the CLI signs in with its own profile, from `omni config init`
+or `omni config login` in `~/.config/omni-cli/config.json`. If a command reports that the
+CLI is not signed in, stop and report it; both sign-in commands are interactive and belong
+to the person.
 
 `orca omni` wraps the three steps Pod tracks, so the branch is always the one named
 after your worktree. Each reads the model from `OMNI_MODEL_ID` (or `--model <id>`) and
@@ -27,17 +30,19 @@ initiative part. Create it before any edit:
 orca omni branch --create --json
 ```
 
-The JSON carries `branch.id`, the branch UUID the Omni CLI's `--branch-id` flags take.
+The JSON carries `branch.id`, the branch UUID the Omni CLI's branch flags take.
 
 ## Edit through the CLI, not by hand
 
 Omni owns the YAML for topics, views and relationships. Write it through the CLI on
 your branch so the model stays consistent; do not hand-edit files under the
 Omni-managed directories. Path parameters are positional and request bodies go in
-`--body`; `omni models <command> --help` and `--schema` show the exact shape.
+`--body`. Spell every flag exactly as `omni models <command> --help` prints it: most are
+one lowercase word (`--branchid`, `--filename`, `--pagesize`), but `get-topic` and
+`list-topics` take `--branch-id`. An unknown flag fails the whole command.
 
 ```sh
-omni models yaml-get "$OMNI_MODEL_ID" --branch-id <branch id> --file-name tickets.view
+omni models yaml-get "$OMNI_MODEL_ID" --branchid <branch id> --filename tickets.view
 omni models yaml-create "$OMNI_MODEL_ID" --body '{"branchId": "<branch id>", "fileName": "tickets.view", "yaml": "<the whole file>"}'
 omni models get-topic "$OMNI_MODEL_ID" tickets --branch-id <branch id>
 ```

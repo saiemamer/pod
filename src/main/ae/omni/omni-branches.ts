@@ -11,21 +11,23 @@ import type {
 
 /**
  * Pod: the Omni CLI commands Pod runs and readers for what they print. The CLI is
- * generated from Omni's OpenAPI spec: path parameters are positional, query parameters
- * are kebab-case flags, request bodies go through `--body`. Readers accept missing
- * fields because the spec and the API docs disagree in places (validate is one).
+ * generated from Omni's OpenAPI spec: path parameters are positional, request bodies go
+ * through `--body`, and a query parameter's flag is its spec name lowercased with `_`
+ * turned into `-` (`pageSize` is `--pagesize`, `branch_id` is `--branch-id`). Every flag
+ * here is checked against the 1.0.4 help in `fixtures/omni-cli-1.0.4/`. Readers accept
+ * missing fields because the spec and the API docs disagree in places (validate is one).
  */
 export function listModelsArgs(options: {
   modelId?: string
   withBranches?: boolean
   cursor?: string
 }): string[] {
-  const args = ['models', 'list', '--page-size', '100']
+  const args = ['models', 'list', '--pagesize', '100']
   if (options.cursor) {
     args.push('--cursor', options.cursor)
   }
   if (options.modelId) {
-    args.push('--model-id', options.modelId)
+    args.push('--modelid', options.modelId)
   }
   if (options.withBranches) {
     args.push('--include', 'activeBranches')
@@ -38,8 +40,9 @@ export function createBranchArgs(modelId: string, name: string): string[] {
 }
 
 export function validateArgs(modelId: string, branchId: string | null): string[] {
+  // Why not --branch-id: validate's query parameter is `branchId`, the topic commands' `branch_id`.
   return branchId
-    ? ['models', 'validate', modelId, '--branch-id', branchId]
+    ? ['models', 'validate', modelId, '--branchid', branchId]
     : ['models', 'validate', modelId]
 }
 
@@ -96,7 +99,7 @@ export function parseOmniNextCursor(json: unknown): string | null {
   return pageInfo?.hasNextPage === true ? (str(pageInfo.nextCursor) ?? null) : null
 }
 
-/** Active branches of one model, from `models list --model-id <id> --include activeBranches`. */
+/** Active branches of one model, from `models list --modelid <id> --include activeBranches`. */
 export function parseOmniBranches(json: unknown, modelId: string): OmniBranch[] {
   const list = records(json)
   // Why no fallback to the first record: its branch ids belong to another model.

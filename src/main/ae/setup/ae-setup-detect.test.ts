@@ -99,7 +99,23 @@ describe('detectAeSetup', () => {
     const bin = tempDir()
     stub(bin, 'omni', OMNI)
     mkdirSync(join(home, '.config', 'omni-cli'), { recursive: true })
-    writeFileSync(join(home, '.config', 'omni-cli', 'config.json'), '{}')
+    // The shape Omni CLI 1.0.4 writes after `omni config login`.
+    writeFileSync(
+      join(home, '.config', 'omni-cli', 'config.json'),
+      JSON.stringify({
+        version: 1,
+        defaultProfile: 'acme',
+        profiles: {
+          acme: {
+            apiEndpoint: 'https://acme.omniapp.co',
+            authMethod: 'oauth',
+            accessToken: 'not-a-real-token',
+            refreshToken: 'not-a-real-refresh',
+            tokenExpiresAt: '2026-10-05T00:00:00Z'
+          }
+        }
+      })
+    )
 
     const detection = await detectAeSetup(
       { dbtRepoPath: dbtRepo('dev') },
