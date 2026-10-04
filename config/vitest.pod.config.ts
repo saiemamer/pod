@@ -31,14 +31,6 @@ const POD_IDENTITY_TEST_EXCLUDES = [
 // Why: these read upstream workflow files, which Pod keeps in .github/workflows-upstream.
 const POD_MOVED_WORKFLOW_TEST_EXCLUDES = ['src/shared/windows-lane-tree-removal-boundary.test.ts']
 
-// Why: red on the untouched upstream tree at the base tag (11 failures at v1.4.197 on
-// macOS and ubuntu runners). Re-run them after each rebase and drop them once green.
-const UPSTREAM_RED_AT_BASE_TAG_EXCLUDES = [
-  'src/main/artifacts/artifact-cloud-recovery.test.ts',
-  'src/main/artifacts/artifact-cloud-service-races.test.ts',
-  'src/main/artifacts/artifact-cloud-service.test.ts'
-]
-
 // Why src only: upstream's config/scripts and tests/ suites are contracts over its CI
 // workflows, signing, and packaging pipeline, most of which Pod removed. Pod's own
 // pipeline is verified by pod-release.yml producing an installable DMG.
@@ -49,11 +41,6 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     // Why: upstream's CI jobs set it, and the browser-manager tests assert it before each case.
     env: { ...upstreamConfig.test?.env, ORCA_BACKGROUND_LAUNCH: '1' },
-    exclude: [
-      ...UNIT_EXCLUDE,
-      ...POD_IDENTITY_TEST_EXCLUDES,
-      ...POD_MOVED_WORKFLOW_TEST_EXCLUDES,
-      ...UPSTREAM_RED_AT_BASE_TAG_EXCLUDES
-    ]
+    exclude: [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES, ...POD_MOVED_WORKFLOW_TEST_EXCLUDES]
   }
 })

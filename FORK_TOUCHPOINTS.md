@@ -118,11 +118,10 @@ The dbt MCP server (slice 2) adds no upstream touch. `packages/pod-dbt-mcp/` is 
 
 ## Upstream tests Pod does not run
 
-`config/vitest.pod.config.ts` (used by `pnpm test:pod`, `pod-pr.yml` and the drift job) runs `src/**` only and excludes two groups:
+`config/vitest.pod.config.ts` (used by `pnpm test:pod`, `pod-pr.yml` and the drift job) runs `src/**` only and excludes three groups:
 
 - Tests that assert Orca's bundle id, release repository, or feed URLs as literals. Editing them would add a touch per test file that upstream rewrites often; `src/shared/brand.test.ts` and `src/main/updater-pod-release-feed.test.ts` cover the substituted values instead, and upstream CI still runs the originals at the tag Pod is rebased onto.
 - `config/scripts/**` and `tests/**`, which are contracts over upstream's workflows, signing and packaging pipeline, plus the one `src/` test that reads `.github/workflows/pr.yml`. Those workflows live in `.github/workflows-upstream/` in Pod; `pod-release.yml` producing an installable DMG is the check that matters.
-
-- Three `src/main/artifacts/artifact-cloud-*.test.ts` files that fail on the untouched upstream tree at v1.4.197. Re-run them after each rebase and drop the exclusion once they pass.
+- Orca's own `UNIT_EXCLUDE` from `config/scripts/ci-unit-files.mjs`, the tests that need a live shell, node-pty or a real Chrome, which Orca's CI also skips. Pod imports the list rather than copying it.
 
 Review the identity list on every rebase: `pnpm test <file>` on an excluded file shows whether it still fails only on identity strings.
