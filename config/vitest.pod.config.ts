@@ -23,7 +23,8 @@ const UPSTREAM_CI_EXCLUDES = [
 ]
 
 // Why: these assert Orca's own bundle id, release repository, or feed URLs, which Pod
-// replaces through src/shared/brand.ts (see FORK_TOUCHPOINTS.md). Upstream CI keeps
+// replaces through src/shared/brand.ts, or the exact version line, which Pod suffixes with
+// its Orca base tag (see FORK_TOUCHPOINTS.md). Upstream CI keeps
 // covering the logic at the tag Pod is rebased onto; src/shared/brand.test.ts and
 // src/main/updater-pod-release-feed.test.ts cover the substituted values.
 const POD_IDENTITY_TEST_EXCLUDES = [
@@ -39,6 +40,7 @@ const POD_IDENTITY_TEST_EXCLUDES = [
   'src/main/updater.check-failure.test.ts',
   'src/main/updater.publishing-window-feed.test.ts',
   'src/renderer/src/components/UpdateCard.error-card.test.tsx',
+  'src/renderer/src/components/settings/GeneralPane.section-lifetime.test.tsx',
   'src/shared/local-build-compatibility.test.ts',
   'src/shared/release-channel.test.ts'
 ]
