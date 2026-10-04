@@ -4,11 +4,11 @@ Pod's `main` is an upstream Orca stable tag with Pod's commits replayed on top. 
 
 Three things keep a rebase small. Pod's own code lives in new files (`ae/` directories and the others listed in [`FORK_TOUCHPOINTS.md`](../../FORK_TOUCHPOINTS.md)), which never conflict. Every edit to an upstream file is one short touch with a row in that register, so a conflict is resolved by re-applying a known change. And `package.json` keeps upstream's name and version (the release workflow stamps Pod's version from the tag), so upstream's version bump does not conflict.
 
-## Where it stands (2026-10-03)
+## Where it stands (2026-10-04)
 
-Pod is still on v1.4.197. The daily rehearsal below has opened an issue for every newer stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift), all open). Sixteen of them stopped only on some of `package.json`, `pnpm-lock.yaml`, `.gitattributes` and `config/electron-builder.config.cjs`, the four files the sync script below resolves by rule; v1.4.199 and v1.4.200 (issues 3 and 4) stopped on `src/renderer/src/store/index.ts`. Those issues list only the files of the first Pod commit that stopped, because the old job aborted there.
+Pod's `main` has been on Orca v1.4.219 since 2026-10-04; [`sync-log-v1.4.219.md`](./sync-log-v1.4.219.md) records that sync. The old `main`, on v1.4.197, is kept on GitHub as the branch `backup/main-before-v1.4.219`. The daily rehearsal below opened an issue for every stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift)); they stay open until someone closes them.
 
-The new rehearsal's second manual run onto v1.4.219 (run 37159854951) resolved the three clashes in commit 1 of 69 by rule, replayed commit 2, and stopped at commit 3, Pod's move-aside commit, on `track-community-prs.yaml`, a workflow Orca has deleted. The script now drops such a workflow by rule; later stops are not known yet.
+No Pod release has been built on v1.4.219 yet. `pod-release.yml` needed two new install steps to build on it (see the sync log), and a `mode=trial` run of it, which publishes nothing, has to pass before the next release.
 
 ## The sync script
 
@@ -73,7 +73,8 @@ When the script has finished:
 1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and the RPC params catalog (`pnpm run generate:rpc-params-catalog`), and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
 2. Run the smokes in [`smoke/README.md`](./smoke/README.md) against `pnpm dev` on this tree, and the lineage performance gate, comparing with `main` on the same Mac.
 3. Run the data check below.
-4. Land it. The rebase rewrites `main`'s history, so it goes up with `git push --force-with-lease origin main`, and every other clone resets to it (`git fetch origin && git reset --hard origin/main`, after moving local work onto a branch). Then cut a release with the new base named in its notes (see [`README.md`](./README.md), "Cut a release").
+4. Compare Orca's mac release job between the old and the new tag (`git diff <old-tag> <new-tag> -- .github/workflows/release-mac-build.yml`) against `pod-release.yml`. Carry over every install or build step the unsigned build cannot run without, and leave out signing, telemetry and Stably-only steps. Then push the branch and dispatch `pod-release.yml` on it with `mode=trial`, which builds and checks both apps and publishes nothing.
+5. Land it. The rebase rewrites `main`'s history, so it goes up with `git push --force-with-lease origin main`, and every other clone resets to it (`git fetch origin && git reset --hard origin/main`, after moving local work onto a branch). Then cut a release with the new base named in its notes (see [`README.md`](./README.md), "Cut a release").
 
 `FORK_TOUCHPOINTS.md` should end with the same rows it started with. A touch that had to grow belongs in the register in the same commit, and in the script's lists when it is one of the four rule files.
 
