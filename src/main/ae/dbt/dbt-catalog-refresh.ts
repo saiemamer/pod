@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { DbtCatalogSummary } from '../../../shared/ae/dbt-types'
+import type { DbtCatalogRun, DbtCatalogSummary } from '../../../shared/ae/dbt-types'
 import type { AeDbtDistribution } from '../../../shared/ae/dbt-settings-types'
 import type { DbtProjectInfo } from './dbt-project-discovery'
 
@@ -19,10 +19,12 @@ export function dbtCatalogPath(project: DbtProjectInfo): string {
 /** The commands, in order, that bring manifest and catalog up to date. */
 export function dbtCatalogCommands(distribution: AeDbtDistribution): string[][] {
   // Why: Fusion's compile writes both artifacts; Core needs a parse for the manifest
-  // and docs generate for the catalog.
+  // and docs generate for the catalog. --no-compile because docs generate otherwise
+  // compiles every model first, and one model whose parent is not built under this
+  // target stopped the whole catalog.
   return distribution === 'fusion'
     ? [['compile', '--write-catalog']]
-    : [['parse'], ['docs', 'generate']]
+    : [['parse'], ['docs', 'generate', '--no-compile']]
 }
 
 type CatalogSummaryCacheEntry = { mtimeMs: number; summary: DbtCatalogSummary }
@@ -75,10 +77,22 @@ export function parseDbtCatalogSummary(file: string, text: string): DbtCatalogSu
   return summary
 }
 
-/** Which projects were refreshed this session, so an editor tab costs one run, not one per open. */
+/**
+ * Which projects were refreshed this session, so an editor tab costs one run, not one per
+ * open, and the last run's outcome, so the Database tab shows it again after a remount.
+ */
 export class DbtCatalogSessionLedger {
   private readonly done = new Set<string>()
   private readonly running = new Map<string, Promise<unknown>>()
+  private readonly runs = new Map<string, DbtCatalogRun>()
+
+  record(projectDir: string, run: DbtCatalogRun): void {
+    this.runs.set(projectDir, run)
+  }
+
+  last(projectDir: string): DbtCatalogRun | undefined {
+    return this.runs.get(projectDir)
+  }
 
   has(projectDir: string): boolean {
     return this.done.has(projectDir)

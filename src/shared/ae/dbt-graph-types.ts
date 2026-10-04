@@ -125,6 +125,8 @@ export type DbtCatalogRelation = {
   path?: string
   comment?: string
   columns: DbtCatalogColumn[]
+  /** In the manifest but not in a catalog that exists: not built under this target. */
+  notBuilt?: boolean
 }
 
 export type DbtCatalogSchema = {
@@ -136,7 +138,9 @@ export type DbtCatalogDatabase = { name: string; schemas: DbtCatalogSchema[] }
 export type DbtCatalogTree = {
   projectDir: string
   file: string
+  /** Whether catalog.json exists; the manifest alone still lists every relation. */
   exists: boolean
+  manifestExists?: boolean
   generatedAt?: string
   databases: DbtCatalogDatabase[]
   relationCount: number

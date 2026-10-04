@@ -27,6 +27,7 @@ export const aeApi = {
     modelInfo: (args) => ipcRenderer.invoke('ae:dbt:modelInfo', args),
     lineage: (args) => ipcRenderer.invoke('ae:dbt:lineage', args),
     ensureCatalog: (args) => ipcRenderer.invoke('ae:dbt:ensureCatalog', args),
+    catalogRun: (args) => ipcRenderer.invoke('ae:dbt:catalogRun', args),
     resolveRef: (args) => ipcRenderer.invoke('ae:dbt:resolveRef', args),
     exportCsv: (args) => ipcRenderer.invoke('ae:dbt:exportCsv', args),
     graph: (args) => ipcRenderer.invoke('ae:dbt:graph', args),

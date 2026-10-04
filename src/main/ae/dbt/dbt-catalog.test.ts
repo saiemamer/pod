@@ -101,6 +101,76 @@ describe('buildDbtCatalogTree', () => {
     expect(tree.databases[0].schemas[0].relations[0].resourceType).toBe('source')
   })
 
+  it('lists a manifest model the catalog lacks with its documented columns', () => {
+    const manifest = parseDbtManifest(
+      'm.json',
+      JSON.stringify({
+        nodes: {
+          ...JSON.parse(manifestJson).nodes,
+          'model.demo.mart_revenue': {
+            name: 'mart_revenue',
+            resource_type: 'model',
+            database: 'proj',
+            schema: 'dbt_me',
+            alias: 'revenue',
+            original_file_path: 'models/marts/mart_revenue.sql',
+            config: { materialized: 'table' },
+            columns: {
+              month: { name: 'month', description: 'First day of the month', data_type: 'date' },
+              amount: { name: 'amount' }
+            }
+          },
+          'model.demo.inlined': {
+            name: 'inlined',
+            resource_type: 'model',
+            database: 'proj',
+            schema: 'dbt_me',
+            config: { materialized: 'ephemeral' }
+          }
+        }
+      })
+    )
+    const tree = buildDbtCatalogTree(
+      '/p',
+      'c.json',
+      parseDbtCatalog('c.json', catalogJson),
+      manifest
+    )
+    const schema = tree.databases
+      .find((d) => d.name === 'proj')
+      ?.schemas.find((s) => s.name === 'dbt_me')
+    expect(schema?.relations).toEqual([
+      {
+        name: 'revenue',
+        uniqueId: 'model.demo.mart_revenue',
+        resourceType: 'model',
+        path: 'models/marts/mart_revenue.sql',
+        type: undefined,
+        comment: undefined,
+        columns: [
+          { name: 'month', index: 1, comment: 'First day of the month' },
+          { name: 'amount', index: 2 }
+        ],
+        notBuilt: true
+      }
+    ])
+    expect(tree.relationCount).toBe(4)
+    // Built relations keep their catalog columns and types and carry no mark.
+    const orders = tree.databases
+      .find((d) => d.name === 'proj')
+      ?.schemas.find((s) => s.name === 'dbt')?.relations[0]
+    expect(orders?.columns[0].type).toBe('INT64')
+    expect(orders?.notBuilt).toBeUndefined()
+  })
+
+  it('lists manifest relations without a not-built mark before any catalog exists', () => {
+    const tree = buildDbtCatalogTree('/p', 'c.json', null, parseDbtManifest('m.json', manifestJson))
+    expect(tree.exists).toBe(false)
+    expect(tree.relationCount).toBe(3)
+    const relations = tree.databases.flatMap((d) => d.schemas.flatMap((s) => s.relations))
+    expect(relations.some((relation) => relation.notBuilt)).toBe(false)
+  })
+
   it('reports a missing catalog', () => {
     expect(buildDbtCatalogTree('/p', 'c.json', null, null)).toEqual({
       projectDir: '/p',

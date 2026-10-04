@@ -58,6 +58,15 @@ POD_SMOKE_OUT=/tmp POD_SMOKE_PYTHON=/tmp/sqlglot-venv/bin/python node docs/pod/s
 
 `POD_SMOKE_PYTHON` is written into the dev instance's `toolCmdOverrides.python`; leave it out and column lineage falls back to name matching, which the toolbar's engine label shows. The same venv runs the gated unit test: `POD_SQLGLOT_PYTHON=/tmp/sqlglot-venv/bin/python pnpm test:pod src/main/ae/dbt/dbt-column-lineage.test.ts`.
 
+## Catalog under a personal target
+
+`ui-catalog-smoke.mjs` sets `POD_STUB_DOCS` in the dbt env so the stand-in `dbt` plays a personal target. With `broken`, `docs generate` prints Python warnings and a compile error and writes no catalog; with `unbuilt`, it stops in that compile unless `--no-compile` is passed, and otherwise writes a catalog without `orders`, lists two refused datasets under `errors` and exits 1, as dbt Core does. The script removes `target/catalog.json`, opens the Database tab on `dbt-demo`, and checks: the empty state says the button reads from the warehouse and can take a minute or two; a run shows its elapsed time; the failure names `order_summary` and the missing table with no warning line, and Details holds dbt's text; the failure is still there after switching to Explorer and back; with `unbuilt` the run is a result that counts and lists the two datasets, `orders` is still listed and marked not built, and `stg_orders` is not. It restores the dbt env and regenerates the full catalog afterwards. Three screenshots: `catalog-1-empty` (first run in a session only), `catalog-2-failed`, `catalog-3-partial`.
+
+```sh
+cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-catalog-smoke.mjs   # against pnpm dev on port 9333, after ui-lineage-smoke.mjs
+```
+
 ## Performance gate (before a merge or a release)
 
 `perf-fixture.mjs` writes a 1,000-node dbt project into the smoke repo (`perf/manifest.json`, `perf/catalog.json`, 940 model files under `models/perf/`), woven around the real `orders` models. The stand-in `dbt` serves it when `POD_STUB_MANIFEST` and `POD_STUB_CATALOG` are set, which `ui-lineage-perf.mjs` does through the dbt settings env. `graph-bench.mjs` times the graph code in Node; `ui-lineage-perf.mjs` drives the real app over DevTools and prints PASS/FAIL per check (graph IPC ≤ 300 ms, first Lineage open ≤ 1.5 s, zoom and pan frames avg ≤ 20 ms and p95 ≤ 33 ms, cold column lineage ≤ 8 s and warm ≤ 500 ms, column click to lit path ≤ 600 ms, no task over 150 ms across 20 tab round trips, post-GC heap growth ≤ 15 MB, Database panel open ≤ 800 ms and filter ≤ 250 ms with a thousand relations). It restores the settings and the small default manifest afterwards.

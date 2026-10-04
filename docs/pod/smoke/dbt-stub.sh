@@ -16,6 +16,35 @@ if [ -n "$POD_STUB_MANIFEST" ]; then
     *" docs generate "*) mkdir -p target; cp "$POD_STUB_CATALOG" target/catalog.json; exit 0 ;;
   esac
 fi
+# POD_STUB_DOCS plays a personal target (ui-catalog-smoke.mjs). `unbuilt` has `orders`
+# missing from the warehouse and two datasets refusing access: docs generate stops in
+# compile (order_summary reads its parent) unless --no-compile is passed, and otherwise
+# writes a catalog without `orders` and exits 1, as dbt Core does. `broken` fails without writing a catalog.
+# Both print Python warnings first, as dbt-bigquery does.
+stub_warnings() {
+  echo "/venv/lib/python3.11/site-packages/agate/table/from_object.py:21: RuntimeWarning: Error importing babel"
+  echo "  warnings.warn("
+}
+stub_compile_error() {
+  stub_warnings
+  echo "12:00:04  Encountered an error:"
+  echo "Runtime Error"
+  echo "  Database Error in model order_summary (models/marts/order_summary.sql)"
+  echo "    Not found: Table proj:dbt.orders was not found in location EU"
+  exit 2
+}
+case "$POD_STUB_DOCS: $* " in
+  broken:*" docs generate "*) stub_compile_error ;;
+  unbuilt:*" docs generate "*)
+    case " $* " in *" --no-compile "*) ;; *) stub_compile_error ;; esac
+    mkdir -p target
+    POD_STUB_DOCS= "$0" docs generate --no-compile >/dev/null
+    grep -v '"model.demo.orders":' target/catalog.json | sed 's/^ }}$/ }, "errors": ["Database Error\\n  Access Denied: Dataset proj:finance: Permission bigquery.tables.list denied on dataset proj:finance", "Database Error\\n  Access Denied: Dataset proj:hr: Permission bigquery.tables.list denied on dataset proj:hr"]}/' > target/catalog.next
+    mv target/catalog.next target/catalog.json
+    stub_warnings
+    echo "12:01:40  dbt encountered 2 failures while writing the catalog"
+    exit 1 ;;
+esac
 case " $* " in
   *" parse "*) mkdir -p target; cat > target/manifest.json <<'EOF'
 {"metadata": {"dbt_version": "1.9.0", "generated_at": "2026-09-07T14:00:00Z", "project_name": "demo"},

@@ -5,7 +5,7 @@ import type {
   DbtCatalogRelation,
   DbtCatalogTree
 } from '../../../shared/ae/dbt-graph-types'
-import type { DbtManifest } from './dbt-manifest'
+import { DBT_LINEAGE_NODE_TYPES, type DbtManifest } from './dbt-manifest'
 
 /**
  * Pod: the whole of target/catalog.json, for the explorer tree and the lineage graph's
@@ -108,36 +108,67 @@ function toCatalogNode(uniqueId: string, entry: unknown): DbtCatalogNode | null 
   }
 }
 
-/** Database > schema > relation, sorted by name; the manifest supplies resource types. */
+/**
+ * Database > schema > relation, sorted by name. Every model, seed, snapshot and source in
+ * the manifest is listed at its manifest database, schema and alias, built or not; the
+ * catalog adds columns with types where it has the relation.
+ */
 export function buildDbtCatalogTree(
   projectDir: string,
   file: string,
   catalog: DbtCatalog | null,
   manifest: DbtManifest | null
 ): DbtCatalogTree {
-  if (!catalog) {
+  if (!catalog && !manifest) {
     return { projectDir, file, exists: false, databases: [], relationCount: 0 }
   }
   const databases = new Map<string, Map<string, DbtCatalogRelation[]>>()
   let relationCount = 0
-  for (const node of catalog.nodes.values()) {
-    const database = node.database ?? ''
-    const schema = node.schema ?? ''
+  const add = (database: string, schema: string, relation: DbtCatalogRelation): void => {
     const schemas = databases.get(database) ?? new Map<string, DbtCatalogRelation[]>()
     databases.set(database, schemas)
     const relations = schemas.get(schema) ?? []
     schemas.set(schema, relations)
-    const manifestNode = manifest?.nodes.get(node.uniqueId)
-    relations.push({
+    relations.push(relation)
+    relationCount += 1
+  }
+  const listed = new Set<string>()
+  for (const node of manifest?.nodes.values() ?? []) {
+    // Why skip ephemeral: it is inlined into its children and never has a relation.
+    if (!DBT_LINEAGE_NODE_TYPES.has(node.resourceType) || node.materialized === 'ephemeral') {
+      continue
+    }
+    listed.add(node.uniqueId)
+    const built = catalog?.nodes.get(node.uniqueId)
+    add(node.database ?? built?.database ?? '', node.schema ?? built?.schema ?? '', {
+      name: node.alias ?? node.identifier ?? built?.name ?? node.name,
+      type: built?.type,
+      uniqueId: node.uniqueId,
+      resourceType: node.resourceType,
+      ...(node.originalFilePath ? { path: node.originalFilePath } : {}),
+      comment: built?.comment,
+      columns: built
+        ? built.columns
+        : node.columns.map((column, index) => ({
+            name: column.name,
+            index: index + 1,
+            ...(column.description ? { comment: column.description } : {})
+          })),
+      ...(catalog && !built ? { notBuilt: true } : {})
+    })
+  }
+  for (const node of catalog?.nodes.values() ?? []) {
+    if (listed.has(node.uniqueId)) {
+      continue
+    }
+    add(node.database ?? '', node.schema ?? '', {
       name: node.name,
       type: node.type,
       uniqueId: node.uniqueId,
-      resourceType: manifestNode?.resourceType ?? node.uniqueId.split('.')[0] ?? 'model',
-      ...(manifestNode?.originalFilePath ? { path: manifestNode.originalFilePath } : {}),
+      resourceType: node.uniqueId.split('.')[0] ?? 'model',
       comment: node.comment,
       columns: node.columns
     })
-    relationCount += 1
   }
   const byName = <T extends { name: string }>(a: T, b: T): number => a.name.localeCompare(b.name)
   const tree: DbtCatalogDatabase[] = [...databases.entries()]
@@ -154,8 +185,9 @@ export function buildDbtCatalogTree(
   return {
     projectDir,
     file,
-    exists: true,
-    generatedAt: catalog.generatedAt,
+    exists: catalog !== null,
+    manifestExists: manifest !== null,
+    ...(catalog?.generatedAt ? { generatedAt: catalog.generatedAt } : {}),
     databases: tree,
     relationCount
   }

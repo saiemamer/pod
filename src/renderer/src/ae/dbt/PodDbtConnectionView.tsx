@@ -83,12 +83,29 @@ export function PodDbtConnectionView({
         path: filePath,
         force: true
       })
+      const failure = result.run?.failure
+      if (result.outcome === 'failed' && failure) {
+        setCatalogState('error')
+        setCatalogMessage([failure.title, failure.reason, failure.hint].filter(Boolean).join('. '))
+        return
+      }
       setCatalogState('idle')
+      const skipped = result.run?.skipped?.length ?? 0
       setCatalogMessage(
-        translate('pod.dbt.connection.catalogRefreshed', '{{commands}} in {{seconds}}s', {
-          commands: result.commands.join(', '),
-          seconds: String(Math.round(result.durationMs / 1000))
-        })
+        skipped > 0
+          ? translate(
+              'pod.dbt.connection.catalogPartial',
+              '{{commands}} in {{seconds}}s; {{skipped}} skipped for lack of access, see the Database tab',
+              {
+                commands: result.commands.join(', '),
+                seconds: String(Math.round(result.durationMs / 1000)),
+                skipped: String(skipped)
+              }
+            )
+          : translate('pod.dbt.connection.catalogRefreshed', '{{commands}} in {{seconds}}s', {
+              commands: result.commands.join(', '),
+              seconds: String(Math.round(result.durationMs / 1000))
+            })
       )
       await loadAeDbtProject(fileId, filePath)
     } catch (error) {
