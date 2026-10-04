@@ -9,6 +9,14 @@ export type AeToolCmdOverrides = {
   dbtMcp?: string
 }
 
+/** Pod's optional keys on GlobalSettings, intersected there so upstream's type keeps one Pod line. */
+export type AeGlobalSettings = {
+  /** Per-tool command overrides for non-agent binaries, keyed by tool name. A missing key means use the tool on PATH. */
+  toolCmdOverrides?: Record<string, string>
+  /** dbt defaults for the results grid, lineage and the dbt CLI. */
+  aeDbt?: AeDbtSettings
+}
+
 export const AE_DBT_DISTRIBUTIONS = ['core', 'fusion'] as const
 export type AeDbtDistribution = (typeof AE_DBT_DISTRIBUTIONS)[number]
 
