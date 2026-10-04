@@ -40,7 +40,8 @@ describe('getFileTypeIcon', () => {
   })
 
   it('uses more specific icons for data, security, and presentation files', () => {
-    expect(getFileTypeIcon('db/schema.sql')).toBe(Database)
+    expect(getFileTypeIcon('db/app.sqlite')).toBe(Database)
+    expect(getFileTypeIcon('db/schema.sql')).toBe(FileCode) // Pod: not the Database tab's icon
     expect(getFileTypeIcon('reports/summary.xlsx')).toBe(FileSpreadsheet)
     expect(getFileTypeIcon('certs/server.pem')).toBe(FileKey)
     expect(getFileTypeIcon('slides/status.pptx')).toBe(FileChartColumn)

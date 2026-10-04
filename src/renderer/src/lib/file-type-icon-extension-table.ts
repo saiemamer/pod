@@ -155,7 +155,7 @@ export const FILE_ICON_BY_EXTENSION: Record<string, LucideIcon> = {
   sol: FileCode,
   sqlite: Database,
   sqlite3: Database,
-  sql: Database,
+  sql: FileCode, // Pod: dbt models; the cylinder is the Database tab's icon
   stl: FileAxis3D,
   svelte: FileCode,
   svg: FileImage,
