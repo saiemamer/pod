@@ -9,7 +9,13 @@ import type { DbtGraphEdge } from '../../../../shared/ae/dbt-graph-types'
 export const LINEAGE_NODE_WIDTH = 232
 export const LINEAGE_HEADER_HEIGHT = 40
 export const LINEAGE_COLUMN_ROW_HEIGHT = 20
-export const LINEAGE_COLUMN_ROWS_MAX = 14
+/** Column rows a node shows before "+n more"; wide models would otherwise tower. */
+export const LINEAGE_COLUMN_ROWS_MAX = 6
+/** Rows of an expanded node's scroll area; the rest scroll inside it. */
+export const LINEAGE_EXPANDED_ROWS_MAX = 12
+/** An expanded node with more columns than this gets a filter box. */
+export const LINEAGE_FILTER_MIN_COLUMNS = 20
+export const LINEAGE_FILTER_HEIGHT = 28
 /** The "columns matched by name" footer: 2px margin, 1px border, one 16px line. */
 export const LINEAGE_NAME_MATCHED_FOOTER_HEIGHT = 19
 /**
@@ -24,6 +30,8 @@ export type LineageLayoutNode = {
   id: string
   columnCount: number
   showColumns: boolean
+  /** The node lists every column in a scroll area. */
+  expanded?: boolean
 }
 
 export type LineageLayoutResult = Record<
@@ -32,13 +40,37 @@ export type LineageLayoutResult = Record<
 >
 
 /** Height the node component renders at, so dagre reserves the right space. */
-export function lineageNodeHeight(columnCount: number, showColumns: boolean): number {
+export function lineageNodeHeight(
+  columnCount: number,
+  showColumns: boolean,
+  expanded = false
+): number {
   if (!showColumns || columnCount === 0) {
     return LINEAGE_HEADER_HEIGHT
   }
-  const rows =
-    Math.min(columnCount, LINEAGE_COLUMN_ROWS_MAX) + (columnCount > LINEAGE_COLUMN_ROWS_MAX ? 1 : 0)
-  return LINEAGE_HEADER_HEIGHT + rows * LINEAGE_COLUMN_ROW_HEIGHT + NODE_PADDING_BOTTOM
+  return LINEAGE_HEADER_HEIGHT + lineageRowsHeight(columnCount, expanded) + NODE_PADDING_BOTTOM
+}
+
+/**
+ * Height of a node's column area. Bounded either way: a few rows and "+n more", or,
+ * expanded, an optional filter, a scroll area and the "show fewer" row.
+ */
+export function lineageRowsHeight(columnCount: number, expanded: boolean): number {
+  if (columnCount <= LINEAGE_COLUMN_ROWS_MAX) {
+    return columnCount * LINEAGE_COLUMN_ROW_HEIGHT
+  }
+  if (!expanded) {
+    return (LINEAGE_COLUMN_ROWS_MAX + 1) * LINEAGE_COLUMN_ROW_HEIGHT
+  }
+  return (
+    (columnCount > LINEAGE_FILTER_MIN_COLUMNS ? LINEAGE_FILTER_HEIGHT : 0) +
+    lineageExpandedScrollHeight(columnCount) +
+    LINEAGE_COLUMN_ROW_HEIGHT
+  )
+}
+
+export function lineageExpandedScrollHeight(columnCount: number): number {
+  return Math.min(columnCount, LINEAGE_EXPANDED_ROWS_MAX) * LINEAGE_COLUMN_ROW_HEIGHT
 }
 
 export function layoutLineage(
@@ -59,7 +91,7 @@ export function layoutLineage(
   for (const node of nodes) {
     const size = {
       width: LINEAGE_NODE_WIDTH,
-      height: lineageNodeHeight(node.columnCount, node.showColumns)
+      height: lineageNodeHeight(node.columnCount, node.showColumns, node.expanded)
     }
     sizes.set(node.id, size)
     // Why a copy: dagre writes its centre into the label it is given, and reading the

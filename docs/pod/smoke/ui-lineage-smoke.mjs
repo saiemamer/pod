@@ -1,12 +1,14 @@
 // Phase 3 smoke: open a model in the pod-smoke dbt repo, show the Lineage tab with
 // Cmd+Alt+L, click a column and read the lit path, collapse and restore a side, open
 // the upstream/downstream list, then the Database tab in the right sidebar: expand a
-// relation, filter, and jump to another model's lineage. Needs `pnpm dev` with
-// REMOTE_DEBUGGING_PORT=9333 and the stand-in dbt at ~/Projects/pod-smoke/bin/dbt (see
+// relation, filter, and jump to another model's lineage. Last, a model with 500
+// columns must open fitted with its neighbours in view, bounded nodes and layer
+// labels. Needs `pnpm dev` with REMOTE_DEBUGGING_PORT=9333 and the stand-in dbt at ~/Projects/pod-smoke/bin/dbt (see
 // README.md). POD_SMOKE_PYTHON points at a python with sqlglot; without it, name
 // matching answers. Screenshots go to POD_SMOKE_OUT.
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { checkWideLineage } from './lineage-wide-smoke-step.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
 
@@ -54,8 +56,20 @@ ensure(
 )
 ensure(
   `${repo}/models/sources.yml`,
-  'version: 2\nsources:\n  - name: raw\n    tables:\n      - name: orders\n        identifier: orders_raw\n'
+  'version: 2\nsources:\n  - name: raw\n    tables:\n      - name: orders\n        identifier: orders_raw\n      - name: events\n        identifier: events_raw\n'
 )
+// a chain of wide models (the stand-in's catalog gives them 500, 500 and 400 columns)
+mkdirSync(`${repo}/models/staging/events`, { recursive: true })
+mkdirSync(`${repo}/models/intermediate`, { recursive: true })
+ensure(
+  `${repo}/models/staging/events/events_base.sql`,
+  "select * from {{ source('raw', 'events') }}\n"
+)
+ensure(
+  `${repo}/models/intermediate/events_enriched.sql`,
+  "select * from {{ ref('events_base') }}\n"
+)
+ensure(`${repo}/models/fct_events.sql`, "select * from {{ ref('events_base') }}\n")
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9333')
 const pages = browser.contexts().flatMap((c) => c.pages())
@@ -156,11 +170,11 @@ await sleep(500)
 for (let i = 0; i < 15 && !existsSync(`${repo}/target/catalog.json`); i += 1) {
   await sleep(1000)
 }
-// Why the manifest check: one written before status_report joined the stand-in lacks the diamond.
+// Why the manifest check: one written before events_base joined the stand-in lacks the wide chain.
 const stale =
   !existsSync(`${repo}/target/catalog.json`) ||
   !existsSync(`${repo}/target/manifest.json`) ||
-  !readFileSync(`${repo}/target/manifest.json`, 'utf8').includes('model.demo.status_report')
+  !readFileSync(`${repo}/target/manifest.json`, 'utf8').includes('model.demo.events_base')
 if (stale) {
   const refreshed = await page.evaluate(
     (path) => window.api.ae.dbt.ensureCatalog({ path, force: true }),
@@ -219,7 +233,12 @@ for (const name of ['Zoom in', 'Zoom in', 'Zoom out', 'Zoom out']) {
   zoomSteps.push(await zoomLabel())
 }
 log('zoom steps (+ + − −):', zoomSteps.join(' → '))
-if (zoomSteps.join(' ') !== '100% 110% 121% 110% 100%') {
+// Why ratios: the canvas opens fitted, which is 100 % only when the graph fits at 100 %.
+const zooms = zoomSteps.map((label) => Number.parseInt(label, 10))
+const tenPercent = [1.1, 1.1, 1 / 1.1, 1 / 1.1].every(
+  (ratio, i) => Math.abs(zooms[i + 1] - zooms[i] * ratio) <= 1
+)
+if (!tenPercent || zooms[4] !== zooms[0]) {
   throw new Error(`zoom steps are not ten percent: ${zoomSteps.join(' ')}`)
 }
 
@@ -564,6 +583,9 @@ while ((await viewDepthUp()) < 4) {
   await sleep(400)
 }
 await view.locator('[data-testid="pod-lineage-tree-toggle"]').click()
+
+// 8d. a model with 500 columns opens fitted (lineage-wide-smoke-step.mjs)
+await checkWideLineage({ page, panel, out: OUT, log, sleep })
 
 // 9. put the dock height back for the next run
 const dockNow = page.locator('[data-testid="pod-dbt-dock"]').first()

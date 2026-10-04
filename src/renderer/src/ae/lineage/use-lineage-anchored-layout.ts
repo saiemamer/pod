@@ -4,6 +4,7 @@ import type { LineageLayoutResult } from './lineage-layout'
 type Point = { x: number; y: number }
 type SideCallback = (nodeId: string, side: 'up' | 'down') => void
 type ExpandCallback = (nodeId: string, side: 'up' | 'down') => Promise<boolean>
+type NodeCallback = (nodeId: string) => void
 
 /** The node a side button belongs to, where it sat, and the layout it sat in. */
 export type LineageAnchorHold = { id: string; at: Point; layout: LineageLayoutResult }
@@ -50,7 +51,7 @@ export async function lineageExpansionMerged(merged: Promise<boolean>): Promise<
 }
 
 /**
- * Pod: keeps the node whose side button was clicked where it sits on screen. Hiding or
+ * Pod: keeps the node whose side button (or column toggle) was clicked where it sits on screen. Hiding or
  * loading a side makes dagre shift every box, and the node slid out of view with its
  * own restore button. Rather than pan the viewport (which moves on its own clock and
  * ran frames ahead of the node tween), the whole layout is offset so that node keeps
@@ -64,12 +65,17 @@ export async function lineageExpansionMerged(merged: Promise<boolean>): Promise<
 export function useLineageAnchoredLayout(
   raw: LineageLayoutResult,
   dragged: Record<string, Point>,
-  callbacks: { onToggleCollapse: SideCallback; onExpand: ExpandCallback }
+  callbacks: {
+    onToggleCollapse: SideCallback
+    onExpand: ExpandCallback
+    onToggleColumns: NodeCallback
+  }
 ): {
   placed: LineageLayoutResult
   anchored: boolean
   onToggleCollapse: SideCallback
   onExpand: SideCallback
+  onToggleColumns: NodeCallback
 } {
   const [offset, setOffset] = useState(NO_OFFSET)
   const [hold, setHold] = useState<LineageAnchorHold | null>(null)
@@ -101,7 +107,7 @@ export function useLineageAnchoredLayout(
       requestAnimationFrame(() => setHold((held) => (held === next ? null : held)))
     )
   }, [])
-  const { onToggleCollapse: toggle, onExpand: expand } = callbacks
+  const { onToggleCollapse: toggle, onExpand: expand, onToggleColumns: toggleColumns } = callbacks
   const onToggleCollapse = useCallback<SideCallback>(
     (nodeId, side) => {
       arm(nodeId)
@@ -114,5 +120,12 @@ export function useLineageAnchoredLayout(
       void lineageExpansionMerged(expand(nodeId, side)).then((merged) => merged && arm(nodeId)),
     [arm, expand]
   )
-  return { placed, anchored: anchoredLayout === raw, onToggleCollapse, onExpand }
+  const onToggleColumns = useCallback<NodeCallback>(
+    (nodeId) => {
+      arm(nodeId)
+      toggleColumns(nodeId)
+    },
+    [arm, toggleColumns]
+  )
+  return { placed, anchored: anchoredLayout === raw, onToggleCollapse, onExpand, onToggleColumns }
 }
