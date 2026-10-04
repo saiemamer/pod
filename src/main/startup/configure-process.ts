@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { getVersionManagerBinPaths } from '../codex-cli/command'
 import { getMainE2EConfig } from '../e2e-config'
 import { DISABLED_CHROMIUM_FEATURES } from './disabled-chromium-features'
+import { applyPodUserDataFolder } from '../pod/pod-user-data'
 import { readHttp1CompatibilityMarker } from './http1-compatibility-marker'
 import {
   hasMissingProfileStateDatabaseWithRetainedExport,
@@ -209,6 +210,7 @@ export function configureDevUserDataPath(isDev: boolean): void {
   }
 
   if (!isDev) {
+    applyPodUserDataFolder(app)
     return
   }
   const overrideUserDataPath = process.env.ORCA_DEV_USER_DATA_PATH

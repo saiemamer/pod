@@ -2,7 +2,7 @@
 
 Pod runs on macOS 12 (Monterey) or newer, on Apple silicon and Intel. It installs as `Pod.app` plus the `orca` command, which agents use to call Pod.
 
-Pod and stock Orca share the `orca` command, `~/.orca` and `~/Library/Application Support/orca`. Install one of them on a Mac, not both; Homebrew refuses Pod while the `orca` cask is installed.
+Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca's `~/Library/Application Support/orca`. The two still share the `orca` command and `~/.orca`, so for now Homebrew refuses Pod while the `orca` cask is installed.
 
 ## Install with Homebrew
 
@@ -46,13 +46,15 @@ brew upgrade --cask pod
 
 Quit and reopen Pod afterwards, then check `orca --version`. Pod cannot replace itself in place, because macOS only lets a signed app do that.
 
-An update keeps your domains, initiatives, secrets and settings. They live in `~/Library/Application Support/orca`, which no install or upgrade touches; [`sync.md`](./sync.md) explains why that holds across upstream Orca updates too.
+An update keeps your domains, initiatives, secrets and settings. They live in `~/Library/Application Support/Pod`, which no install or upgrade touches; [`sync.md`](./sync.md) explains why that holds across upstream Orca updates too.
+
+Pod 0.1.12 and older kept that data in `~/Library/Application Support/orca`. The first start after upgrading copies it into `Pod` once. Quit the old Pod (and stock Orca, if it is installed) before opening the new one; Pod refuses to start while either still has the old folder open. If stock Orca has never been on the Mac, the old folder is then renamed to `orca.moved-to-pod-<date>`; otherwise it stays where it is for Orca.
 
 ## Uninstall
 
 ```sh
 brew uninstall --cask pod          # removes the app and the orca link, keeps your data
-brew uninstall --zap --cask pod    # also deletes ~/.orca, ~/Library/Application Support/orca and Pod's caches
+brew uninstall --zap --cask pod    # also deletes ~/Library/Application Support/Pod and Pod's caches
 ```
 
-`--zap` deletes Orca's data too if you ever used stock Orca on the same Mac, since the two share those folders.
+`--zap` leaves `~/.orca`, which stock Orca shares, and any `orca.moved-to-pod-<date>` folder from the first upgrade.

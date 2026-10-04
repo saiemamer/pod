@@ -80,7 +80,17 @@ When the script has finished:
 
 ## What an update keeps
 
-A user's Pod data sits in Orca's profile folder, `~/Library/Application Support/orca/profiles/local-default/` (the dev build uses `orca-dev`). Pod adds three optional top-level keys to Orca's saved state: `aeDomains`, `aeInitiatives` and `aeDomainSecrets` (each secret is encrypted with Electron's `safeStorage`, whose key is in the macOS Keychain). A rebase changes neither the app id (`io.github.saiemamer.pod`) nor the data folder, so an update opens the same profile.
+A user's Pod data sits in `~/Library/Application Support/Pod/profiles/local-default/` (the dev build uses `orca-dev`). Pod adds three optional top-level keys to Orca's saved state: `aeDomains`, `aeInitiatives` and `aeDomainSecrets` (each secret is encrypted with Electron's `safeStorage`, whose key is in the macOS Keychain item `orca Safe Storage`). A rebase changes neither the app id (`io.github.saiemamer.pod`), the app name `orca` that names the Keychain item, nor the data folder, so an update opens the same profile.
+
+Pods up to 0.1.12 kept their data in Orca's folder, `~/Library/Application Support/orca`, which stock Orca also uses. The first packaged start of a later Pod copies it once into `Pod` (`src/main/pod/pod-user-data.ts`, called from the packaged branch of `configure-process.ts`):
+
+- It skips the copy when `Pod` already holds `pod-data-origin.json`, `profiles/` or `orca-profile-index.json`, and starts empty when `orca` holds neither `profiles/` nor `orca-data.json`.
+- It refuses to start, with "Quit Orca or the older Pod before opening Pod", while the app named in `orca/orca-runtime.json` or `orca/SingletonLock` still runs, and stops the old Pod's terminal daemon (`orca/daemon/daemon-v*.pid`, only when that pid is a `Pod.app` process).
+- It copies into `Pod.moving-<pid>` (cloned on APFS), leaving behind locks, sockets, `daemon/`, Chromium caches, `Crashpad/`, `logs/`, `pod-upgrade.command`, the Orca Mobile pairing files and the agent-hook endpoint files. It writes `pod-data-origin.json` last, then renames the folder to `Pod`. A launch that dies before the marker leaves only `Pod.moving-<pid>`, which the next start deletes and copies again.
+- A `profile-state.db` with a newer schema than Pod's (saved by a stock Orca ahead of Pod's base) is not copied: the newest `orca-data.json.sqlite-export.<rev>.json` becomes `orca-data.json`, and the database, its other exports and backups stay behind, so Pod imports the JSON as on a first SQLite start.
+- The source is never changed. Afterwards it is renamed to `orca.moved-to-pod-<date>` only when the Mac shows no sign of stock Orca (`/Applications/Orca.app`, `~/Applications/Orca.app`, `~/Library/Preferences/com.stablyai.orca.plist`); otherwise it stays for Orca. To roll back to an older Pod, rename that folder back to `orca`.
+
+The CLI finds the same folder because Pod's launcher `resources/darwin/bin/orca` exports `ORCA_USER_DATA_PATH`. `~/.orca` stays shared with stock Orca.
 
 Since Orca v1.4.219 (Pod's base from this sync on), the saved state lives in a SQLite database, `profile-state.db`, with one row per top-level key in its `profile_state_documents` table. Nothing filters the keys, so Pod's three keys get a row each like Orca's own. `orca-data.json` in the same folder is now a compatibility copy for older builds: Orca rewrites it from the database on a clean quit and during profile maintenance, and never reads it as a live store.
 
