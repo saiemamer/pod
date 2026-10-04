@@ -174,7 +174,7 @@ const windowsRuntimeResources = existsSync(
 module.exports = {
   appId,
   productName: podBrand.productName,
-  protocols: [{ name: 'Orca', schemes: ['orca'] }],
+  protocols: [], // Pod: orca:// links open stock Orca
   toolsets: { appimage: '1.0.3' },
   ...(devChannelBuildVersion
     ? { extraMetadata: { version: devChannelBuildVersion } }

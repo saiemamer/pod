@@ -54,6 +54,10 @@ const ELECTRON_BUILDER_TOUCHES = [
   {
     upstream: ["    repo: devChannelRepo ?? 'orca',"],
     pod: ['    repo: devChannelRepo ?? podBrand.releaseRepo,']
+  },
+  {
+    upstream: ["  protocols: [{ name: 'Orca', schemes: ['orca'] }],"],
+    pod: ['  protocols: [], // Pod: orca:// links open stock Orca']
   }
 ]
 

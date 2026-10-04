@@ -83,7 +83,11 @@ const ATTRIBUTES = '/config/scripts/**/*.mjs text eol=lf\n'
 const POD_ATTRIBUTES =
   "# Pod: keep Pod's front page across rebases (driver configured in docs/pod/README.md)\nREADME.md merge=pod-keep\n"
 
-const builderConfig = (protocols, appIdLine = "const appId = 'com.stablyai.orca'") =>
+const builderConfig = (
+  protocols,
+  appIdLine = "const appId = 'com.stablyai.orca'",
+  afterProtocols = []
+) =>
   [
     'const devChannelRepo = null',
     appIdLine,
@@ -91,6 +95,7 @@ const builderConfig = (protocols, appIdLine = "const appId = 'com.stablyai.orca'
     '  appId,',
     "  productName: 'Orca',",
     `  protocols: ${protocols},`,
+    ...afterProtocols,
     '  win: {',
     "    executableName: 'Orca',",
     '  },',
@@ -261,6 +266,46 @@ test('re-applies Pod touches over upstream edits to the clashing files and bumps
       ],
       ['pod: LSP framing library', ['package.json']]
     ]
+  )
+})
+
+test('re-applies Pod giving up the orca:// scheme over an upstream edit beside it', () => {
+  // Catches: a sync that stops on, or silently drops, Pod's empty protocols list when
+  // upstream edits the lines around it, which would put orca:// back in Pod's Info.plist.
+  const f = fixture()
+  const { up, pod, git, read, commit, sync } = f
+  const ORCA_SCHEME = "[{ name: 'Orca', schemes: ['orca'] }]"
+  const POD_PROTOCOLS = '  protocols: [], // Pod: orca:// links open stock Orca'
+  const dropScheme = (text) => text.replace(`  protocols: ${ORCA_SCHEME},`, POD_PROTOCOLS)
+  commit(up, 'orca 1.0.0', {
+    'config/electron-builder.config.cjs': builderConfig(ORCA_SCHEME)
+  })
+  tagRelease(f, 'v1.0.0')
+  git(dirname(pod), 'clone', '-q', up, pod)
+  git(pod, 'remote', 'rename', 'origin', 'upstream')
+  git(pod, 'reset', '-q', '--hard', 'v1.0.0')
+  commit(pod, 'pod: give up the orca:// scheme', {
+    ...brandFiles('v1.0.0'),
+    'config/electron-builder.config.cjs': dropScheme(
+      read(pod, 'config/electron-builder.config.cjs')
+    )
+  })
+  const toolsets = ["  toolsets: { appimage: '1.0.3' },"]
+  commit(up, 'orca 1.1.0', {
+    'config/electron-builder.config.cjs': builderConfig(ORCA_SCHEME, undefined, toolsets)
+  })
+  tagRelease(f, 'v1.1.0')
+
+  const { code, output, report } = sync('v1.1.0')
+
+  assert.equal(code, 0, output)
+  assert.deepEqual(
+    report.resolved.map((entry) => [entry.subject, entry.files]),
+    [['pod: give up the orca:// scheme', ['config/electron-builder.config.cjs']]]
+  )
+  assert.equal(
+    read(pod, 'config/electron-builder.config.cjs'),
+    dropScheme(builderConfig(ORCA_SCHEME, undefined, toolsets))
   )
 })
 
