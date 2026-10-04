@@ -1,5 +1,6 @@
 import type { AeDomainConfig, AeDomainRepo, AeInitiative } from '../../shared/ae/domain-types'
 import type { TuiAgent } from '../../shared/tui-agent'
+import type { DbtPrepareState } from '../../shared/ae/dbt-readiness-types'
 import type {
   DbtLspChangeRequest,
   DbtLspCompletionItem,
@@ -111,6 +112,11 @@ export type AeApi = {
     columnLineage: (args: DbtColumnLineageRequest) => Promise<DbtColumnLineageResult>
     catalogTree: (args: DbtPathRequest) => Promise<DbtCatalogTree>
     lineageEngine: (args: DbtPathRequest) => Promise<DbtLineageEngineStatus>
+    /** Whether the project's packages and manifest exist, and any preparation under way. */
+    readiness: (args: DbtPathRequest) => Promise<DbtPrepareState>
+    /** Installs packages (from the main checkout when they match) and parses. */
+    prepare: (args: DbtPathRequest) => Promise<DbtPrepareState>
+    onPrepareEvent: (callback: (state: DbtPrepareState) => void) => () => void
     /** dbt-language-server, one per project; documents are keyed by absolute path. */
     lsp: {
       status: (args: DbtLspDocumentRequest) => Promise<DbtLspStatus>

@@ -33,8 +33,10 @@ import { logStartupMilestone } from './startup-diagnostics'
 import type { WindowsDesktopStartupServices } from './windows-desktop-shell-path-startup'
 import type { RuntimeWorktreeLifecycleEvent } from '../runtime/orca-runtime'
 import { mainProcessState as state } from './main-process-state'
+import { notifyPodWorktreeLifecycle } from '../ae/dbt/dbt-copy-prepare'
 
 export function emitPluginWorktreeLifecycle(event: RuntimeWorktreeLifecycleEvent): void {
+  notifyPodWorktreeLifecycle(event)
   state.pluginService?.emitEvent(
     event.kind === 'created' ? 'worktree.created' : 'worktree.removed',
     event.kind === 'created'

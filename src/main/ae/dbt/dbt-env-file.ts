@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { isWithin } from './dbt-project-discovery'
 
 /**
@@ -10,6 +10,8 @@ import { isWithin } from './dbt-project-discovery'
 export type DbtEnvFilesOptions = {
   projectDir: string
   repoRoot?: string | null
+  /** Main checkout when repoRoot is a linked worktree; its env files fill what the copy lacks. */
+  primaryRoot?: string | null
   /** Settings override, absolute or relative to projectDir; applied last. */
   envFile?: string
   readFile?: (path: string) => string | null
@@ -63,6 +65,8 @@ function parseValue(raw: string): string {
  * Walk from the repo root down to the project directory, applying `.env` then
  * `.env.local` at each level so deeper files override shallower ones, then the explicit
  * settings file. The caller decides how the result ranks against the real environment.
+ * In a linked worktree the main checkout's files apply first: they are untracked, so a
+ * fresh copy has none, and reading them in place keeps one file holding the tokens.
  */
 export function loadDbtEnvFiles(options: DbtEnvFilesOptions): DbtEnvFiles {
   const read = options.readFile ?? defaultRead
@@ -78,6 +82,14 @@ export function loadDbtEnvFiles(options: DbtEnvFilesOptions): DbtEnvFiles {
     }
     Object.assign(values, parseDotEnv(text))
     files.push(file)
+  }
+  const primary = options.primaryRoot ? resolve(options.primaryRoot) : null
+  if (root && primary && primary !== root && isWithin(projectDir, root)) {
+    for (const dir of dirs) {
+      for (const name of ENV_FILE_NAMES) {
+        apply(join(primary, relative(root, dir), name))
+      }
+    }
   }
   for (const dir of dirs) {
     for (const name of ENV_FILE_NAMES) {

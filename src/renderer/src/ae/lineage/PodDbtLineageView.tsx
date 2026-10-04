@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { openPodDbtFile, podDbtOpenTargetFromEditor } from '@/ae/dbt/pod-dbt-open-file'
+import { PodDbtReadinessNotice } from '@/ae/dbt/PodDbtReadinessNotice'
 import { lineageKindsIn } from './lineage-canvas-state'
 import { PodLineageCanvas } from './PodLineageCanvas'
 import { PodLineageToolbar } from './PodLineageToolbar'
@@ -50,7 +51,7 @@ function PodDbtLineageView({ fileId, filePath }: PodDbtLineageViewProps): React.
         {state.loading ? (
           <Loader2 className="size-4 animate-spin" />
         ) : (
-          <>
+          <PodDbtReadinessNotice filePath={filePath} onReady={state.reload}>
             <span className="max-w-md text-center" data-testid="pod-lineage-error">
               {state.error ?? translate('pod.lineage.empty', 'No lineage yet.')}
             </span>
@@ -62,7 +63,7 @@ function PodDbtLineageView({ fileId, filePath }: PodDbtLineageViewProps): React.
             >
               {translate('pod.lineage.parse', 'dbt parse')}
             </Button>
-          </>
+          </PodDbtReadinessNotice>
         )}
       </div>
     )

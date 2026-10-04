@@ -54,6 +54,15 @@ The script writes `toolCmdOverrides.dbt` into the dev instance's settings (its o
 
 Before pushing, run the full check with a bigger heap: `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web` (about four minutes cold, twenty seconds once `config/tsconfig.tc.web.tsbuildinfo` exists). Node's default 2 GB heap dies on this 8 GB Mac even with the cache warm. `pnpm typecheck:pod` checks only the changed files and their imports in about half a minute, for quick loops.
 
+## Fresh copy of a dbt repo
+
+`ui-fresh-copy-smoke.mjs` commits a `packages.yml` to the smoke dbt repo, marks the package installed in the main copy (`dbt_packages/dbt_utils`), creates a new workspace through `window.api.worktrees.create`, and waits for Pod to prepare it unasked: packages copied from the main copy, then `dbt parse`. It then opens `orders.sql` in the new workspace, presses Cmd+Alt+L, and fails unless the canvas draws with no `DbtGraphNotReadyError` or `DbtRunError` text in the dock. The stand-in `dbt` refuses `parse` while a listed package is missing, as dbt Core does, so the step fails on a build without the preparation. Run `ui-lineage-smoke.mjs` once first; it writes the models.
+
+```sh
+cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-fresh-copy-smoke.mjs   # against pnpm dev on 9333
+```
+
 ## Lineage canvas and Database explorer (Phase 3)
 
 `ui-lineage-smoke.mjs` adds a source and a downstream model to the smoke repo (`models/sources.yml`, `models/marts/order_summary.sql`, and a `stg_orders.sql` that reads the source), opens `orders.sql`, presses Cmd+Alt+L for the Lineage tab, clicks the `status` column and reads which columns lit up, opens the upstream/downstream list, collapses and restores one side, then switches the right sidebar to the Database tab, expands `orders`, filters on `status`, uses "Show lineage" on `order_summary` and `stg_orders`, then opens `status_report` at upstream depth 1 and loads `stg_orders` through `orders_by_customer`, checking that the edge to `order_statuses` appears and its "+1" clears (a shared parent). Side-button clicks are not forced; each asserts the node count, and the clicked node may move at most 4 px in any frame, including when the button brings a selected node back. Last, `lineage-wide-smoke-step.mjs` opens `events_base` (500 columns) and checks the first ready frame: the focus, its source and its two wide children lie inside the canvas at no less than 60 %, each header names its layer, the focus lists six columns and "+494 more columns", the expanded list filters, and a lit `col_300` stays among the six rows after collapsing. On the code before 2026-10-04 the canvas opened at 100 % and the two 500-column children overflowed it. The stand-in `dbt` writes a manifest of the orders models (source, `stg_orders`, `orders`, `order_summary`, `orders_by_customer`, `order_statuses`, `status_report`) plus the wide events chain, and a catalog with columns, so copy it again if yours predates 2026-10-04.
