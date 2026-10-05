@@ -31,3 +31,18 @@ export const POD_BREW_UPGRADE_COMMAND = 'brew upgrade --cask pod'
  */
 export const POD_SHOW_ORCA_CLOUD_FEATURES =
   typeof process !== 'undefined' && process.env?.VITEST === 'true'
+/**
+ * Why: Orca's built-in `--dangerously-skip-permissions` for Claude made Claude Code ask people
+ * who never chose Bypass Permissions mode to confirm it. Pod starts Claude with no permission
+ * argument, so Claude Code's own configuration decides. False under vitest so upstream tests
+ * keep Orca's default.
+ */
+export const POD_CLAUDE_FOLLOWS_OWN_PERMISSIONS =
+  typeof process === 'undefined' || process.env?.VITEST !== 'true'
+/**
+ * Why: the Mobile Emulator previews iOS simulators for app developers; it has no place in Pod.
+ * Its code stays and this hides every way to open it. True under vitest, as above.
+ */
+export const POD_SHOW_MOBILE_EMULATOR =
+  typeof process !== 'undefined' && process.env?.VITEST === 'true'
+export const POD_MOBILE_EMULATOR_HIDDEN_MESSAGE = 'Pod does not include the Mobile Emulator.'
