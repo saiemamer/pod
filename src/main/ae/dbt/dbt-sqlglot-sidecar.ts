@@ -1,14 +1,19 @@
 import { runProcess } from '../../../shared/child-process/run-process'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import type { DbtLineageEngineStatus } from '../../../shared/ae/dbt-graph-types'
-import { findOnPath } from './dbt-runner'
+import {
+  sqlglotProcessEnv,
+  sqlglotPythonCandidates,
+  type SqlglotBundle,
+  type SqlglotPythonCandidate
+} from './dbt-sqlglot-python'
 import { SQLGLOT_LINEAGE_SCRIPT } from './sqlglot-lineage-script'
 
 /**
- * Pod: runs sqlglot in the user's Python for column lineage. The script travels as a
- * `-c` argument (a string constant, so no bundler needs a loader) and the models as JSON
- * on stdin, so nothing is written to disk and no resource has to be packaged. sqlglot is never bundled: it is MIT, but it is the
- * user's interpreter, found through Settings > Analytics Tools or PATH.
+ * Pod: runs sqlglot in a Python the person already has, for column lineage. The script
+ * travels as a `-c` argument (a string constant, so no bundler needs a loader) and the
+ * models as JSON on stdin. sqlglot itself is the copy Pod ships (`bundle`), first on
+ * PYTHONPATH; without one (orcad, a remote host) the interpreter's own sqlglot answers.
  */
 export type SqlglotNodeInput = {
   id: string
@@ -35,6 +40,9 @@ export type SqlglotOutput =
 export type DbtSqlglotSidecarDeps = {
   run: (spec: ProcessSpec) => Promise<ProcessResult>
   now?: () => number
+  bundle?: SqlglotBundle | null
+  /** Tests replace the lookup; it reads PATH and the fixed Homebrew dirs. */
+  findPythons?: typeof sqlglotPythonCandidates
 }
 
 export const SQLGLOT_PROBE_TIMEOUT_MS = 20_000
@@ -63,63 +71,80 @@ export function sqlglotDialectFor(adapter: string): string {
   return map[adapter.toLowerCase()] ?? adapter.toLowerCase()
 }
 
-export function resolvePython(
-  override: string | undefined,
-  env: NodeJS.ProcessEnv
-): { path: string; source: 'settings' | 'path' } | null {
-  const explicit = override?.trim()
-  if (explicit) {
-    return { path: explicit, source: 'settings' }
-  }
-  const found = findOnPath('python3', env.PATH) ?? findOnPath('python', env.PATH)
-  return found ? { path: found, source: 'path' } : null
-}
+export const NO_PYTHON_NOTE =
+  'Column lineage matches columns by name because Pod found no Python on this computer. Install Python 3.9 or later, or set one in Settings > Analytics Tools.'
 
 type ProbeEntry = { status: DbtLineageEngineStatus; at: number }
 
 export class DbtSqlglotSidecar {
   private readonly probes = new Map<string, Promise<ProbeEntry>>()
+  private readonly bundle: SqlglotBundle | null
 
-  constructor(private readonly deps: DbtSqlglotSidecarDeps = { run: runProcess }) {}
+  constructor(private readonly deps: DbtSqlglotSidecarDeps = { run: runProcess }) {
+    this.bundle = deps.bundle ?? null
+  }
 
-  /** Which engine will answer, and why, for the Connection tab and the CLI. */
+  /** Which engine will answer, and why, for the Connection tab, the toolbar and the CLI. */
   async status(
     override: string | undefined,
-    env: NodeJS.ProcessEnv
+    env: NodeJS.ProcessEnv,
+    dbtBinary?: string | null
   ): Promise<DbtLineageEngineStatus> {
-    const python = resolvePython(override, env)
-    if (!python) {
-      return {
-        engine: 'name-match',
-        note: 'No python3 on PATH; set one in Settings > Analytics Tools for sqlglot lineage.'
-      }
+    const candidates = (this.deps.findPythons ?? sqlglotPythonCandidates)(override, dbtBinary, env)
+    if (candidates.length === 0) {
+      return { engine: 'name-match', noPython: true, note: NO_PYTHON_NOTE }
     }
     const now = this.deps.now ?? Date.now
-    const cached = this.probes.get(python.path)
+    const key = candidates.map((c) => `${c.source}:${c.path}`).join('\n')
+    const cached = this.probes.get(key)
     if (cached) {
       const entry = await cached
       if (entry.status.engine === 'sqlglot' || now() - entry.at < SQLGLOT_PROBE_RETRY_MS) {
         return entry.status
       }
     }
-    const probe = this.probe(python, env).then((status) => ({
-      status,
-      at: now()
-    }))
-    this.probes.set(python.path, probe)
+    const probe = this.probeAll(candidates, env).then((status) => ({ status, at: now() }))
+    this.probes.set(key, probe)
     return (await probe).status
   }
 
+  /** First candidate that imports sqlglot wins; one that does not start is skipped. */
+  private async probeAll(
+    candidates: SqlglotPythonCandidate[],
+    env: NodeJS.ProcessEnv
+  ): Promise<DbtLineageEngineStatus> {
+    const failures: DbtLineageEngineStatus[] = []
+    for (const candidate of candidates) {
+      const status = await this.probe(candidate, env)
+      if (status.engine === 'sqlglot') {
+        return status
+      }
+      failures.push(status)
+    }
+    return failures[0] ?? { engine: 'name-match', noPython: true, note: NO_PYTHON_NOTE }
+  }
+
+  private spec(
+    program: string,
+    env: NodeJS.ProcessEnv
+  ): Pick<ProcessSpec, 'program' | 'env' | 'cwd'> {
+    // Why cwd: `-c` puts the working directory first on sys.path, ahead of PYTHONPATH.
+    return {
+      program,
+      env: sqlglotProcessEnv(env, this.bundle),
+      ...(this.bundle ? { cwd: this.bundle.dir } : {})
+    }
+  }
+
   private async probe(
-    python: { path: string; source: 'settings' | 'path' },
+    python: SqlglotPythonCandidate,
     env: NodeJS.ProcessEnv
   ): Promise<DbtLineageEngineStatus> {
     let result: ProcessResult
     try {
       result = await this.deps.run({
-        program: python.path,
+        ...this.spec(python.path, env),
         args: ['-c', 'import sqlglot, sys; sys.stdout.write(sqlglot.__version__)'],
-        env,
         timeoutMs: SQLGLOT_PROBE_TIMEOUT_MS,
         maxOutputBytes: 64 * 1024
       })
@@ -145,7 +170,7 @@ export class DbtSqlglotSidecar {
       engine: 'name-match',
       python: python.path,
       pythonSource: python.source,
-      note: tail.length > 0 ? tail : `python exited with code ${result.code ?? 'unknown'}`
+      note: `${python.path} could not run sqlglot: ${tail.length > 0 ? tail : `exit code ${result.code ?? 'unknown'}`}`
     }
   }
 
@@ -161,9 +186,8 @@ export class DbtSqlglotSidecar {
     let result: ProcessResult
     try {
       result = await this.deps.run({
-        program: python,
+        ...this.spec(python, env),
         args: ['-c', SQLGLOT_LINEAGE_SCRIPT],
-        env,
         input: JSON.stringify({ dialect, nodes }),
         timeoutMs: SQLGLOT_RUN_TIMEOUT_MS,
         maxOutputBytes: 32 * 1024 * 1024

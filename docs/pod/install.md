@@ -44,7 +44,7 @@ What Pod finds, in order:
 - **Profiles folder**: `DBT_PROFILES_DIR`, the project folder, `local_profiles/`, `profiles/` and `.dbt/` in the repo, then `~/.dbt`. Pod reads only the profile's target names from `profiles.yml`, never its credentials.
 - **Default target**: the profile's own `target:`, unless it looks like production.
 - **Omni CLI and sign-in**: `omni` on your shell's PATH. The Omni CLI signs in with a profile made by `omni config init` (an API key or a browser sign-in) or `omni config login`, kept in `~/.config/omni-cli/config.json` on macOS too, or with an `OMNI_API_TOKEN`; Pod needs no API key when the CLI is already signed in. `OMNI_BASE_URL` from your shell goes into the domain's env. When the CLI reports a sign-in problem, the Omni panel says so in plain words, with the CLI's own text under Details.
-- **Python with sqlglot** for column lineage. Without one, column lineage matches columns by name.
+- **Python with sqlglot** for column lineage. Pod ships its own copy of sqlglot, so any Python 3.9 or later works: the one in Settings, else the one that runs dbt, else `python3` on PATH. Only with no Python at all does column lineage match columns by name.
 
 Setup creates the domain: a project group named after the dbt repo, with each repo's role read from its files (a folder with no Omni model joins as `other`). The group's folder is the one above the dbt repo, unless that is your home folder or a disk root; then the group has no folder and initiative notes go to `~/Pod/<group>`. Setup stores the profiles folder and target as the domain's dbt defaults, and sets the dbt, omni and Python paths and Core or Fusion in Settings. Your Omni repo can be added from the result screen or later; running setup again with the same answers changes nothing. The group's menu > New initiative… then starts a coordinator agent for a piece of work across the domain's repos.
 
@@ -52,7 +52,7 @@ Setup creates the domain: a project group named after the dbt repo, with each re
 
 If setup misses something, set it directly:
 
-1. Settings > Analytics Tools > Tools: point Pod at `dbt`, the `omni` CLI and a Python with `sqlglot`. An empty field means Pod finds one the way setup does. Pod downloads `dbt-language-server` itself unless you set a path.
+1. Settings > Analytics Tools > Tools: point Pod at `dbt`, the `omni` CLI and, if you want a particular one, a Python 3.9 or later (Pod brings sqlglot). An empty field means Pod finds one the way setup does. Pod downloads `dbt-language-server` itself unless you set a path.
 2. Settings > Analytics Tools > dbt: the profiles directory, default target, and Core or Fusion.
 3. Add your repositories as a domain: Add a project > Import repositories from folder, choose the folder that holds your dbt and Omni clones, and answer "Yes, import as group". Then open the group's menu > Domain settings… to check each repo's role (dbt, omni, infra), the stakeholder teams, and the env for agents (for example `OMNI_BASE_URL`). Put secrets such as `OMNI_API_KEY` under Secrets in that dialog: Pod encrypts them with a key kept in the macOS Keychain and decrypts them only to hand them to the agents and tools it runs for that domain. A key is needed only when the Omni CLI has no profile of its own.
 

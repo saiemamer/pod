@@ -24,7 +24,7 @@ export const getPodToolsSearchEntries = createLocalizedCatalog((): SettingsSearc
     title: translate('pod.settings.tools.python.title', 'python command'),
     description: translate(
       'pod.settings.tools.python.description',
-      'Python with sqlglot installed, used for column-level lineage. Leave empty to use python3 on PATH.'
+      'Python 3.9 or later for column-level lineage; Pod brings its own sqlglot. Leave empty to use the Python that runs dbt, then python3 on PATH.'
     ),
     keywords: ['python', 'sqlglot', 'lineage', 'path']
   },

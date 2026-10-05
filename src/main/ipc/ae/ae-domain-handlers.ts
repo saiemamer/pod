@@ -12,6 +12,7 @@ import { launchAeDomainAgent, launchAeInitiative } from '../../ae/initiative-lau
 import { installAeDbtService } from '../../ae/dbt/dbt-service'
 import { DbtLspService } from '../../ae/dbt/dbt-lsp-service'
 import { installDbtLineageServices } from '../../ae/dbt/dbt-lineage-ops'
+import { findSqlglotBundle } from '../../ae/dbt/dbt-sqlglot-python'
 import { installDbtCopyPreparer } from '../../ae/dbt/dbt-copy-prepare'
 import {
   AE_DBT_LSP_EVENT_CHANNEL,
@@ -70,7 +71,9 @@ export function registerAeDomainHandlers(
       }
     }
   })
-  registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(), preparer, mainWindow)
+  const app = getAppEnvironment()
+  const sqlglot = findSqlglotBundle(app.getAppPath(), app.getPath('userData'))
+  registerAeDbtHandlers(dbt, lsp, installDbtLineageServices(sqlglot), preparer, mainWindow)
   registerAeOmniHandlers(installAeOmniService({ store, runtime, domains: service }))
   registerAeMcpHandlers(store)
   registerAeSetupHandlers(mainWindow, store, service)

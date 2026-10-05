@@ -15,7 +15,7 @@ Pod is Orca plus an analytics-engineering layer. Read [`PLAN.md`](./PLAN.md) for
 
   Pick the exact file name from <https://nodejs.org/dist/latest-v24.x/> (`darwin-arm64` on Apple silicon).
 - Xcode Command Line Tools and Python 3 (native module rebuilds).
-- For dbt features later: a dbt Core install with `dbt-bigquery`, the `omni` CLI, and `sqlglot`. Their paths are Settings, not build inputs.
+- For dbt features later: a dbt Core install with `dbt-bigquery` and the `omni` CLI. sqlglot ships inside Pod (`resources/pod-sqlglot`). Their paths are Settings, not build inputs.
 
 Packaging a DMG locally needs Swift 6 (Xcode 16, macOS 14 or newer) for Orca's Computer Use helper. On older machines, run the app with `pnpm dev` and let CI package.
 

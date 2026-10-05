@@ -100,11 +100,16 @@ export type DbtColumnLineageResult = {
   truncated: boolean
 }
 
+/** Where the sidecar's Python came from: Settings, the interpreter that runs dbt, or PATH. */
+export type DbtLineagePythonSource = 'settings' | 'dbt' | 'path'
+
 export type DbtLineageEngineStatus = {
   engine: DbtColumnLineageEngine
   python?: string
-  pythonSource?: 'settings' | 'path'
+  pythonSource?: DbtLineagePythonSource
   sqlglotVersion?: string
+  /** Set on name matching when no Python was found at all, so the toolbar can say so. */
+  noPython?: boolean
   note?: string
 }
 
