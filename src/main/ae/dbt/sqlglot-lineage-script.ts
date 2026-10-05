@@ -41,7 +41,37 @@ def relation_of(table):
     return ".".join(part for part in (table.catalog, table.db, table.name) if part)
 
 
-def analyse(node, dialect, sqlglot, exp, lineage, qualify):
+def direct_columns(expression, schema, dialect, qualify, build_scope, exp):
+    """Output columns that read one table column as is, qualified the way lineage() does.
+
+    lineage() re-qualifies the whole query per column, so a 500-column select * took
+    minutes; these need no walk.
+    """
+    try:
+        scope = build_scope(
+            qualify(
+                expression.copy(),
+                schema=schema,
+                dialect=dialect,
+                validate_qualify_columns=False,
+                identify=False,
+            )
+        )
+    except Exception:  # noqa: BLE001 - lineage() reports it per column
+        return {}
+    direct = {}
+    for select in scope.expression.selects if scope else []:
+        inner = select.this if isinstance(select, exp.Alias) else select
+        if isinstance(inner, exp.Column):
+            source = scope.sources.get(inner.table)
+            if isinstance(source, exp.Table):
+                direct[select.alias_or_name] = [
+                    {"relation": relation_of(source), "column": inner.name}
+                ]
+    return direct
+
+
+def analyse(node, dialect, sqlglot, exp, lineage, qualify, build_scope):
     sql = node.get("sql") or ""
     schema = nested_schema(node.get("schema") or {})
     try:
@@ -50,9 +80,11 @@ def analyse(node, dialect, sqlglot, exp, lineage, qualify):
         outputs = list(qualified.named_selects)
     except Exception as error:  # noqa: BLE001 - reported to the caller
         return {"ok": False, "error": "%s: %s" % (type(error).__name__, error)}
-    columns = {}
+    columns = direct_columns(expression, schema, dialect, qualify, build_scope, exp)
     errors = {}
     for name in outputs:
+        if name in columns:
+            continue
         try:
             root = lineage(name, sql, schema=schema, dialect=dialect)
         except Exception as error:  # noqa: BLE001
@@ -85,13 +117,16 @@ def main():
         from sqlglot import exp
         from sqlglot.lineage import lineage
         from sqlglot.optimizer.qualify import qualify
+        from sqlglot.optimizer.scope import build_scope
     except Exception as error:  # noqa: BLE001 - a missing or broken install
         print(json.dumps({"ok": False, "error": "sqlglot is not importable: %s" % error}))
         sys.exit(3)
     dialect = payload.get("dialect") or None
     out = {"ok": True, "sqlglot": sqlglot.__version__, "nodes": {}}
     for node in payload.get("nodes") or []:
-        out["nodes"][node["id"]] = analyse(node, dialect, sqlglot, exp, lineage, qualify)
+        out["nodes"][node["id"]] = analyse(
+            node, dialect, sqlglot, exp, lineage, qualify, build_scope
+        )
     print(json.dumps(out))
 
 

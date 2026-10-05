@@ -1,4 +1,8 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { runProcess } from '../../../shared/child-process/run-process'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import {
   DbtSqlglotSidecar,
@@ -7,7 +11,7 @@ import {
   SQLGLOT_PROBE_RETRY_MS,
   sqlglotDialectFor
 } from './dbt-sqlglot-sidecar'
-import type { SqlglotPythonCandidate } from './dbt-sqlglot-python'
+import { findSqlglotBundle, type SqlglotPythonCandidate } from './dbt-sqlglot-python'
 
 function result(partial: Partial<ProcessResult>): ProcessResult {
   return {
@@ -164,4 +168,52 @@ describe('DbtSqlglotSidecar', () => {
       }
     ).toMatchObject({ ok: false, error: expect.stringContaining('timed out') })
   })
+})
+
+// Why gated: it starts a real Python (any 3.9+; the bundled sqlglot comes first on PYTHONPATH).
+const realPython = process.env.POD_SQLGLOT_PYTHON
+describe.skipIf(!realPython)('the real sidecar on wide models', () => {
+  // Why: lineage() re-qualified a 500-column select * once per column, about 30 s per model,
+  // so a wide staging chain hit the 60 s timeout and fell back to name matching.
+  it('answers a chain of 500-column select * models within seconds', async () => {
+    const columns = Array.from({ length: 500 }, (_, i) => `col_${i}`)
+    const bundle = findSqlglotBundle(
+      resolve(__dirname, '../../../..'),
+      mkdtempSync(join(tmpdir(), 'pod-sqlglot-'))
+    )
+    const sidecar = new DbtSqlglotSidecar({ run: runProcess, bundle })
+    const output = await sidecar.analyse(realPython ?? 'python3', process.env, 'bigquery', [
+      {
+        id: 'model.demo.events_base',
+        sql: 'select * from `proj`.`raw`.`events`',
+        schema: { 'proj.raw.events': columns }
+      },
+      {
+        id: 'model.demo.events_enriched',
+        sql: 'select *, upper(col_1) as col_1_upper from `proj`.`dbt`.`events_base`',
+        schema: { 'proj.dbt.events_base': columns }
+      },
+      {
+        id: 'model.demo.fct_events',
+        sql: 'select e.col_300 as picked, e.* from `proj`.`dbt`.`events_base` as e',
+        schema: { 'proj.dbt.events_base': columns }
+      }
+    ])
+
+    expect(output.ok).toBe(true)
+    const nodes = output.ok ? output.nodes : {}
+    const columnsOf = (id: string) => {
+      const node = nodes[id]
+      return node?.ok ? node.columns : {}
+    }
+    expect(columnsOf('model.demo.events_base').col_300).toEqual([
+      { relation: 'proj.raw.events', column: 'col_300' }
+    ])
+    expect(columnsOf('model.demo.events_enriched').col_1_upper).toEqual([
+      { relation: 'proj.dbt.events_base', column: 'col_1' }
+    ])
+    expect(columnsOf('model.demo.fct_events').picked).toEqual([
+      { relation: 'proj.dbt.events_base', column: 'col_300' }
+    ])
+  }, 20_000)
 })
