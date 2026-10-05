@@ -109,9 +109,9 @@ describe('PodStartNoticeHost', () => {
     expect(openSettingsTarget).toHaveBeenCalledWith({ pane: 'integrations', repoId: null })
   })
 
-  it('opens Domain settings when a domain secret comes first', async () => {
+  it('opens Domain settings, and the projects list it mounts from, when a domain secret comes first', async () => {
     const openAeDialog = vi.fn()
-    useAppStore.setState({ openAeDialog })
+    useAppStore.setState({ openAeDialog, sidebarOpen: false, sidebarBody: 'agents' })
 
     await render({
       ...EMPTY,
@@ -121,6 +121,8 @@ describe('PodStartNoticeHost', () => {
     const { options } = shownToast()
     expect(options.action.label).toBe('Open Domain settings')
     options.action.onClick()
+    expect(useAppStore.getState().sidebarOpen).toBe(true)
+    expect(useAppStore.getState().sidebarBody).toBe('workspaces')
     expect(openAeDialog).toHaveBeenCalledWith({
       kind: 'domain-settings',
       groupId: 'g1',
