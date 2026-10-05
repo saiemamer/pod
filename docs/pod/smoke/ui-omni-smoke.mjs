@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { primaryWorktreeRow } from './smoke-sidebar.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const require = createRequire(`${process.cwd()}/package.json`)
@@ -93,27 +94,8 @@ const restore = async () => {
 }
 
 try {
-  // 2. activate omni-demo's primary worktree: the first `master` row below its project row
-  const rowY = async (locator) => (await locator.boundingBox())?.y ?? null
-  const omniProject = page.getByText('omni-demo', { exact: true }).first()
-  const findRow = async () => {
-    const top = await rowY(omniProject)
-    const rows = page.getByText('master', { exact: true })
-    let best = null
-    for (let i = 0; i < (await rows.count()); i += 1) {
-      const y = await rowY(rows.nth(i))
-      if (top !== null && y !== null && y > top && (!best || y < best.y)) {
-        best = { row: rows.nth(i), y }
-      }
-    }
-    return best?.row ?? null
-  }
-  let row = await findRow()
-  if (!row) {
-    await omniProject.click()
-    await sleep(800)
-    row = await findRow()
-  }
+  // 2. activate omni-demo's primary worktree
+  const row = await primaryWorktreeRow(page, `${PARENT}/omni-demo`)
   check(row !== null, 'omni-demo has a master worktree row')
   await row.click()
   await sleep(1200)

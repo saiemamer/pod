@@ -7,6 +7,7 @@
 // README.md). POD_SMOKE_PYTHON sets the python command; without it, Pod finds a Python
 // itself and the engine label must still read sqlglot (the copy Pod ships). Screenshots go to POD_SMOKE_OUT.
 import { createRequire } from 'node:module'
+import { openExplorerFile, primaryWorktreeRow } from './smoke-sidebar.mjs'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { checkWideLineage } from './lineage-wide-smoke-step.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
@@ -114,48 +115,10 @@ if (!groups.some((g) => g.name === 'pod-smoke')) {
 }
 
 // 2. activate dbt-demo's primary worktree and open models/marts/orders.sql
-const rowY = async (locator) => (await locator.boundingBox())?.y ?? null
-const dbtProject = page.getByText('dbt-demo', { exact: true }).first()
-const omniProject = page.getByText('omni-demo', { exact: true }).first()
-const findDbtWorktreeRow = async () => {
-  const top = await rowY(dbtProject)
-  const bottom = await rowY(omniProject)
-  const rows = page.getByText('master', { exact: true })
-  for (let i = 0; i < (await rows.count()); i += 1) {
-    const y = await rowY(rows.nth(i))
-    if (top !== null && y !== null && y > top && (bottom === null || y < bottom)) {
-      return rows.nth(i)
-    }
-  }
-  return null
-}
-let worktreeRow = await findDbtWorktreeRow()
-if (!worktreeRow) {
-  await dbtProject.click()
-  await sleep(800)
-  worktreeRow = await findDbtWorktreeRow()
-}
-if (!worktreeRow) {
-  throw new Error('no worktree row under dbt-demo')
-}
-await worktreeRow.click()
+await (await primaryWorktreeRow(page, `${PARENT}/dbt-demo`)).click()
 await sleep(1500)
-const explorer = page.locator('[aria-label^="Explorer"]')
-if (await explorer.count()) {
-  await explorer.first().click()
-  await sleep(500)
-}
-for (const [i, name] of ['models', 'marts', 'orders.sql'].entries()) {
-  const node = page.getByText(name, { exact: true }).first()
-  await node.waitFor({ state: 'visible' })
-  const next = ['models', 'marts', 'orders.sql'][i + 1]
-  const child = next ? page.getByText(next, { exact: true }).first() : null
-  if (!child || !(await child.isVisible())) {
-    await node.click()
-    await sleep(500)
-  }
-}
-const editor = page.locator('.monaco-editor .view-lines').first()
+await openExplorerFile(page, ['models', 'marts', 'orders.sql'])
+const editor = page.locator('.monaco-editor .view-lines').filter({ visible: true }).first()
 await editor.waitFor({ state: 'visible', timeout: 120000 })
 // Why close first: a dock left open by an earlier run covers the editor's lines.
 const leftover = page.locator('[data-testid="pod-dbt-dock"] [aria-label="Close results"]')

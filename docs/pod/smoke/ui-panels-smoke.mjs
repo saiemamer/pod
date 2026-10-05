@@ -4,6 +4,7 @@
 // Needs `pnpm dev` with REMOTE_DEBUGGING_PORT=9333 and the stand-in dbt (see README.md).
 // Prints PASS/FAIL per check and exits 1 on any FAIL.
 import { createRequire } from 'node:module'
+import { explorerRow, openExplorerFile, primaryWorktreeRow } from './smoke-sidebar.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
 
@@ -50,31 +51,7 @@ if (!groups.some((g) => g.name === 'pod-smoke')) {
 }
 
 // 2. activate dbt-demo's primary worktree: the `master` row between the two project rows
-const rowY = async (locator) => (await locator.boundingBox())?.y ?? null
-const dbtProject = page.getByText('dbt-demo', { exact: true }).first()
-const omniProject = page.getByText('omni-demo', { exact: true }).first()
-const findDbtWorktreeRow = async () => {
-  const top = await rowY(dbtProject)
-  const bottom = await rowY(omniProject)
-  const rows = page.getByText('master', { exact: true })
-  for (let i = 0; i < (await rows.count()); i += 1) {
-    const y = await rowY(rows.nth(i))
-    if (top !== null && y !== null && y > top && (bottom === null || y < bottom)) {
-      return rows.nth(i)
-    }
-  }
-  return null
-}
-let worktreeRow = await findDbtWorktreeRow()
-if (!worktreeRow) {
-  await dbtProject.click()
-  await sleep(800)
-  worktreeRow = await findDbtWorktreeRow()
-}
-if (!worktreeRow) {
-  throw new Error('no worktree row under dbt-demo')
-}
-await worktreeRow.click()
+await (await primaryWorktreeRow(page, `${PARENT}/dbt-demo`)).click()
 await sleep(1500)
 
 const failures = []
@@ -87,21 +64,9 @@ const check = (name, ok, detail = '') => {
 const frame = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())))
 
 // 3. Explorer: expand models/marts and right-click orders.sql
-const explorer = page.locator('[aria-label^="Explorer"]').first()
-await explorer.click()
-await sleep(500)
-const tree = ['models', 'marts', 'orders.sql']
-for (let i = 0; i < tree.length; i += 1) {
-  const node = page.getByText(tree[i], { exact: true }).first()
-  await node.waitFor({ state: 'visible' })
-  const child = tree[i + 1] ? page.getByText(tree[i + 1], { exact: true }).first() : null
-  if (!child || !(await child.isVisible())) {
-    await node.click()
-    await sleep(500)
-  }
-}
+await openExplorerFile(page, ['models', 'marts', 'orders.sql'])
 const lineageItem = page.locator('[data-testid="pod-dbt-show-lineage"]')
-await page.getByText('orders.sql', { exact: true }).first().click({ button: 'right' })
+await explorerRow(page, 'orders.sql').click({ button: 'right' })
 const offered = await lineageItem
   .waitFor({ state: 'visible', timeout: 5000 })
   .then(() => true)
@@ -120,28 +85,33 @@ if (offered) {
   await page.keyboard.press('Escape')
 }
 await sleep(300)
-await page.getByText('dbt_project.yml', { exact: true }).first().click({ button: 'right' })
+await explorerRow(page, 'dbt_project.yml').click({ button: 'right' })
 await sleep(1500)
 check('no Show lineage on dbt_project.yml', (await lineageItem.count()) === 0)
 await page.keyboard.press('Escape')
 await sleep(300)
 
 // 4. hover on ref('stg_orders'): it renders in the body-level host and nothing covers it
-const editor = page.locator('.monaco-editor .view-lines').first()
+const editor = page.locator('.monaco-editor .view-lines').filter({ visible: true }).first()
 await editor.waitFor({ state: 'visible', timeout: 120000 })
 const refToken = editor.getByText('stg_orders').first()
 let hoverBox = null
+// Why any hover: the stand-in dbt gives the language server nothing to answer a hover with, so
+// monaco keeps its "Loading..." hover up; that widget sits in the same host, which is what
+// this checks. Measure once its box holds still.
+const hover = page.locator('.monaco-hover:not(.hidden)').first()
 for (let i = 0; i < 30 && !hoverBox; i += 1) {
   await refToken.hover()
   await sleep(1000)
-  hoverBox = await page
-    .locator('.monaco-hover:not(.hidden)')
-    .first()
-    .boundingBox()
-    .catch(() => null)
+  const first = await hover.boundingBox({ timeout: 500 }).catch(() => null)
+  await sleep(300)
+  const second = await hover.boundingBox({ timeout: 500 }).catch(() => null)
+  if (first && second && JSON.stringify(first) === JSON.stringify(second)) {
+    hoverBox = second
+  }
 }
 if (!hoverBox) {
-  check('language server hover appeared on ref()', false, 'no hover in 30s')
+  check('a hover appeared on ref()', false, 'no hover in 30s')
 } else {
   const placement = await page.evaluate(() => {
     const hover = [...document.querySelectorAll('.monaco-hover')].find(
@@ -162,11 +132,17 @@ if (!hoverBox) {
         rect.top >= 0 &&
         rect.right <= window.innerWidth &&
         rect.bottom <= window.innerHeight,
-      uncovered: corners.every(([x, y]) => hover.contains(document.elementFromPoint(x, y))),
+      // Why the wrapper: monaco's resizable hover puts its own drag handles over the corners.
+      uncovered: corners.every(([x, y]) =>
+        (hover.closest('.monaco-resizable-hover') ?? hover).contains(
+          document.elementFromPoint(x, y)
+        )
+      ),
       rect: [rect.left, rect.top, rect.width, rect.height].map(Math.round).join(',')
     }
   })
   await page.screenshot({ path: `${OUT}/panels-1-hover.png` })
+  log('hover text:', JSON.stringify((await hover.innerText()).slice(0, 80)))
   check('hover renders outside the clipped editor tree', placement.inHost, placement.rect)
   check('hover lies inside the window', placement.inWindow, placement.rect)
   check('hover corners are not covered', placement.uncovered, placement.rect)

@@ -137,13 +137,20 @@ try {
         }
       }
       await window.api.ae.domains.remove({ domainId: args.group })
+      // Its old order too: a move without one puts the project last in the group.
       await window.api.projectGroups.moveProject({
         projectId: args.repo,
-        groupId: args.previous ?? null
+        groupId: args.previous ?? null,
+        order: args.order
       })
       await window.api.projectGroups.delete({ groupId: args.group })
     },
-    { group: group.id, repo: repo.id, previous: repo.projectGroupId }
+    {
+      group: group.id,
+      repo: repo.id,
+      previous: repo.projectGroupId,
+      order: repo.projectGroupOrder
+    }
   )
   rmSync(POD_GROUP_FOLDER, { recursive: true, force: true })
   await browser.close()

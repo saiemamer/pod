@@ -10,6 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { leaveSettings } from './smoke-sidebar.mjs'
 import { join } from 'node:path'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
@@ -87,11 +88,28 @@ const findDomain = () =>
       ),
     DBT_REPO
   )
-// Why remove first: a re-run should start from "no domain" so the first apply has work to do.
-const stale = await findDomain()
-if (stale) {
-  await page.evaluate((id) => window.api.ae.domains.remove({ domainId: id }), stale.id)
-}
+// Setup makes a domain, a group and two projects; forget them before and after, so the first
+// apply has work to do and the sidebar ends as it started.
+const forgetSetup = () =>
+  page.evaluate(
+    async (paths) => {
+      const repos = (await window.api.repos.list()).filter((r) => paths.includes(r.path))
+      const groupIds = new Set(repos.map((r) => r.projectGroupId).filter(Boolean))
+      for (const domain of await window.api.ae.domains.list()) {
+        if (domain.repos.some((entry) => repos.some((r) => r.id === entry.repoId))) {
+          await window.api.ae.domains.remove({ domainId: domain.id })
+        }
+      }
+      for (const repo of repos) {
+        await window.api.repos.remove({ repoId: repo.id })
+      }
+      for (const groupId of groupIds) {
+        await window.api.projectGroups.delete({ groupId })
+      }
+    },
+    [DBT_REPO, OMNI_REPO]
+  )
+await forgetSetup()
 
 const openSetup = async () => {
   const back = page.getByText('Back to app', { exact: true })
@@ -160,14 +178,13 @@ try {
   const omniInput = dialog.getByPlaceholder('~/Projects/omni-analytics')
   await omniInput.fill(OMNI_REPO)
   await omniInput.press('Enter')
-  await phase(dialog, 'question')
-  await dialog.locator('[data-setup-question="target"]').getByRole('combobox').click()
-  await page.getByRole('option', { name: 'dev', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Continue' }).click()
-  await phase(dialog, 'applied')
+  // The target answered above carries over, so adding the Omni repo applies with no question.
+  await dialog
+    .locator('[data-setup-item="omniRepo"][data-setup-status="found"]')
+    .waitFor({ timeout: 60000 })
   check(
-    (await item(dialog, 'omniRepo').getAttribute('data-setup-status')) === 'found',
-    'the Omni repo added later is a model repo'
+    (await dialog.locator('[data-setup-question]').count()) === 0,
+    'the Omni repo added later is a model repo, with no second question'
   )
   await page.screenshot({ path: `${OUT}/setup-2-applied.png` })
   domain = await findDomain()
@@ -191,6 +208,8 @@ try {
 } finally {
   await page.evaluate((input) => window.api.settings.set(input), previous)
   await page.keyboard.press('Escape')
+  await leaveSettings(page)
+  await forgetSetup()
 }
 log('done; screenshots in', OUT)
 await browser.close()
