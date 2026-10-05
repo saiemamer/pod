@@ -28,11 +28,13 @@ import { getMainHttpClient } from '../../network/http-client'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type {
   PodCredentialService,
+  PodStartNoticeContent,
   PodUnreadableSetting
 } from '../../../shared/ae/pod-unreadable-types'
 import { integrationCredentialDir } from '../../pod/pod-credential-folder'
 import { credentialsLeftBehind } from '../../pod/pod-credentials-left-behind'
 import { unreadableSettings } from '../../pod/pod-unreadable-settings'
+import { takePodStartNotice } from '../../pod/pod-start-notice'
 
 export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:list',
@@ -43,6 +45,7 @@ export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:removeSecret',
   'ae:domains:unreadableSecrets',
   'ae:credentials:leftBehind',
+  'ae:startNotice:take',
   'ae:settings:unreadableSecrets',
   'ae:initiatives:list',
   'ae:initiatives:save',
@@ -127,6 +130,19 @@ export function registerAeDomainHandlers(
   )
   ipcMain.handle('ae:settings:unreadableSecrets', (): PodUnreadableSetting[] =>
     unreadableSettings(store.unreadableProtectedSecretSlots())
+  )
+  ipcMain.handle('ae:startNotice:take', (): PodStartNoticeContent | null =>
+    takePodStartNotice({
+      userDataDir: getAppEnvironment().getPath('userData'),
+      credentials: () => credentialsLeftBehind(integrationCredentialDir()),
+      domainSecrets: () =>
+        service.listDomains().map((domain) => ({
+          domainId: domain.id,
+          domainName: domain.name,
+          secretNames: service.unreadableSecretNames(domain.id)
+        })),
+      settings: () => unreadableSettings(store.unreadableProtectedSecretSlots())
+    })
   )
   ipcMain.handle('ae:initiatives:list', (_event, args?: { domainId?: string }): AeInitiative[] =>
     service.listInitiatives(args?.domainId)

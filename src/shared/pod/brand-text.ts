@@ -16,7 +16,10 @@ const KEEP_AS_ORCA = [
   'Sign out of Orca',
   'Connect to Orca',
   'Enjoying Orca',
-  'Star Orca on GitHub'
+  'Star Orca on GitHub',
+  // Why: Pod's requests to enter a value again name the real Orca that sealed it.
+  'Orca or an earlier Pod',
+  'Orca or by an earlier Pod'
 ]
 
 export function rebrandProductName(text: string): string {

@@ -67,6 +67,7 @@ import type {
 } from '../../shared/ae/setup-types'
 import type {
   PodCredentialService,
+  PodStartNoticeContent,
   PodUnreadableSetting
 } from '../../shared/ae/pod-unreadable-types'
 
@@ -93,6 +94,10 @@ export type AeApi = {
   settings: {
     /** Saved settings whose sealed value Pod cannot open; kept until a new one is saved. */
     unreadableSecrets: () => Promise<PodUnreadableSetting[]>
+  }
+  startNotice: {
+    /** What the one-time start notice lists, or null once it was shown or with nothing to list. Marks it shown. */
+    take: () => Promise<PodStartNoticeContent | null>
   }
   initiatives: {
     list: (args?: { domainId?: string }) => Promise<AeInitiative[]>
