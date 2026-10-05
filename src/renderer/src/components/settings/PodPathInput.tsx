@@ -47,8 +47,8 @@ export function PodPathInput({
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
+          // Why blur alone: the blur commits; a commit here too ran setup twice at once.
           if (event.key === 'Enter') {
-            commit()
             event.currentTarget.blur()
           }
           if (event.key === 'Escape') {
