@@ -14,7 +14,10 @@ export type AgentPaneActivityFlags = {
 /** Fold one fresh pane's entry into its container's flags; `resolveWorktreeStatus` ranks them. */
 export function applyAgentPaneActivityFlags(
   flags: AgentPaneActivityFlags,
-  entry: Pick<AgentStatusEntry, 'state' | 'workingMode' | 'interrupted' | 'mainAgent'>
+  entry: Pick<
+    AgentStatusEntry,
+    'state' | 'workingMode' | 'interrupted' | 'mainAgent' | 'sessionBoundary'
+  >
 ): void {
   const mark = agentVerdictDisplayMark(entry)
   if (entry.state === 'blocked' || entry.state === 'waiting') {
@@ -32,7 +35,8 @@ export function applyAgentPaneActivityFlags(
     } else {
       flags.hasLiveWorking = true
     }
-  } else if (entry.state === 'done') {
+  } else if (entry.state === 'done' && entry.sessionBoundary !== true) {
+    // Pod: a session that has not run a turn yet (fresh, or a drafted prompt unsent) is not done.
     flags.hasLiveDone = true
   }
 }
