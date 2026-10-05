@@ -104,6 +104,29 @@ describe('prependOrcaCliDirToChildPath', () => {
     expect(shim.ensureLinuxTerminalOrcaCliShimDir).not.toHaveBeenCalled()
   })
 
+  it.each<[boolean, string]>([
+    [true, join(RESOURCES, 'bin')],
+    [false, join(USER_DATA, 'cli', 'bin')]
+  ])('names the macOS CLI dir the shell wrappers restore (packaged %s)', (isPackaged, binDir) => {
+    const env: Record<string, string> = { PATH: '/usr/bin', ORCA_BUNDLED_CLI_BIN_DIR: '/stale' }
+    prependOrcaCliDirToChildPath(env, {
+      isPackaged,
+      userDataPath: USER_DATA,
+      resourcesPath: RESOURCES,
+      platform: 'darwin'
+    })
+    expect(env.ORCA_BUNDLED_CLI_BIN_DIR).toBe(binDir)
+  })
+
+  it.each<NodeJS.Platform>(['linux', 'win32'])(
+    'sets no restore dir for an unpackaged %s build',
+    (platform) => {
+      const env: Record<string, string> = { PATH: '/usr/bin', ORCA_BUNDLED_CLI_BIN_DIR: '/stale' }
+      prependOrcaCliDirToChildPath(env, { isPackaged: false, userDataPath: USER_DATA, platform })
+      expect(env.ORCA_BUNDLED_CLI_BIN_DIR).toBeUndefined()
+    }
+  )
+
   it('writes no trailing delimiter when nothing was inherited', () => {
     const env: Record<string, string> = { PATH: '' }
     const inheritedPath = process.env.PATH

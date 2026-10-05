@@ -47,12 +47,14 @@ describe.skipIf(process.platform === 'win32')('orca inside a Pod terminal', () =
   })
 
   const cases = (['zsh', 'bash'] as const).flatMap((shell) =>
-    (['local', 'daemon'] as const).map((transport) => [shell, transport] as const)
+    (['local', 'daemon'] as const).flatMap((transport) =>
+      (['packaged', 'dev'] as const).map((build) => [shell, transport, build] as const)
+    )
   )
 
   it.each(cases)(
-    '%s (%s) runs Pod’s orca after the login PATH puts stock first',
-    (shell, transport) => {
+    '%s (%s, %s build) runs Pod’s orca after the login PATH puts stock first',
+    (shell, transport, build) => {
       if (!hasShell(shell)) {
         return
       }
@@ -60,7 +62,12 @@ describe.skipIf(process.platform === 'win32')('orca inside a Pod terminal', () =
       const stockBin = join(root, 'usr-local-bin')
       const resourcesPath = join(root, 'Pod.app', 'Contents', 'Resources')
       writeOrca(stockBin, 'STOCK_ORCA')
-      writeOrca(join(resourcesPath, 'bin'), 'POD_ORCA')
+      const userDataPath = process.env.ORCA_USER_DATA_PATH!
+      // Why: a dev build's `orca` is the launcher pnpm build:cli writes under userData.
+      writeOrca(
+        build === 'packaged' ? join(resourcesPath, 'bin') : join(userDataPath, 'cli', 'bin'),
+        'POD_ORCA'
+      )
       mkdirSync(home, { recursive: true })
       const profile = `export PATH="${stockBin}:$PATH"\n`
       writeFileSync(join(home, shell === 'zsh' ? '.zprofile' : '.bash_profile'), profile)
@@ -68,8 +75,8 @@ describe.skipIf(process.platform === 'win32')('orca inside a Pod terminal', () =
       // The PTY env Pod builds for a plain pane: no startup command, no readiness wait.
       const env: Record<string, string> = { HOME: home, PATH: '/usr/bin:/bin' }
       prependOrcaCliDirToChildPath(env, {
-        isPackaged: true,
-        userDataPath: process.env.ORCA_USER_DATA_PATH!,
+        isPackaged: build === 'packaged',
+        userDataPath,
         resourcesPath,
         platform: 'darwin'
       })

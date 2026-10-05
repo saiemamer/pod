@@ -53,6 +53,10 @@ export function prependOrcaCliDirToChildPath(
     env[resolvePathEnvKey(env, platform)] = inheritedPath
       ? `${devCliBin}${pathDelimiter}${inheritedPath}`
       : devCliBin
+    if (platform === 'darwin') {
+      // Why: a shell rc can put the installed app's `orca` first; the wrappers re-prepend this dir.
+      env[BUNDLED_CLI_BIN_DIR_ENV] = devCliBin
+    }
     return join(devCliBin, platform === 'win32' ? `${DEV_COMMAND_NAME}.cmd` : DEV_COMMAND_NAME)
   } else if (platform === 'linux') {
     // Why: bare-`orca` shim scoped to Orca PTYs — Linux CLI installs as `orca-ide` to avoid shadowing GNOME's /usr/bin/orca screen reader (stablyai/orca#7904).
