@@ -13,6 +13,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { POD_KEYCHAIN_APP_NAME, POD_USER_DATA_DIR_NAME } from '../../shared/brand'
+import { applyPodCredentialFolder } from './pod-credential-copy'
 import { copyOrcaUserData, type ProfileDatabaseOutcome } from './pod-user-data-copy'
 import {
   assertNoAppUsesFolder,
@@ -43,7 +44,7 @@ export type PodUserDataMoveResult =
   | { kind: 'moved'; oldFolder: 'renamed' | 'kept'; profileDatabase: ProfileDatabaseOutcome }
 
 /**
- * Packaged Pod keeps its own data folder and its own Keychain item so stock Orca can live on the
+ * Packaged Pod keeps its own data folder, credential folder and Keychain item so stock Orca can live on the
  * same Mac. Runs before `ready`, so the name decides the item ("Pod Safe Storage", not Orca's
  * "orca Safe Storage"); the post-ready `app.setName` still names the menu as before.
  */
@@ -64,6 +65,8 @@ export function applyPodUserDataFolder(
       `[pod-user-data] Copied ${ORCA_USER_DATA_DIR_NAME} into ${POD_USER_DATA_DIR_NAME} (old folder ${result.oldFolder}, profile database ${result.profileDatabase})`
     )
   }
+  // Why: Orca's `~/.orca` credentials are sealed with Orca's key, which Pod no longer holds.
+  applyPodCredentialFolder(app.getPath('home'))
 }
 
 function hasPodData(folder: string): boolean {

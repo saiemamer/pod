@@ -1,6 +1,6 @@
 import { safeStorage } from 'electron'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { integrationCredentialDir } from '../pod/pod-credential-folder'
 import { join } from 'node:path'
 import { hardenExistingSecureFile, writeSecureFile } from '../../shared/secure-file'
 import type { SecretAtRestProtection } from '../../shared/secret-at-rest-protection'
@@ -16,7 +16,7 @@ type MiniMaxApiKeyEnvelope = {
 }
 
 function getOrcaDir(): string {
-  return join(homedir(), '.orca')
+  return integrationCredentialDir()
 }
 
 function getMiniMaxApiKeyPath(): string {

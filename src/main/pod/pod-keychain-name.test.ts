@@ -43,6 +43,10 @@ import {
   getDevInstanceIdentity,
   shouldApplyPreReadyAppName
 } from '../startup/dev-instance-identity'
+import {
+  _resetIntegrationCredentialDirForTests,
+  integrationCredentialDir
+} from './pod-credential-folder'
 
 const packageJson: { name: string; productName?: string } = JSON.parse(
   readFileSync(resolve(__dirname, '../../../package.json'), 'utf8')
@@ -71,6 +75,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  _resetIntegrationCredentialDirForTests()
   rmSync(root, { recursive: true, force: true })
   for (const [key, value] of [
     ['ORCA_E2E_USER_DATA_DIR', savedEnv.e2e],
@@ -109,6 +114,21 @@ describe('the app name when Electron fixes the Keychain item name', () => {
 
     expect(app.getName()).toBe('Orca Dev')
     expect(app.getPath('userData')).toBe(join(appData, 'orca-dev'))
+  })
+})
+
+describe('the credential folder at startup', () => {
+  it('is ~/.pod for packaged Pod, whose key Orca cannot read', () => {
+    startUntilKeychainNameIsFixed(false)
+
+    expect(integrationCredentialDir()).toBe(join(root, 'home', '.pod'))
+  })
+
+  it("stays Orca's ~/.orca for a development build", () => {
+    startUntilKeychainNameIsFixed(true)
+
+    expect(integrationCredentialDir()).not.toContain('.pod')
+    expect(existsSync(join(root, 'home', '.pod'))).toBe(false)
   })
 })
 

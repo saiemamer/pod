@@ -13,6 +13,8 @@ export const POD_USER_DATA_DIR_NAME = 'Pod'
  * "Pod Safe Storage". Changing it orphans every value Pod has sealed.
  */
 export const POD_KEYCHAIN_APP_NAME = 'Pod'
+/** Packaged Pod's tracker and API-key files under the home folder; Orca's are in `.orca`. */
+export const POD_CREDENTIAL_DIR_NAME = '.pod'
 export const POD_RELEASE_REPO = 'saiemamer/pod'
 /** Settings > Shell command and the cask link this name; `orca` stays stock Orca's. */
 export const POD_SHELL_COMMAND_NAME = 'pod'
