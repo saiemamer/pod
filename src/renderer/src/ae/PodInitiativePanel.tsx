@@ -19,6 +19,8 @@ import {
 } from '../../../shared/ae/domain-types'
 import { taskLabel, useInitiativeRunTasks } from './use-initiative-run-tasks'
 import { revealPodFolderWorkspace } from './reveal-folder-workspace'
+import { resolveTuiAgentLaunchArgs } from '../../../shared/tui-agent-launch-defaults'
+import { podClaudeWorkerAddsBypassFlag } from '../../../shared/pod/pod-claude-permission-default'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -29,8 +31,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }):
   )
 }
 
-// Why: Pod starts Claude workers with the bypass flag, and Claude Code confirms that mode once.
-function ClaudeWorkerNotice(): React.JSX.Element {
+// Why: Pod starts Claude workers with the bypass flag unless the person's Claude arguments
+// choose a permission mode, and Claude Code confirms that mode once.
+function ClaudeWorkerNotice(): React.JSX.Element | null {
+  const claudeArgs = useAppStore((s) =>
+    resolveTuiAgentLaunchArgs('claude', s.settings?.agentDefaultArgs)
+  )
+  if (!podClaudeWorkerAddsBypassFlag(claudeArgs)) {
+    return null
+  }
   return (
     <Row label={translate('pod.initiative.panel.workers', 'Workers')}>
       <span className="text-muted-foreground">
