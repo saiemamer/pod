@@ -60,16 +60,48 @@ export function formatDbtModelInfo(result: DbtModelInfo): string {
 export function formatDbtLineage(
   result: DbtLineageResult & { columns?: Record<string, string[]> }
 ): string {
-  const line = (entry: DbtLineageEntry): string => {
+  const nameOf = new Map(
+    [result.model, ...result.upstream, ...result.downstream].map((node) => [
+      node.uniqueId,
+      node.name
+    ])
+  )
+  const line = (entry: DbtLineageEntry, level: number): string => {
     const columns = result.columns?.[entry.uniqueId]
-    return `${lineageLine(entry)}${columns && columns.length > 0 ? `  [${columns.join(', ')}]` : ''}`
+    const others = (entry.via ?? []).slice(1).map((id) => nameOf.get(id) ?? id)
+    return [
+      `  ${'  '.repeat(level - 1)}${entry.name} (${entry.resourceType})`,
+      columns && columns.length > 0 ? `  [${columns.join(', ')}]` : '',
+      others.length > 0 ? `  also under: ${others.join(', ')}` : ''
+    ].join('')
+  }
+  // Why: each node sits under the node that reached it; indenting by depth over the flat list
+  // hung it under whichever shallower node was printed last.
+  const tree = (entries: DbtLineageEntry[]): string[] => {
+    if (entries.some((entry) => !entry.via?.length)) {
+      return entries.map((entry) => line(entry, entry.depth))
+    }
+    const children = new Map<string, DbtLineageEntry[]>()
+    for (const entry of entries) {
+      const parent = entry.via?.[0] ?? ''
+      children.set(parent, [...(children.get(parent) ?? []), entry])
+    }
+    const lines: string[] = []
+    const visit = (id: string, level: number): void => {
+      for (const child of children.get(id) ?? []) {
+        lines.push(line(child, level))
+        visit(child.uniqueId, level + 1)
+      }
+    }
+    visit(result.model.uniqueId, 1)
+    return lines
   }
   return [
     `${result.model.name} (depth ${result.depth})`,
     `upstream (${result.upstream.length}):`,
-    ...result.upstream.map(line),
+    ...tree(result.upstream),
     `downstream (${result.downstream.length}):`,
-    ...result.downstream.map(line)
+    ...tree(result.downstream)
   ].join('\n')
 }
 
@@ -125,10 +157,6 @@ export function formatDbtParse(result: DbtParseResult): string {
 
 function names(entries: DbtLineageEntry[]): string {
   return entries.map((entry) => entry.name).join(', ') || 'none'
-}
-
-function lineageLine(entry: DbtLineageEntry): string {
-  return `  ${'  '.repeat(entry.depth - 1)}${entry.name} (${entry.resourceType})`
 }
 
 function cellText(value: unknown): string {

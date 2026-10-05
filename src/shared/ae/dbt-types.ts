@@ -209,6 +209,8 @@ export type DbtLineageEntry = {
   name: string
   resourceType: string
   depth: number
+  /** Walked nodes this one is linked from, the model included; the first reached it. Older hosts omit it. */
+  via?: string[]
 }
 
 export type DbtColumnSummary = {

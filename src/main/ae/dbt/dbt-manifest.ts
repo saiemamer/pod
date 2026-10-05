@@ -139,9 +139,14 @@ export type DbtLineageEntry = {
   name: string
   resourceType: string
   depth: number
+  via: string[]
 }
 
-/** Breadth-first walk over parent_map or child_map, capped by depth. */
+/**
+ * Breadth-first walk over parent_map or child_map, capped by depth. Each entry's `via` lists
+ * the walked nodes (the start included) it is linked from in the walk's direction, the one
+ * that reached it first.
+ */
 export function walkDbtLineage(
   manifest: DbtManifest,
   uniqueId: string,
@@ -149,6 +154,7 @@ export function walkDbtLineage(
   maxDepth: number
 ): DbtLineageEntry[] {
   const edges = direction === 'upstream' ? manifest.parentMap : manifest.childMap
+  const back = direction === 'upstream' ? manifest.childMap : manifest.parentMap
   const seen = new Set<string>([uniqueId])
   const out: DbtLineageEntry[] = []
   let frontier = [uniqueId]
@@ -168,12 +174,22 @@ export function walkDbtLineage(
           uniqueId: neighbour,
           name: node.name,
           resourceType: node.resourceType,
-          depth
+          depth,
+          via: [id]
         })
         next.push(neighbour)
       }
     }
     frontier = next
+  }
+  // Why: the first finder alone loses a node's other links among the walked nodes.
+  const walked = new Set([uniqueId, ...out.map((entry) => entry.uniqueId)])
+  for (const entry of out) {
+    for (const id of back[entry.uniqueId] ?? []) {
+      if (walked.has(id) && !entry.via.includes(id)) {
+        entry.via.push(id)
+      }
+    }
   }
   return out
 }
