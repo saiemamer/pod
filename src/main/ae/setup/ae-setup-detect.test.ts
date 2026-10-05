@@ -80,6 +80,30 @@ describe('detectAeSetup', () => {
     }
   })
 
+  it('says in plain words where the skipped dbt is and that it does not start', async () => {
+    const home = tempDir()
+    const bin = tempDir()
+    const broken = stub(join(bin, 'shims'), 'dbt', '#!/nonexistent/python3\n')
+    const empty = stub(join(bin, 'empty'), 'dbt', '')
+    chmodSync(empty, 0o644)
+
+    const detection = await detectAeSetup(
+      { dbtRepoPath: dbtRepo('saiem_dev') },
+      {
+        run: runProcess,
+        env: { PATH: [join(bin, 'shims'), join(bin, 'empty'), '/bin'].join(delimiter) },
+        home
+      }
+    )
+
+    const hint = detection.items.find((item) => item.key === 'dbt')?.hint ?? ''
+    expect(detection.dbt.binary).toBeNull()
+    expect(hint).toContain(`Pod skipped ${broken}: it does not start`)
+    expect(hint).toContain('/nonexistent/python3, which no longer exists')
+    expect(hint).toContain(`Pod skipped ${empty}: it does not start`)
+    expect(hint).not.toMatch(/\bE[A-Z]{3,}\b|spawn/)
+  })
+
   it('does not choose a production default target and leaves the choice open', async () => {
     const home = tempDir()
     const detection = await detectAeSetup(

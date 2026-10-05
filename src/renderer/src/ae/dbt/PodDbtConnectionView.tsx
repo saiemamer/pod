@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import type { DbtContextSummary } from '../../../../shared/ae/dbt-types'
 import type { DbtLspStatus } from '../../../../shared/ae/dbt-lsp-types'
 import type { DbtLineageEngineStatus } from '../../../../shared/ae/dbt-graph-types'
+import { PodSetupThisRepo } from '../PodSetupButton'
 import { podDbtErrorMessage } from './pod-dbt-run-target'
 
 type PodDbtConnectionViewProps = {
@@ -148,7 +149,7 @@ export function PodDbtConnectionView({
           <span className="text-destructive">
             {translate(
               'pod.dbt.connection.noBinary',
-              'not found; set it in Settings › Analytics Tools'
+              'Pod found no dbt that runs. Run setup, or set its path in Settings › Analytics Tools.'
             )}
           </span>
         )}
@@ -156,7 +157,14 @@ export function PodDbtConnectionView({
       <Row label={translate('pod.dbt.connection.envFiles', 'Env files')}>
         {project.envFiles.length > 0 ? project.envFiles.join(', ') : '—'}
       </Row>
-      <Row label={translate('pod.dbt.connection.domain', 'Domain')}>{project.domainId ?? '—'}</Row>
+      <Row label={translate('pod.dbt.connection.domain', 'Domain')}>
+        {project.domainId ?? (
+          <PodSetupThisRepo
+            path={project.worktree?.path ?? project.repoRoot ?? project.project.projectDir}
+            message={translate('pod.dbt.connection.noDomain', 'Pod has not set up this repo yet.')}
+          />
+        )}
+      </Row>
       <Row label={translate('pod.dbt.connection.manifest', 'Manifest')}>
         {manifest.exists
           ? translate(

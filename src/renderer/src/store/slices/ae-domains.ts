@@ -2,14 +2,17 @@ import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { AeDomainConfig, AeDomainRepo, AeInitiative } from '../../../../shared/ae/domain-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AeSetupInitial } from '../../../../shared/ae/setup-types'
 import { createAeDbtResultsSlice, type AeDbtResultsSlice } from './ae-dbt-results'
 
 /** Which Pod dialog the project group menu opened; dialogs mount outside the Radix menu, which unmounts on select. */
-export type AeDialogState = {
-  kind: 'domain-settings' | 'new-initiative'
-  groupId: string
-  label: string
-}
+export type AeDialogState =
+  | {
+      kind: 'domain-settings' | 'new-initiative'
+      groupId: string
+      label: string
+    }
+  | { kind: 'setup'; initial: AeSetupInitial }
 
 /** Pod: domains and initiatives, fetched lazily and refreshed on the main process's `ae:changed`. */
 export type AeDomainsSlice = AeDbtResultsSlice & {

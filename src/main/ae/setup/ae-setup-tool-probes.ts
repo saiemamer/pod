@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readSync, readdirSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import type { AeDbtDistribution } from '../../../shared/ae/dbt-settings-types'
@@ -71,7 +71,7 @@ async function runQuiet(
   deps: AeSetupProbeDeps,
   program: string,
   args: string[]
-): Promise<{ ok: boolean; output: string }> {
+): Promise<{ ok: boolean; output: string; timedOut?: boolean; spawnFailed?: boolean }> {
   try {
     const result = await deps.run({
       program,
@@ -81,9 +81,13 @@ async function runQuiet(
       maxOutputBytes: 256 * 1024
     })
     const output = `${result.stdout}\n${result.stderr}`.trim()
-    return { ok: result.code === 0 && !result.timedOut, output }
+    return { ok: result.code === 0 && !result.timedOut, output, timedOut: result.timedOut }
   } catch (error) {
-    return { ok: false, output: error instanceof Error ? error.message : String(error) }
+    return {
+      ok: false,
+      output: error instanceof Error ? error.message : String(error),
+      spawnFailed: true
+    }
   }
 }
 
@@ -113,19 +117,69 @@ export function parseDbtVersion(output: string): DbtVersionInfo | null {
 
 export async function probeDbt(
   repoDirs: string[],
-  deps: AeSetupProbeDeps
+  deps: AeSetupProbeDeps,
+  explicit?: string
 ): Promise<{ binary: string | null; info: DbtVersionInfo | null; tried: AeSetupDbtCandidate[] }> {
   const tried: AeSetupDbtCandidate[] = []
-  for (const candidate of toolCandidates('dbt', candidateDirs(repoDirs, deps))) {
+  const candidates = toolCandidates('dbt', candidateDirs(repoDirs, deps))
+  const first = explicit?.trim()
+  const ordered = first ? [first, ...candidates.filter((c) => c !== first)] : candidates
+  for (const candidate of ordered) {
     const result = await runQuiet(deps, candidate, ['--version'])
     const info = result.ok ? parseDbtVersion(result.output) : null
     if (info) {
       tried.push({ path: candidate, ok: true })
       return { binary: candidate, info, tried }
     }
-    tried.push({ path: candidate, ok: false, note: firstLine(result.output) || 'did not run' })
+    tried.push({ path: candidate, ok: false, note: describeBrokenDbt(candidate, result) })
   }
   return { binary: null, info: null, tried }
+}
+
+/**
+ * Why a dbt was skipped, in words a person can act on. A spawn error such as ENOENT on a
+ * script means its `#!` interpreter is gone, which is what a removed pyenv Python leaves.
+ */
+function describeBrokenDbt(
+  path: string,
+  result: { ok: boolean; output: string; timedOut?: boolean; spawnFailed?: boolean }
+): string {
+  if (!existsSync(path)) {
+    return 'there is no file at that path'
+  }
+  if (result.timedOut) {
+    return 'it did not answer `dbt --version` within 20 seconds'
+  }
+  const interpreter = scriptInterpreter(path)
+  if (interpreter && !existsSync(interpreter)) {
+    return `it does not start: it runs with ${interpreter}, which no longer exists. Reinstall dbt there or remove the file`
+  }
+  if (result.ok) {
+    return 'it runs but does not print a dbt version'
+  }
+  const line = firstLine(result.output)
+  if (result.spawnFailed || !line || /\b(E[A-Z]{3,}|spawn)\b/.test(line)) {
+    return 'it does not start. Check that the file is a working dbt, or remove it'
+  }
+  return `it does not start; it printed "${line.slice(0, 160)}"`
+}
+
+function scriptInterpreter(path: string): string | null {
+  // Why read 256 bytes: a Fusion binary is a hundred megabytes.
+  let fd: number | null = null
+  try {
+    fd = openSync(path, 'r')
+    const buffer = Buffer.alloc(256)
+    const head = buffer.toString('utf8', 0, readSync(fd, buffer, 0, 256, 0))
+    const match = /^#!\s*(\S+)/.exec(head)
+    return match ? match[1] : null
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) {
+      closeSync(fd)
+    }
+  }
 }
 
 export async function probeOmni(

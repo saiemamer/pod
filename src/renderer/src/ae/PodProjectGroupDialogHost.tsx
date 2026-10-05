@@ -1,11 +1,14 @@
 import { useAppStore } from '@/store'
 import { DomainSettingsDialog } from './DomainSettingsDialog'
 import { NewInitiativeDialog } from './NewInitiativeDialog'
+import { AeSetupDialog } from './AeSetupDialog'
+import { usePodSetupOffer } from './use-pod-setup-offer'
 
-/** Pod: mounts the dialog the project group menu asked for. Keyed by group so a fresh form seeds per open. */
+/** Pod: mounts the dialog the project group menu or a setup offer asked for. Keyed by group so a fresh form seeds per open. */
 export function PodProjectGroupDialogHost(): React.JSX.Element | null {
   const aeDialog = useAppStore((s) => s.aeDialog)
   const closeAeDialog = useAppStore((s) => s.closeAeDialog)
+  usePodSetupOffer()
   if (!aeDialog) {
     return null
   }
@@ -13,6 +16,9 @@ export function PodProjectGroupDialogHost(): React.JSX.Element | null {
     if (!open) {
       closeAeDialog()
     }
+  }
+  if (aeDialog.kind === 'setup') {
+    return <AeSetupDialog initial={aeDialog.initial} onOpenChange={onOpenChange} />
   }
   if (aeDialog.kind === 'domain-settings') {
     return (
