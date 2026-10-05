@@ -216,4 +216,38 @@ describe.skipIf(!realPython)('the real sidecar on wide models', () => {
       { relation: 'proj.dbt.events_base', column: 'col_300' }
     ])
   }, 20_000)
+
+  // Why: every column re-qualified the whole query, about 0.34 s each, so a 500-column
+  // model of CTEs took nearly three minutes and timed out into name matching.
+  it('answers a 500-column model built from CTEs within seconds', async () => {
+    const columns = Array.from({ length: 500 }, (_, i) => `col_${i}`)
+    const bundle = findSqlglotBundle(
+      resolve(__dirname, '../../../..'),
+      mkdtempSync(join(tmpdir(), 'pod-sqlglot-'))
+    )
+    const sidecar = new DbtSqlglotSidecar({ run: runProcess, bundle })
+    const started = Date.now()
+    const output = await sidecar.analyse(realPython ?? 'python3', process.env, 'bigquery', [
+      {
+        id: 'model.demo.events_ctes',
+        sql: [
+          'with a as (select * from `proj`.`raw`.`events`),',
+          'b as (select *, upper(col_1) as col_1_upper, lower(`Col_2`) as col_2_lower from a),',
+          'c as (select * from b)',
+          'select * from c'
+        ].join('\n'),
+        schema: { 'proj.raw.events': columns }
+      }
+    ])
+    expect(Date.now() - started).toBeLessThan(15_000)
+
+    expect(output.ok).toBe(true)
+    const node = output.ok ? output.nodes['model.demo.events_ctes'] : undefined
+    const result = node?.ok ? node.columns : {}
+    expect(Object.keys(result)).toHaveLength(502)
+    expect(result.col_1_upper).toEqual([{ relation: 'proj.raw.events', column: 'col_1' }])
+    // A quoted identifier came back with its quotes and matched no parent column.
+    expect(result.col_2_lower).toEqual([{ relation: 'proj.raw.events', column: 'col_2' }])
+    expect(result.col_499).toEqual([{ relation: 'proj.raw.events', column: 'col_499' }])
+  }, 20_000)
 })
