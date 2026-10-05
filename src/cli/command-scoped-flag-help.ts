@@ -1,3 +1,5 @@
+import { AE_COMMAND_FLAG_HELP } from './specs/ae-flag-help'
+
 /** Per-command flag help, kept out of the shared help chain it would crowd. */
 const COMMAND_SCOPED_FLAG_HELP: Record<string, Record<string, string>> = {
   'skills get': {
@@ -20,7 +22,8 @@ const COMMAND_SCOPED_FLAG_HELP: Record<string, Record<string, string>> = {
     sort: '--sort <order>         relevance (default) or newest',
     debug: '--debug                Include the planner route the host used',
     'index-status': '--index-status         Report the index instead of searching'
-  }
+  },
+  ...AE_COMMAND_FLAG_HELP
 }
 
 export function formatCommandScopedFlagHelp(command: string, flag: string): string | undefined {
