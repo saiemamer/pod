@@ -181,6 +181,26 @@ jobs:
             echo "$app updates from saiemamer/pod; bundled CLI reports $cli_version"
           done
 
+      # Why: column lineage imports the sqlglot Pod ships (resources/pod-sqlglot); a
+      # build that leaves it out falls back to name matching on laptops without sqlglot.
+      - name: Verify the packaged apps carry sqlglot
+        shell: bash
+        run: |
+          set -euo pipefail
+          apps="$(find dist -maxdepth 2 -name 'Pod.app' -type d | sort)"
+          count="$(printf '%s\n' "$apps" | grep -c . || true)"
+          test "$count" -ge 2 || { echo "::error::expected a Pod.app per architecture, found $count"; exit 1; }
+          empty="$(mktemp -d)"
+          for app in $apps; do
+            dir="$PWD/$app/Contents/Resources/app.asar.unpacked/resources/pod-sqlglot"
+            test -f "$dir/sqlglot/__init__.py" || { echo "::error::$app has no pod-sqlglot/sqlglot/__init__.py"; exit 1; }
+            test -f "$dir/LICENSE" || { echo "::error::$app has no pod-sqlglot/LICENSE"; exit 1; }
+            # Run from an empty folder so no other copy can answer; fail unless this one did.
+            got="$(cd "$empty" && PYTHONPATH="$dir" PYTHONDONTWRITEBYTECODE=1 python3 -c "import sqlglot, sys; assert sqlglot.__file__.startswith(sys.argv[1] + '/'), sqlglot.__file__; print(sqlglot.__version__)" "$dir")"
+            test "$got" = "30.21.0" || { echo "::error::$app: sqlglot from $dir reports $got, expected 30.21.0"; exit 1; }
+            echo "$app imports sqlglot $got from $dir"
+          done
+
       # Why: 0.1.8 and 0.1.9 packaged fine and exited at startup on a missing
       # main-process dependency; only launching the built apps catches that. The
       # release is still a draft here, so a failure ships nothing.
