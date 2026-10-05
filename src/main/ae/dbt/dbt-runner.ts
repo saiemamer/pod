@@ -40,18 +40,6 @@ export function safeHomedir(): string | null {
   }
 }
 
-export function resolveDbtBinary(
-  override: string | undefined,
-  env: NodeJS.ProcessEnv = process.env
-): DbtBinary | null {
-  const explicit = override?.trim()
-  if (explicit) {
-    return { path: explicit, source: 'settings' }
-  }
-  const found = findOnPath('dbt', env.PATH)
-  return found ? { path: found, source: 'path' } : null
-}
-
 export function findOnPath(name: string, pathValue: string | undefined): string | null {
   if (isAbsolute(name)) {
     return isExecutable(name) ? name : null

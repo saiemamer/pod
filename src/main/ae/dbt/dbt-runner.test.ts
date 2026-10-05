@@ -3,13 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessSpec } from '../../../shared/child-process/process-spec'
-import {
-  buildDbtCommandArgs,
-  describeDbtFailure,
-  findOnPath,
-  resolveDbtBinary,
-  runDbt
-} from './dbt-runner'
+import { buildDbtCommandArgs, describeDbtFailure, findOnPath, runDbt } from './dbt-runner'
 
 const roots: string[] = []
 afterEach(() => {
@@ -18,20 +12,13 @@ afterEach(() => {
   }
 })
 
-describe('resolveDbtBinary', () => {
-  it('uses the settings path first, then an executable named dbt on PATH', () => {
+describe('findOnPath', () => {
+  it('finds an executable on PATH or at an absolute path', () => {
     const bin = mkdtempSync(join(tmpdir(), 'pod-dbt-bin-'))
     roots.push(bin)
     writeFileSync(join(bin, 'dbt'), '#!/bin/sh\n')
     chmodSync(join(bin, 'dbt'), 0o755)
-    expect(resolveDbtBinary('/opt/dbt', { PATH: bin })).toEqual({
-      path: '/opt/dbt',
-      source: 'settings'
-    })
-    expect(resolveDbtBinary(undefined, { PATH: `/nowhere:${bin}` })).toEqual({
-      path: join(bin, 'dbt'),
-      source: 'path'
-    })
+    expect(findOnPath('dbt', `/nowhere:${bin}`)).toBe(join(bin, 'dbt'))
     expect(findOnPath('dbt', '/nowhere')).toBeNull()
     expect(findOnPath(join(bin, 'dbt'), undefined)).toBe(join(bin, 'dbt'))
   })

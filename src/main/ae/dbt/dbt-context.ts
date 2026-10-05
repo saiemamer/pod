@@ -18,7 +18,8 @@ import { discoverDbtProject, type DbtProjectInfo } from './dbt-project-discovery
 import { findDbtProfilesDir, type DbtProfilesLocation } from './dbt-profiles-search'
 import { loadDbtEnvFiles } from './dbt-env-file'
 import { findPrimaryCheckout } from './dbt-copy-readiness'
-import { resolveDbtBinary, type DbtBinary } from './dbt-runner'
+import type { DbtBinary } from './dbt-runner'
+import { resolveRunnableDbtBinary } from './dbt-runnable-binary'
 import { dbtManifestPath, loadDbtManifest } from './dbt-manifest'
 import { summarizeDbtCatalog } from './dbt-catalog-refresh'
 
@@ -106,7 +107,11 @@ export async function resolveDbtContext(
     primaryRoot,
     worktree,
     domainId: domain?.id ?? null,
-    binary: resolveDbtBinary(overrides.dbt, env),
+    binary: await resolveRunnableDbtBinary(
+      overrides.dbt,
+      [...new Set([project.projectDir, repoRoot ?? project.projectDir])],
+      env
+    ),
     ...(target ? { target } : {}),
     profiles: findDbtProfilesDir({
       projectDir: project.projectDir,

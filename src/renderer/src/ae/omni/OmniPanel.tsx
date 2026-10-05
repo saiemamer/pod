@@ -13,6 +13,7 @@ import type {
 } from '../../../../shared/ae/omni-types'
 import { podDbtErrorMessage } from '../dbt/pod-dbt-run-target'
 import { OmniErrorNote } from './OmniErrorNote'
+import { PodSetupThisRepo } from '../PodSetupButton'
 import { OmniTopicBrowser } from './OmniTopicBrowser'
 import { useOmniPanel } from './use-omni-panel'
 
@@ -249,20 +250,23 @@ function OmniModelPicker({
   return (
     <section className="space-y-1" data-testid="pod-omni-model-picker">
       <Heading text={translate('pod.omni.chooseModel', 'Choose the Omni model')} />
-      <p className="text-[11px] text-muted-foreground">
-        {!domainsLoaded
-          ? null
-          : domain
-            ? translate(
-                'pod.omni.chooseModelDomain',
-                'Pod saves the choice as OMNI_MODEL_ID in the {{name}} domain, so agents in this repo use it too.',
-                { name: domain.name }
-              )
-            : translate(
-                'pod.omni.chooseModelNoDomain',
-                'This repo is in no domain. Export OMNI_MODEL_ID, or add the repo to a domain to choose here.'
-              )}
-      </p>
+      <div className="text-[11px] text-muted-foreground">
+        {!domainsLoaded ? null : domain ? (
+          translate(
+            'pod.omni.chooseModelDomain',
+            'Pod saves the choice as OMNI_MODEL_ID in the {{name}} domain, so agents in this repo use it too.',
+            { name: domain.name }
+          )
+        ) : (
+          <PodSetupThisRepo
+            path={worktreePath}
+            message={translate(
+              'pod.omni.chooseModelNoDomain',
+              'Pod has not set up this repo yet, so it has nowhere to keep the model you choose.'
+            )}
+          />
+        )}
+      </div>
       {error && <OmniErrorNote text={error} />}
       {context.binary && !result && !error && (
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">

@@ -1,4 +1,4 @@
-import { dirname } from 'node:path'
+import { dirname, parse, resolve } from 'node:path'
 import type { Store } from '../../persistence'
 import type { Repo } from '../../../shared/repo-types'
 import type { AeDomainConfig, AeDomainRepo } from '../../../shared/ae/domain-types'
@@ -21,6 +21,19 @@ export type AeSetupApplyDeps = {
   domains: Pick<AeDomainService, 'getDomain' | 'saveDomain'>
   /** Registers the folder as a project, or returns the one already registered there. */
   addRepo: (path: string) => Promise<Repo>
+  home: string | null
+}
+
+/**
+ * The folder above the dbt repo, unless that is the home folder or a disk root: a repo kept
+ * directly in ~ would make ~ the group's folder. No folder means `~/Pod/<group>`.
+ */
+export function setupGroupFolder(dbtRepoPath: string, home: string | null): string | null {
+  const parent = dirname(resolve(dbtRepoPath))
+  if (parse(parent).root === parent || (home && resolve(home) === parent)) {
+    return null
+  }
+  return parent
 }
 
 /**
@@ -42,7 +55,7 @@ export async function applyAeSetup(
   if (!group) {
     group = deps.store.createProjectGroup({
       name: dbtRepo.displayName,
-      parentPath: dirname(detection.dbtRepoPath),
+      parentPath: setupGroupFolder(detection.dbtRepoPath, deps.home),
       createdFrom: 'manual'
     })
     changed = true
@@ -55,7 +68,12 @@ export async function applyAeSetup(
   }
 
   const existing = deps.domains.getDomain(group.id)
-  const repos = withRole(withRole(existing?.repos ?? [], dbtRepo.id, 'dbt'), omniRepo?.id, 'omni')
+  // Why the detected role: an Omni folder with no model in it joins as other, as the summary says.
+  const repos = withRole(
+    withRole(existing?.repos ?? [], dbtRepo.id, detection.dbtRepoRole),
+    omniRepo?.id,
+    detection.omniRepoRole ?? 'other'
+  )
   const env = { ...existing?.env }
   if (detection.omni.baseUrl && !env.OMNI_BASE_URL) {
     env.OMNI_BASE_URL = detection.omni.baseUrl
@@ -63,6 +81,10 @@ export async function applyAeSetup(
   const dbt = { ...existing?.dbt }
   if (detection.profiles.dir) {
     dbt.profilesDir = detection.profiles.dir
+  }
+  // Why only with several: one project is found on its own, and a stored folder would pin it.
+  if (detection.project && detection.projectDirs.length > 1) {
+    dbt.projectDir = detection.project.dir
   }
   const target = request.target?.trim() || detection.target
   if (target) {
