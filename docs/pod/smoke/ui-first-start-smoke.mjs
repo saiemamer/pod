@@ -54,7 +54,11 @@ await sleep(1500)
 await page.getByRole('button', { name: 'New tab' }).first().click()
 const menu = page.getByRole('menu').first()
 await menu.waitFor({ state: 'visible' })
-const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.split('\n')[0])
+// Why one read: the menu can close between two reads, and the second then times out.
+const { menuText, items } = await menu.evaluate((el) => ({
+  menuText: el.innerText,
+  items: [...el.querySelectorAll('[role="menuitem"]')].map((item) => item.innerText.split('\n')[0])
+}))
 log('new-tab menu:', JSON.stringify(items))
 await page.screenshot({ path: `${OUT}/first-start-new-tab-menu.png` })
 check(
@@ -62,7 +66,7 @@ check(
   'menu still offers a terminal'
 )
 check(!items.some((t) => /emulator/i.test(t)), 'menu does not offer the Mobile Emulator')
-check(!/simulator|emulator/i.test(await menu.innerText()), 'no emulator intro in the menu')
+check(!/simulator|emulator/i.test(menuText), 'no emulator intro in the menu')
 await page.keyboard.press('Escape')
 
 await browser.close()
