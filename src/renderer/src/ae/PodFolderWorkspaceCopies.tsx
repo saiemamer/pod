@@ -6,6 +6,15 @@ import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { getAttachedWorktreesForFolderWorkspace } from '@/components/right-sidebar/folder-workspace-attached-worktrees'
 import { SIDEBAR_TREE_INDENT } from '@/components/sidebar/worktree-list/rows/indentation'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
+import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import type { WorkspaceLineage, WorktreeLineage } from '../../../shared/worktree/lineage-types'
+import type { Worktree } from '../../../shared/worktree/types'
+
+// Why: Orca's sidebar row tests mount this with a partial store; stable empties keep selectors cached.
+const NO_FOLDER_WORKSPACES: readonly FolderWorkspace[] = []
+const NO_WORKSPACE_LINEAGE: Record<string, WorkspaceLineage> = {}
+const NO_WORKTREE_LINEAGE: Record<string, WorktreeLineage> = {}
+const NO_WORKTREES: Record<string, readonly Worktree[]> = {}
 
 export function podFolderWorkspaceCopiesCollapseKey(folderWorkspaceId: string): string {
   return `pod-folder-copies:${folderWorkspaceId}`
@@ -22,13 +31,15 @@ export function PodFolderWorkspaceCopies({
   folderWorkspaceId: string
   indent: number
 }): React.JSX.Element | null {
-  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
-  const workspaceLineageByChildKey = useAppStore((s) => s.workspaceLineageByChildKey)
-  const worktreeLineageById = useAppStore((s) => s.worktreeLineageById)
-  const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
+  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces ?? NO_FOLDER_WORKSPACES)
+  const workspaceLineageByChildKey = useAppStore(
+    (s) => s.workspaceLineageByChildKey ?? NO_WORKSPACE_LINEAGE
+  )
+  const worktreeLineageById = useAppStore((s) => s.worktreeLineageById ?? NO_WORKTREE_LINEAGE)
+  const worktreesByRepo = useAppStore((s) => s.worktreesByRepo ?? NO_WORKTREES)
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
   const collapseKey = podFolderWorkspaceCopiesCollapseKey(folderWorkspaceId)
-  const collapsed = useAppStore((s) => s.collapsedGroups.has(collapseKey))
+  const collapsed = useAppStore((s) => s.collapsedGroups?.has(collapseKey) ?? false)
   const toggleCollapsedGroup = useAppStore((s) => s.toggleCollapsedGroup)
   const copies = useMemo(
     () =>
