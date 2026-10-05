@@ -192,7 +192,7 @@ function start(options, report) {
     throw new Refusal(`${tag} shares no history with the base tag ${base}`)
   }
   if (!git(['config', '--get', 'merge.pod-keep.driver'], { allowFailure: true }).stdout.trim()) {
-    // Why: .gitattributes routes README.md here, which keeps Pod's front page during a rebase.
+    // Why: .gitattributes routes the top-level README.md here, keeping Pod's front page in a rebase.
     git(['config', 'merge.pod-keep.driver', 'cp %B %A'])
   }
   git(['checkout', '-q', '-b', branch])
@@ -284,17 +284,16 @@ function resolveElectronBuilder({ base, ours, theirs }) {
   return applyLineTouches(ours, present)
 }
 
-const isPodAttributeLine = (line) =>
-  line === 'README.md merge=pod-keep' || line.startsWith('# Pod:')
+// Why the unanchored line too: Pod's history still adds it, and a sync replays that commit.
+const POD_KEEP_LINES = ['/README.md merge=pod-keep', 'README.md merge=pod-keep']
+const isPodAttributeLine = (line) => POD_KEEP_LINES.includes(line) || line.startsWith('# Pod:')
 
 function resolveGitattributes({ base, ours, theirs }) {
   const podLines = splitLines(theirs).filter(isPodAttributeLine)
-  const reapply = (text) => {
-    const lines = splitLines(text)
-    return `${[...lines, ...podLines.filter((line) => !lines.includes(line))].join('\n')}\n`
-  }
+  const reapply = (text) =>
+    `${[...splitLines(text).filter((line) => !isPodAttributeLine(line)), ...podLines].join('\n')}\n`
   if (reapply(base) !== theirs) {
-    throw new Stop("Pod's commit changes lines other than its README.md merge=pod-keep line")
+    throw new Stop("Pod's commit changes lines other than its /README.md merge=pod-keep line")
   }
   return reapply(ours)
 }

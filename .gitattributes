@@ -101,5 +101,5 @@
 /resources/skills/*.json linguist-generated=true text eol=lf
 # Vitest writes snapshots with LF, so checkout bytes must match on every host.
 **/__snapshots__/*.snap text eol=lf
-# Pod: keep Pod's front page across rebases (driver configured in docs/pod/README.md)
-README.md merge=pod-keep
+# Pod: keep Pod's front page across rebases (driver configured in docs/pod/sync.md)
+/README.md merge=pod-keep

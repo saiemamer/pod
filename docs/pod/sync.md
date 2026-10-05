@@ -25,7 +25,7 @@ At each stop it resolves these files by rule and stages them. During a rebase gi
 
 - `package.json`: upstream's file, version included, with Pod's keys from the register re-applied: the `test:pod` and `typecheck:pod` scripts and the `vscode-jsonrpc`, `@xyflow/react` and `@dagrejs/dagre` dependencies. A new key goes after the one it follows in Pod's file.
 - `pnpm-lock.yaml`: upstream's, then `pnpm install --lockfile-only` so pnpm adds Pod's dependencies back. It needs `pnpm` on the path and the network.
-- `.gitattributes`: upstream's lines plus Pod's `README.md merge=pod-keep` line and its `# Pod:` comment.
+- `.gitattributes`: upstream's lines plus Pod's `/README.md merge=pod-keep` line and its `# Pod:` comment. The leading slash limits the driver to the top-level `README.md`; without it every `README.md` in the tree, `docs/pod/smoke/README.md` included, took the rebased commit's copy over the one it was rebased onto. The rule still accepts the old unanchored line, because the Pod commit that added it is replayed on every sync.
 - `config/electron-builder.config.cjs`: upstream's file with Pod's identity lines re-applied (app id, product name, Windows executable name, mac DMG name, publish owner and repo), each read from `config/pod-brand.cjs`, and Pod's empty `protocols` list in place of the `orca://` scheme.
 - A workflow under `.github/workflows-upstream/` that upstream has deleted: dropped, as Orca dropped it. This is the rename/delete stop on Pod's move-aside commit. It applies only when Pod's side is an unchanged move of upstream's `.github/workflows/` file and upstream has the file at neither path; a workflow Pod edited while moving it stops.
 
@@ -59,7 +59,7 @@ It adds the `upstream` remote and the merge driver that keeps Pod's README if th
 
 ```sh
 git remote add upstream https://github.com/stablyai/orca.git   # once
-git config merge.pod-keep.driver 'cp %B %A'                    # once: keeps Pod's README.md during rebases
+git config merge.pod-keep.driver 'cp %B %A'                    # once: keeps Pod's top-level README.md during rebases
 OLD=v1.4.197 NEW=v1.4.219
 git fetch --no-tags --filter=blob:none upstream "refs/tags/$OLD:refs/tags/$OLD" "refs/tags/$NEW:refs/tags/$NEW"
 ```
