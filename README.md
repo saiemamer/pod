@@ -23,7 +23,7 @@ brew upgrade --cask pod                 # later, to update (or click the button 
 
 Builds are not yet signed; the cask clears macOS's quarantine attribute after install and upgrade, so Pod opens normally. When a new release is out, Pod shows a card with an "Update with Homebrew" button that opens Terminal and runs the upgrade; quit and reopen Pod afterwards. The cask lives in [saiemamer/homebrew-pod](https://github.com/saiemamer/homebrew-pod) and follows Pod's releases automatically. The DMGs are also on the [releases page](https://github.com/saiemamer/pod/releases/latest). [`docs/pod/install.md`](./docs/pod/install.md) covers the DMG's first launch, first setup, updates and uninstalling.
 
-Pod and stock Orca both register a CLI named `orca` and share `~/.orca` and `~/Library/Application Support/orca`. Install one or the other on a machine, not both.
+Pod and stock Orca can share a Mac: Pod keeps its own data folder, credential folder (`~/.pod`) and Keychain item (`Pod Safe Storage`), and its shell command is `pod`. [`docs/pod/install.md`](./docs/pod/install.md) lists what the two still share.
 
 ## Develop
 
