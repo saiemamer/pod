@@ -15,6 +15,8 @@ export type AeGlobalSettings = {
   toolCmdOverrides?: Record<string, string>
   /** dbt defaults for the results grid, lineage and the dbt CLI. */
   aeDbt?: AeDbtSettings
+  /** Set once Pod has dropped the Claude bypass flag that Pod 0.1.13 and earlier saved by default. */
+  podClaudeBypassDefaultCleared?: boolean
 }
 
 export const AE_DBT_DISTRIBUTIONS = ['core', 'fusion'] as const

@@ -7,6 +7,7 @@ import {
   type AgentStartupShell
 } from './tui-agent-startup-shell'
 import type { TuiAgent } from './tui-agent'
+import { podDefaultTuiAgentArgs } from './pod/pod-claude-permission-default'
 import { resolveLocalWindowsAgentStartupShell } from './windows-terminal-shell'
 
 const UNSUPPORTED_TUI_AGENT_ARGS: Partial<Record<TuiAgent, readonly string[]>> = {
@@ -14,7 +15,8 @@ const UNSUPPORTED_TUI_AGENT_ARGS: Partial<Record<TuiAgent, readonly string[]>> =
   kilo: ['--dangerously-skip-permissions']
 }
 
-export const DEFAULT_TUI_AGENT_ARGS: Partial<Record<TuiAgent, string>> = YOLO_TUI_AGENT_ARGS
+export const DEFAULT_TUI_AGENT_ARGS: Partial<Record<TuiAgent, string>> =
+  podDefaultTuiAgentArgs(YOLO_TUI_AGENT_ARGS)
 
 export const DEFAULT_TUI_AGENT_ENV: Partial<Record<TuiAgent, Record<string, string>>> =
   YOLO_TUI_AGENT_ENV

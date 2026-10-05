@@ -161,3 +161,11 @@ Secrets (`OMNI_API_KEY`) are added afterwards in the dialog, because the script 
 ```sh
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-setup-smoke.mjs   # against pnpm dev on port 9333
 ```
+
+## First start
+
+`ui-first-start-smoke.mjs` reads the dev instance's settings and checks that loading the profile cleared a saved Claude bypass default (`podClaudeBypassDefaultCleared`) and that Claude's arguments do not start with `--dangerously-skip-permissions`. It then activates `dbt-demo`'s `master` worktree, opens the tab bar's "New tab" menu and checks that it offers a terminal and nothing about the Mobile Emulator, item or intro. On the code before the change both checks fail: the profile still carries Orca's default, and the menu lists "New Mobile Emulator". One screenshot: `first-start-new-tab-menu`.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-first-start-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
+```

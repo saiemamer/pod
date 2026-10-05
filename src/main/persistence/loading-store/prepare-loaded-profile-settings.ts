@@ -16,6 +16,7 @@ import { hasUnsupportedTuiAgentArgs } from '../../../shared/tui-agent-launch-def
 import { normalizeTerminalCursorStyleDefault } from '../../../shared/terminal-cursor-style-settings'
 import { normalizeTerminalLineHeight } from '../../../shared/terminal-line-height-settings'
 import { migrateAgentYoloDefaults } from '../applying-settings/terminal-settings-migrations'
+import { podClearSavedClaudeBypassDefault } from '../../../shared/pod/pod-claude-permission-default'
 import {
   normalizeLoadedOnboardingState,
   normalizeNotificationSettings,
@@ -133,7 +134,11 @@ export function prepareLoadedProfileSettings(
     markNeedsSave()
   }
   const migratedDisabledTuiAgents = normalizeDisabledTuiAgents(parsed.settings?.disabledTuiAgents)
-  const migratedAgentYoloDefaults = migrateAgentYoloDefaults(parsed.settings)
+  const migratedAgentYoloDefaults = podClearSavedClaudeBypassDefault(
+    migrateAgentYoloDefaults(parsed.settings),
+    parsed.settings,
+    markNeedsSave
+  )
   if (
     parsed.settings?.agentYoloDefaultsMigrated !== true ||
     parsed.settings?.agentDefaultArgs?.devin !==
