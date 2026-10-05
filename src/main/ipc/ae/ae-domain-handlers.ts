@@ -26,6 +26,9 @@ import { registerAeSetupHandlers } from './ae-setup-handlers'
 import { getAppEnvironment } from '../../../shared/app-environment'
 import { getMainHttpClient } from '../../network/http-client'
 import type { TuiAgent } from '../../../shared/tui-agent'
+import type { PodCredentialService } from '../../../shared/ae/pod-unreadable-types'
+import { integrationCredentialDir } from '../../pod/pod-credential-folder'
+import { credentialsLeftBehind } from '../../pod/pod-credentials-left-behind'
 
 export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:list',
@@ -34,6 +37,8 @@ export const AE_DOMAIN_IPC_CHANNELS = [
   'ae:domains:detectRoles',
   'ae:domains:setSecret',
   'ae:domains:removeSecret',
+  'ae:domains:unreadableSecrets',
+  'ae:credentials:leftBehind',
   'ae:initiatives:list',
   'ae:initiatives:save',
   'ae:initiatives:remove',
@@ -108,6 +113,12 @@ export function registerAeDomainHandlers(
     (_event, args: { domainId: string; name: string }): void => {
       service.removeSecret(args.domainId, args.name)
     }
+  )
+  ipcMain.handle('ae:domains:unreadableSecrets', (_event, args: { domainId: string }): string[] =>
+    service.unreadableSecretNames(args.domainId)
+  )
+  ipcMain.handle('ae:credentials:leftBehind', (): PodCredentialService[] =>
+    credentialsLeftBehind(integrationCredentialDir())
   )
   ipcMain.handle('ae:initiatives:list', (_event, args?: { domainId?: string }): AeInitiative[] =>
     service.listInitiatives(args?.domainId)

@@ -11,7 +11,11 @@ export const aeApi = {
     detectRoles: (args) => ipcRenderer.invoke('ae:domains:detectRoles', args),
     setSecret: (args) => ipcRenderer.invoke('ae:domains:setSecret', args),
     removeSecret: (args) => ipcRenderer.invoke('ae:domains:removeSecret', args),
+    unreadableSecrets: (args) => ipcRenderer.invoke('ae:domains:unreadableSecrets', args),
     openMainAgent: (args) => ipcRenderer.invoke('ae:domains:openMainAgent', args)
+  },
+  credentials: {
+    leftBehind: () => ipcRenderer.invoke('ae:credentials:leftBehind')
   },
   initiatives: {
     list: (args) => ipcRenderer.invoke('ae:initiatives:list', args),

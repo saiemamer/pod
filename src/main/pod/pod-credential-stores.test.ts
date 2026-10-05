@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type * as Os from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { credentialsLeftBehind } from './pod-credentials-left-behind'
 
 // Seals as base64 behind a tag, so a test can tell sealed bytes from the value.
 const seal = vi.hoisted(() => ({
@@ -42,6 +43,9 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
   it.each([
     {
       store: 'Linear',
+      service: 'linear',
+      // A token Pod 0.1.14 or Orca sealed under the old single-workspace name.
+      leftSealed: 'linear-token.enc',
       file: join('linear-tokens', `${Buffer.from('ws-1').toString('base64url')}.enc`),
       save: async () =>
         (await import('../linear/linear-token-store')).saveWorkspaceToken('ws-1', 'lin_madeup'),
@@ -54,6 +58,8 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
     },
     {
       store: 'Jira',
+      service: 'jira',
+      leftSealed: join('jira-tokens', 'older-site.enc'),
       file: join('jira-tokens', `${Buffer.from('site-1').toString('base64url')}.enc`),
       save: async () => (await import('../jira/site-credential-store')).saveToken('site-1', 'jt'),
       read: async () => (await import('../jira/site-credential-store')).readToken('site-1'),
@@ -61,6 +67,7 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
     },
     {
       store: 'Bitbucket',
+      service: 'bitbucket',
       file: 'bitbucket-credential.enc',
       save: async () =>
         (await import('../bitbucket/credential-store')).saveBitbucketCredential({
@@ -78,6 +85,7 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
     },
     {
       store: 'OpenAI speech',
+      service: 'openai-speech',
       file: 'openai-speech-token.enc',
       save: async () =>
         (await import('../speech/openai-api-key-store')).saveOpenAiSpeechApiKey('sk-madeup'),
@@ -86,6 +94,7 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
     },
     {
       store: 'MiniMax key',
+      service: 'minimax',
       file: 'minimax-api-key.enc',
       save: async () =>
         (await import('../minimax/minimax-api-key-store')).saveMiniMaxApiKey('mm-madeup'),
@@ -94,6 +103,7 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
     },
     {
       store: 'MiniMax cookie',
+      service: 'minimax',
       file: 'minimax-session-cookie.enc',
       save: async () =>
         (await import('../minimax/minimax-cookie-store')).saveMiniMaxSessionCookie('sid=madeup'),
@@ -101,12 +111,23 @@ describe('with Pod credential folder on, each store writes and reads ~/.pod', ()
         (await import('../minimax/minimax-cookie-store')).readMiniMaxSessionCookie(),
       value: 'sid=madeup'
     }
-  ])('$store', async ({ file, save, read, value }) => {
+  ] as const)('$store', async ({ file, save, read, value, ...entry }) => {
+    // The first start left this store's sealed file in ~/.orca, so Pod asks for it again.
+    const pod = join(home, '.pod')
+    mkdirSync(pod, { recursive: true })
+    const leftSealed = 'leftSealed' in entry ? entry.leftSealed : file
+    writeFileSync(
+      join(pod, 'pod-credentials-origin.json'),
+      JSON.stringify({ leftSealed: [leftSealed] })
+    )
+    expect(credentialsLeftBehind(pod)).toEqual([entry.service])
+
     await startPod()
     await save()
 
     expect(existsSync(join(home, '.pod', file))).toBe(true)
     expect(existsSync(join(home, '.orca'))).toBe(false)
+    expect(credentialsLeftBehind(pod)).toEqual([])
 
     await startPod()
     expect(await read()).toBe(value)

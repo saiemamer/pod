@@ -65,6 +65,7 @@ import type {
   AeSetupRunRequest,
   AeSetupRunResult
 } from '../../shared/ae/setup-types'
+import type { PodCredentialService } from '../../shared/ae/pod-unreadable-types'
 
 /** Pod: domains (folders of repos with roles) and initiatives (cross-repo runs). */
 export type AeApi = {
@@ -75,10 +76,16 @@ export type AeApi = {
     detectRoles: (args: { groupId: string }) => Promise<AeDomainRepo[]>
     setSecret: (args: { domainId: string; name: string; value: string }) => Promise<void>
     removeSecret: (args: { domainId: string; name: string }) => Promise<void>
+    /** Secret names whose stored value Pod cannot read and asks for again. */
+    unreadableSecrets: (args: { domainId: string }) => Promise<string[]>
     openMainAgent: (args: {
       domainId: string
       agent?: TuiAgent
     }) => Promise<{ workspaceKey: string; reused: boolean }>
+  }
+  credentials: {
+    /** Services whose credential stayed in Orca's `~/.orca`, sealed with a key Pod no longer uses. */
+    leftBehind: () => Promise<PodCredentialService[]>
   }
   initiatives: {
     list: (args?: { domainId?: string }) => Promise<AeInitiative[]>

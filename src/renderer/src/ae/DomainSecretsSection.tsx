@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,6 +7,36 @@ import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 
 const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/
+
+/** Names whose stored value Pod cannot read; refetched when the names change or a value is saved. */
+function useUnreadableSecretNames(
+  domainId: string,
+  secretNames: string[],
+  saves: number
+): string[] {
+  const [unreadable, setUnreadable] = useState<string[]>([])
+  const namesKey = secretNames.join(',')
+  useEffect(() => {
+    let cancelled = false
+    const domains = typeof window !== 'undefined' ? window.api?.ae?.domains : undefined
+    if (!domains || !namesKey) {
+      setUnreadable([])
+      return
+    }
+    void domains
+      .unreadableSecrets({ domainId })
+      .then((names) => {
+        if (!cancelled) {
+          setUnreadable(names)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [domainId, namesKey, saves])
+  return unreadable
+}
 
 /** Pod: secret names for a domain; values go straight to the main process and never come back. */
 export function DomainSecretsSection({
@@ -25,6 +55,8 @@ export function DomainSecretsSection({
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saves, setSaves] = useState(0)
+  const unreadable = useUnreadableSecretNames(domainId, secretNames, saves)
   const trimmedName = name.trim()
   const canAdd = SECRET_NAME.test(trimmedName) && value.length > 0 && !busy
 
@@ -39,6 +71,7 @@ export function DomainSecretsSection({
       await setAeDomainSecret(domainId, trimmedName, value)
       setName('')
       setValue('')
+      setSaves((count) => count + 1)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -73,6 +106,15 @@ export function DomainSecretsSection({
             </li>
           ))}
         </ul>
+      )}
+      {unreadable.length > 0 && (
+        <p role="alert" className="text-[11px] text-destructive">
+          {translate(
+            'pod.domain.secrets.unreadable',
+            'Pod could not read {{value0}}. It was saved by Orca or by an earlier Pod, with a key this Pod no longer uses, so agents start without it. Enter the value again below and click Add to replace it.',
+            { value0: unreadable.join(', ') }
+          )}
+        </p>
       )}
       <div className="flex items-center gap-2">
         <Input

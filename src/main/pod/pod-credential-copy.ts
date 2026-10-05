@@ -27,7 +27,7 @@ const CREDENTIAL_FILES = [
   'minimax-session-cookie.enc'
 ]
 const CREDENTIAL_TOKEN_DIRS = ['linear-tokens', 'jira-tokens']
-const ORIGIN_MARKER_FILE = 'pod-credentials-origin.json'
+export const ORIGIN_MARKER_FILE = 'pod-credentials-origin.json'
 const STAGING_SUFFIX = '.pod-copying'
 const MINIMAX_ENVELOPE = /^orca-minimax-(?:api-key|cookie):v1:(encrypted|plaintext):/
 
