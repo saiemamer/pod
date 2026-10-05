@@ -8,6 +8,11 @@ export const POD_PRODUCT_NAME = 'Pod'
 export const POD_APP_ID = 'io.github.saiemamer.pod'
 /** Packaged Pod's data folder under appData; Orca's is `orca`, so both apps fit on one Mac. */
 export const POD_USER_DATA_DIR_NAME = 'Pod'
+/**
+ * Packaged Pod's app name before `ready`, from which Electron names the macOS Keychain item
+ * "Pod Safe Storage". Changing it orphans every value Pod has sealed.
+ */
+export const POD_KEYCHAIN_APP_NAME = 'Pod'
 export const POD_RELEASE_REPO = 'saiemamer/pod'
 /** Settings > Shell command and the cask link this name; `orca` stays stock Orca's. */
 export const POD_SHELL_COMMAND_NAME = 'pod'
