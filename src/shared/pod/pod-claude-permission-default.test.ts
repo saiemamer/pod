@@ -157,3 +157,17 @@ describe('Claude workers dispatched for an orchestration task', () => {
     expect(podClaudeWorkerArgs({ ...worker, resolvedArgs: '--model opus' })).toBe('--model opus')
   })
 })
+
+describe("the Initiative panel's Workers notice", () => {
+  it('shows when Pod adds the bypass flag, not when the Claude arguments choose a mode', async () => {
+    const { defaults, pod } = await loadAsPodBuild()
+    const shown = (agentDefaultArgs: Partial<Record<'claude', string>>) =>
+      pod.podClaudeWorkerAddsBypassFlag(
+        defaults.resolveTuiAgentLaunchArgs('claude', agentDefaultArgs)
+      )
+    expect(shown({})).toBe(true)
+    expect(shown({ claude: '--model opus' })).toBe(true)
+    expect(shown({ claude: '--permission-mode auto' })).toBe(false)
+    expect(shown({ claude: BYPASS })).toBe(false)
+  })
+})

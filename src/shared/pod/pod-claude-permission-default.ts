@@ -101,3 +101,11 @@ export function podClaudeWorkerArgs(args: {
   }
   return typed ? `${CLAUDE_BYPASS_FLAG} ${typed}` : CLAUDE_BYPASS_FLAG
 }
+
+/** Whether a dispatched Claude worker gets the bypass flag under these Settings > Agents arguments. */
+export function podClaudeWorkerAddsBypassFlag(resolvedArgs: string | null): boolean {
+  return (
+    podClaudeWorkerArgs({ agent: 'claude', launchSource: 'orchestration', resolvedArgs }) !==
+    resolvedArgs
+  )
+}

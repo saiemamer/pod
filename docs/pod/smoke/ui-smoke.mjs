@@ -165,6 +165,43 @@ log(
   '| has folder:',
   panelText.includes('initiatives/smoke-initiative')
 )
+
+// 4. the Workers notice shows only when Pod adds the bypass flag to Claude workers
+const previousArgs = (await page.evaluate(() => window.api.settings.get())).agentDefaultArgs ?? {}
+const setClaudeArgs = async (agentDefaultArgs) => {
+  await page.evaluate(
+    (args) => window.api.settings.set({ agentDefaultArgs: args }),
+    agentDefaultArgs
+  )
+  // Why reopen Settings: settings:changed skips the window that wrote, and Settings re-reads them.
+  await page.locator('[aria-label="Settings"]').first().click()
+  await page.getByText('Back to app', { exact: true }).waitFor()
+  await leaveSettings(page)
+  await tab.first().click()
+  await page.getByText('Smoke initiative').first().waitFor()
+  await sleep(500)
+}
+const noticeShown = () =>
+  page.evaluate(() => document.body.innerText.includes('Bypass Permissions mode'))
+try {
+  await setClaudeArgs({ ...previousArgs, claude: '' })
+  const withEmpty = await noticeShown()
+  await setClaudeArgs({ ...previousArgs, claude: '--permission-mode auto' })
+  const withAuto = await noticeShown()
+  await page.screenshot({ path: `${OUT}/smoke-4-own-permission-mode.png` })
+  log(
+    'Workers notice with empty Claude arguments:',
+    withEmpty,
+    '| with --permission-mode auto:',
+    withAuto
+  )
+  if (!withEmpty || withAuto) {
+    throw new Error('the Workers notice does not follow the Claude arguments')
+  }
+} finally {
+  await setClaudeArgs(previousArgs)
+}
+
 log('active workspace:', await page.evaluate(() => document.title))
 await forgetSmokeInitiatives()
 rmSync(initiativeFolder, { recursive: true, force: true })

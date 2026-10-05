@@ -1,6 +1,6 @@
 # Pod UI smoke
 
-`ui-smoke.mjs` drives a `pnpm dev` instance through Playwright over the Chrome DevTools port and exercises the Phase 1 UI: import a folder of two throwaway repos as a project group, open Domain settings, detect roles, save, start an initiative, and read the Initiative panel. It writes three screenshots.
+`ui-smoke.mjs` drives a `pnpm dev` instance through Playwright over the Chrome DevTools port and exercises the Phase 1 UI: import a folder of two throwaway repos as a project group, open Domain settings, detect roles, save, start an initiative, and read the Initiative panel. It then sets Claude's arguments to empty and to `--permission-mode auto` and expects the panel's Workers notice about Bypass Permissions mode for the first only, restoring the arguments afterwards. It writes four screenshots.
 
 ```sh
 mkdir -p ~/Projects/pod-smoke && cd ~/Projects/pod-smoke
