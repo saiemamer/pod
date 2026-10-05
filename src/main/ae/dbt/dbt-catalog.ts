@@ -5,7 +5,12 @@ import type {
   DbtCatalogRelation,
   DbtCatalogTree
 } from '../../../shared/ae/dbt-graph-types'
-import { DBT_LINEAGE_NODE_TYPES, type DbtManifest } from './dbt-manifest'
+import {
+  DBT_LINEAGE_NODE_TYPES,
+  type DbtManifest,
+  type DbtManifestColumn,
+  type DbtManifestNode
+} from './dbt-manifest'
 
 /**
  * Pod: the whole of target/catalog.json, for the explorer tree and the lineage graph's
@@ -106,6 +111,29 @@ function toCatalogNode(uniqueId: string, entry: unknown): DbtCatalogNode | null 
     comment: optionalString(metadata.comment),
     columns
   }
+}
+
+/**
+ * A node's columns by the Database tab's rule: the catalog's, with types, when it has the
+ * relation; otherwise the manifest's documented ones. A documented description wins.
+ */
+export function dbtNodeColumns(
+  node: DbtManifestNode,
+  catalog: DbtCatalog | null
+): DbtManifestColumn[] {
+  const built = catalog?.nodes.get(node.uniqueId)
+  if (!built) {
+    return node.columns
+  }
+  const docs = new Map(node.columns.map((column) => [column.name.toLowerCase(), column]))
+  return built.columns.map((column) => {
+    const description = docs.get(column.name.toLowerCase())?.description ?? column.comment
+    return {
+      name: column.name,
+      ...(column.type ? { dataType: column.type } : {}),
+      ...(description ? { description } : {})
+    }
+  })
 }
 
 /**

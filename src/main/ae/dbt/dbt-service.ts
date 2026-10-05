@@ -35,6 +35,8 @@ import {
   type DbtManifest,
   type DbtManifestNode
 } from './dbt-manifest'
+import { dbtNodeColumns, loadDbtCatalog } from './dbt-catalog'
+import { dbtCatalogPath } from './dbt-catalog-refresh'
 import { describeDbtFailure, runDbt, type DbtRunDeps, type DbtRunResult } from './dbt-runner'
 import {
   collectDbtJsonLogErrors,
@@ -97,7 +99,7 @@ export class AeDbtService {
     const node = requireNode(manifest, request.model)
     return {
       ...toSummary(node),
-      columns: node.columns,
+      columns: dbtNodeColumns(node, loadDbtCatalog(dbtCatalogPath(context.project))),
       dependsOn: walkDbtLineage(manifest, node.uniqueId, 'upstream', 1),
       referencedBy: walkDbtLineage(manifest, node.uniqueId, 'downstream', 1)
     }
