@@ -2,7 +2,7 @@
 
 Pod runs on macOS 12 (Monterey) or newer, on Apple silicon and Intel. It installs as `Pod.app` plus the `pod` command. Inside the terminals Pod opens, the same CLI is also `orca`, which is the name Pod's agents, skills and the coordinator use.
 
-Pod and stock Orca can be installed on the same Mac. Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca's `~/Library/Application Support/orca`; its shell command is `pod`, so `orca` outside Pod stays stock Orca's; and `orca://` links open stock Orca. The two still share `~/.orca` (hook scripts, keybindings, tracker credentials) and the Keychain item `orca Safe Storage`. Expect macOS to ask once whether the second app may use that item; if you allow it, each app can decrypt the other's stored secrets.
+Pod and stock Orca can be installed on the same Mac. Pod keeps its data in `~/Library/Application Support/Pod`, apart from stock Orca's `~/Library/Application Support/orca`. It keeps its Linear, Jira, Bitbucket, OpenAI speech and MiniMax credentials in `~/.pod`, apart from Orca's `~/.orca`, and encrypts secrets with its own Keychain item, `Pod Safe Storage`, so macOS never asks for your password to let Pod open Orca's `orca Safe Storage`. Its shell command is `pod`, so `orca` outside Pod stays stock Orca's, and `orca://` links open stock Orca. The two still share the rest of `~/.orca`: hook scripts, keybindings and the agent-teams shim, none of them encrypted.
 
 ## Install with Homebrew
 
@@ -72,6 +72,14 @@ An update keeps your domains, initiatives, secrets and settings. They live in `~
 
 Pod 0.1.12 and older kept that data in `~/Library/Application Support/orca`. The first start after upgrading copies it into `Pod` once. Quit the old Pod (and stock Orca, if it is installed) before opening the new one; Pod refuses to start while either still has the old folder open. The first start also stops the old Pod's terminal daemon, so any terminal sessions it still hosts end. If stock Orca has never been on the Mac, the old folder is then renamed to `orca.moved-to-pod-<date>`; otherwise it stays where it is for Orca.
 
+Pod 0.1.14 and older encrypted secrets with Orca's Keychain item, `orca Safe Storage`; later versions use `Pod Safe Storage`, and Pod never reads Orca's item. So the first start after that upgrade cannot read the secrets an older Pod or stock Orca saved, and asks for each one again instead of asking macOS for your password:
+
+- It copies the unencrypted credential files from `~/.orca` into `~/.pod` once and leaves the encrypted tokens in `~/.orca`, unchanged. Settings > Integrations then asks you to connect Linear, Jira or Bitbucket again, Settings > Voice asks for the OpenAI speech key, and the MiniMax section of Settings > Accounts asks for MiniMax.
+- A domain secret Pod cannot read is named in that domain's settings, above the secrets form. Agents start without it until you enter the value again and click Add; the old encrypted value stays until then.
+- Other encrypted settings, such as the OpenCode session cookie or a proxy URL with a password, need entering again too, and Pod does not point these out yet.
+
+Your domains, repos, initiatives and every unencrypted setting carry over unchanged.
+
 ## Uninstall
 
 ```sh
@@ -79,4 +87,4 @@ brew uninstall --cask pod          # removes the app and the pod link, keeps you
 brew uninstall --zap --cask pod    # also deletes ~/Library/Application Support/Pod and Pod's caches
 ```
 
-`--zap` leaves `~/.orca`, which stock Orca shares, and any `orca.moved-to-pod-<date>` folder from the first upgrade.
+`--zap` leaves `~/.orca`, which stock Orca shares, and any `orca.moved-to-pod-<date>` folder from the first upgrade. Pod's credentials sit in `~/.pod`; delete that folder by hand for a clean slate.
