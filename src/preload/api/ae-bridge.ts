@@ -17,6 +17,9 @@ export const aeApi = {
   credentials: {
     leftBehind: () => ipcRenderer.invoke('ae:credentials:leftBehind')
   },
+  settings: {
+    unreadableSecrets: () => ipcRenderer.invoke('ae:settings:unreadableSecrets')
+  },
   initiatives: {
     list: (args) => ipcRenderer.invoke('ae:initiatives:list', args),
     save: (input) => ipcRenderer.invoke('ae:initiatives:save', input),

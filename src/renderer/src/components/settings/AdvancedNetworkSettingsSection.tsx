@@ -13,6 +13,7 @@ import { Textarea } from '../ui/textarea'
 import { getAdvancedNetworkSearchEntries } from './advanced-network-search'
 import { SearchableSetting } from './SearchableSetting'
 import { matchesSettingsSearch, normalizeSettingsSearchQuery } from './settings-search'
+import { PodUnreadableSettingNotice } from '@/ae/PodUnreadableSettingNotice' // Pod
 import { translate } from '@/i18n/i18n'
 
 /** Open the proxy fields automatically when a search matches this section. */
@@ -236,6 +237,7 @@ export function AdvancedNetworkSettingsSection({
           </p>
         </div>
       </div>
+      <PodUnreadableSettingNotice setting="httpProxyUrl" value={settings.httpProxyUrl} />
 
       <Collapsible open={proxyConfigExpanded} onOpenChange={setProxyConfigOpen}>
         <CollapsibleTrigger asChild>

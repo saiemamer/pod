@@ -7,6 +7,7 @@ import { SearchableSetting } from './SearchableSetting'
 import type { AccountsPaneSectionModel } from './accounts-pane-types'
 import { OpenCodeGoCredentials } from './accounts-pane-opencode-credentials'
 import { DebouncedSettingsTextInput } from './DebouncedSettingsTextInput'
+import { PodUnreadableSettingNotice } from '@/ae/PodUnreadableSettingNotice' // Pod
 
 export function renderGeminiAccountsSection(model: AccountsPaneSectionModel): React.JSX.Element {
   const { localAccountRuntimeSentenceLabel, recordFeatureInteraction, settings, updateSettings } =
@@ -116,6 +117,10 @@ export function renderOpenCodeAccountsSection(model: AccountsPaneSectionModel): 
             'OpenCode Go session cookie'
           )}
         </Label>
+        <PodUnreadableSettingNotice
+          setting="opencodeSessionCookie"
+          value={settings.opencodeSessionCookie}
+        />
         <div className="flex gap-2">
           <DebouncedSettingsTextInput
             type="password"

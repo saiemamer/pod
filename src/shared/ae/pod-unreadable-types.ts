@@ -8,3 +8,15 @@ export const POD_CREDENTIAL_SERVICE_LABELS: Record<PodCredentialService, string>
   'openai-speech': 'OpenAI speech',
   minimax: 'MiniMax'
 }
+
+/** Saved settings sealed with a key Pod cannot open; each is entered again where it was set. */
+export type PodUnreadableSetting =
+  | 'opencodeSessionCookie'
+  | 'httpProxyUrl'
+  | 'browserKagiSessionLink'
+
+export const POD_UNREADABLE_SETTING_LABELS: Record<PodUnreadableSetting, string> = {
+  opencodeSessionCookie: 'OpenCode Go session cookie',
+  httpProxyUrl: 'proxy URL',
+  browserKagiSessionLink: 'Kagi session link'
+}
