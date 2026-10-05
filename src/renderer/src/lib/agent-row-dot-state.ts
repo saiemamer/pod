@@ -31,13 +31,19 @@ export function agentRowDotState(
  */
 export function agentRowDisplayDotState(agent: {
   state: AgentRowState
-  entry: Pick<AgentStatusEntry, 'state' | 'interrupted' | 'mainAgent' | 'workingMode'>
+  entry: Pick<
+    AgentStatusEntry,
+    'state' | 'interrupted' | 'mainAgent' | 'workingMode' | 'sessionBoundary'
+  >
   childRow?: Pick<AgentChildRowModel, 'displayState'>
 }): AgentDotState {
   if (agent.childRow) {
     return agent.childRow.displayState
   }
+  // Pod: a session that has not run a turn yet (fresh, or a drafted prompt unsent) is not done.
+  const beforeFirstTurn = agent.state === 'done' && agent.entry.sessionBoundary === true
   return (
-    agentVerdictDisplayMark(agent.entry) ?? agentRowDotState(agent.state, agent.entry.workingMode)
+    agentVerdictDisplayMark(agent.entry) ??
+    (beforeFirstTurn ? 'idle' : agentRowDotState(agent.state, agent.entry.workingMode))
   )
 }
