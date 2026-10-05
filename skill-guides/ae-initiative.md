@@ -15,10 +15,10 @@ each (dbt, omni, other). An initiative is one piece of cross-repo work with its 
 folder under `initiatives/` and one orchestration run. You plan, dispatch workers,
 wait, review and report. You do not edit models or Omni YAML yourself; workers do.
 
-## Resolve the CLI for this session
+## The CLI
 
-Use the `orca` executable that Pod exported for this terminal: `$ORCA_CLI_COMMAND`
-if set, else `orca` on PATH. Every command below is run through it.
+Run every command below as plain `orca`. Pod puts its own CLI first on the PATH of
+every terminal it opens.
 
 ## Orient
 
