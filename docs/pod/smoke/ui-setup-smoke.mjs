@@ -2,9 +2,11 @@
 // under POD_SMOKE_PARENT/setup. The dbt repo's own .venv holds a broken dbt shim and the
 // folder beside it holds the stand-in dbt, so detection must skip the first. profiles.yml
 // sits at the repo root with a production default target and a fake secret. The script
-// detects, checks the summary, picks `dev`, applies, checks the domain and the tool path,
-// then applies again and expects nothing to change. Needs `pnpm dev` with
-// REMOTE_DEBUGGING_PORT=9333 (see README.md). Screenshots go to POD_SMOKE_OUT.
+// picks only the dbt repo; setup must run by itself and stop on the one question (the
+// production default), then apply `dev` and show what it set up. It checks the domain and
+// the tool path, adds the Omni repo from the result screen, then runs again and expects
+// nothing to change. Needs `pnpm dev` with REMOTE_DEBUGGING_PORT=9333 (see README.md).
+// Screenshots go to POD_SMOKE_OUT.
 import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -91,7 +93,7 @@ if (stale) {
   await page.evaluate((id) => window.api.ae.domains.remove({ domainId: id }), stale.id)
 }
 
-const runSetup = async (shot) => {
+const openSetup = async () => {
   const back = page.getByText('Back to app', { exact: true })
   if (await back.isVisible().catch(() => false)) {
     await back.click()
@@ -101,61 +103,91 @@ const runSetup = async (shot) => {
   await page.getByText('Tools', { exact: true }).first().click()
   await page.getByRole('button', { name: 'Set up from repos' }).first().click()
   const dialog = page.getByRole('dialog')
-  for (const [placeholder, value] of [
-    ['~/Projects/dbt-analytics', DBT_REPO],
-    ['~/Projects/omni-analytics', OMNI_REPO]
-  ]) {
-    const input = dialog.getByPlaceholder(placeholder)
-    await input.fill(value)
-    await input.press('Enter')
-  }
-  await dialog.getByRole('button', { name: 'Detect' }).click()
-  await dialog.locator('[data-setup-item="dbt"]').waitFor()
-  const item = (key) => dialog.locator(`[data-setup-item="${key}"]`)
-  const dbtText = await item('dbt').innerText()
-  check(dbtText.includes(WORKING_DBT), 'detection chose the dbt that runs')
-  check(dbtText.includes(brokenDbt), 'and names the broken shim it skipped')
-  check(
-    (await item('profiles').innerText()).includes(DBT_REPO),
-    'profiles.yml found at the repo root'
-  )
-  check(
-    (await item('target').getAttribute('data-setup-status')) === 'choose',
-    'the prod default is not chosen'
-  )
-  check(
-    (await item('omniRepo').getAttribute('data-setup-status')) === 'found',
-    'the Omni repo is a model repo'
-  )
-  check(!(await dialog.innerText()).includes(SECRET), 'no credential from profiles.yml on screen')
-  await item('target').getByRole('combobox').click()
-  await page.getByRole('option', { name: 'dev', exact: true }).click()
-  await page.screenshot({ path: `${OUT}/setup-${shot}-summary.png` })
-  await dialog.getByRole('button', { name: 'Apply' }).click()
-  await dialog.waitFor({ state: 'detached' })
+  // The one choice: the dbt repo. No Detect or Apply button may stand between it and the result.
+  check((await dialog.getByRole('button', { name: 'Detect' }).count()) === 0, 'no Detect step')
+  const input = dialog.getByPlaceholder('~/Projects/dbt-analytics')
+  await input.fill(DBT_REPO)
+  await input.press('Enter')
+  return dialog
 }
+const phase = (dialog, name) =>
+  dialog.page().locator(`[data-setup-phase="${name}"]`).waitFor({ timeout: 60000 })
+const item = (dialog, key) => dialog.locator(`[data-setup-item="${key}"]`)
 
 try {
-  await runSetup(1)
+  const info = await page.evaluate((path) => window.api.ae.setup.repoInfo({ path }), DBT_REPO)
+  check(
+    info === null || (info.role === 'dbt' && info.domainId === null),
+    'a dbt repo in no domain is offered setup'
+  )
+
+  let dialog = await openSetup()
+  await phase(dialog, 'question')
+  const dbtText = await item(dialog, 'dbt').innerText()
+  check(dbtText.includes(WORKING_DBT), 'setup ran by itself and chose the dbt that runs')
+  check(
+    dbtText.includes(`Pod skipped ${brokenDbt}: it does not start`),
+    'and names the broken shim'
+  )
+  check(!/\bE[A-Z]{3,}\b/.test(dbtText), 'in plain words, with no raw error code')
+  check((await item(dialog, 'profiles').innerText()).includes(DBT_REPO), 'profiles.yml at the root')
+  check(
+    (await dialog.locator('[data-setup-question]').count()) === 1 &&
+      (await dialog.locator('[data-setup-question="target"]').count()) === 1,
+    'the only question is the production default target'
+  )
+  check(!(await dialog.innerText()).includes(SECRET), 'no credential from profiles.yml on screen')
+  check((await findDomain()) === null, 'nothing is written while a question is open')
+  await dialog.locator('[data-setup-question="target"]').getByRole('combobox').click()
+  await page.getByRole('option', { name: 'dev', exact: true }).click()
+  await page.screenshot({ path: `${OUT}/setup-1-question.png` })
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await phase(dialog, 'applied')
   await page.getByText('Domain set up', { exact: true }).waitFor()
-  const domain = await findDomain()
+  check(
+    (await item(dialog, 'target').getAttribute('data-setup-status')) === 'found',
+    'the result shows the chosen target as set up'
+  )
+  let domain = await findDomain()
   check(domain !== null, 'apply created the domain')
   check(
     domain.dbt?.target === 'dev' && domain.dbt?.profilesDir === DBT_REPO,
     'with the chosen target and the profiles folder'
   )
+  const after = await page.evaluate(() => window.api.settings.get())
+  check(after.toolCmdOverrides?.dbt === WORKING_DBT, 'and the working dbt as the tool path')
+
+  const omniInput = dialog.getByPlaceholder('~/Projects/omni-analytics')
+  await omniInput.fill(OMNI_REPO)
+  await omniInput.press('Enter')
+  await phase(dialog, 'question')
+  await dialog.locator('[data-setup-question="target"]').getByRole('combobox').click()
+  await page.getByRole('option', { name: 'dev', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await phase(dialog, 'applied')
+  check(
+    (await item(dialog, 'omniRepo').getAttribute('data-setup-status')) === 'found',
+    'the Omni repo added later is a model repo'
+  )
+  await page.screenshot({ path: `${OUT}/setup-2-applied.png` })
+  domain = await findDomain()
   const roles = domain.repos
     .map((entry) => entry.role)
     .sort()
     .join(',')
-  check(roles === 'dbt,omni', `with both repos and their roles (${roles})`)
-  const after = await page.evaluate(() => window.api.settings.get())
-  check(after.toolCmdOverrides?.dbt === WORKING_DBT, 'and the working dbt as the tool path')
+  check(roles === 'dbt,omni', `the domain has both repos and their roles (${roles})`)
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await dialog.waitFor({ state: 'detached' })
 
-  await runSetup(2)
-  await page.getByText('Domain already set up; nothing changed', { exact: true }).waitFor()
+  dialog = await openSetup()
+  await phase(dialog, 'question')
+  await dialog.locator('[data-setup-question="target"]').getByRole('combobox').click()
+  await page.getByRole('option', { name: 'dev', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await phase(dialog, 'applied')
   const again = await findDomain()
-  check(again.updatedAt === domain.updatedAt, 'a second apply leaves the domain untouched')
+  check(again.updatedAt === domain.updatedAt, 'running setup again leaves the domain untouched')
+  await dialog.getByRole('button', { name: 'Done' }).click()
 } finally {
   await page.evaluate((input) => window.api.settings.set(input), previous)
   await page.keyboard.press('Escape')

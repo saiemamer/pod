@@ -60,7 +60,10 @@ import type {
   AeSetupApplyRequest,
   AeSetupApplyResult,
   AeSetupDetectRequest,
-  AeSetupDetection
+  AeSetupDetection,
+  AeSetupRepoInfo,
+  AeSetupRunRequest,
+  AeSetupRunResult
 } from '../../shared/ae/setup-types'
 
 /** Pod: domains (folders of repos with roles) and initiatives (cross-repo runs). */
@@ -143,6 +146,10 @@ export type AeApi = {
   setup: {
     detect: (args: AeSetupDetectRequest) => Promise<AeSetupDetection>
     apply: (args: AeSetupApplyRequest) => Promise<AeSetupApplyResult>
+    /** Detect and, when nothing needs the person, apply in the same call. */
+    run: (args: AeSetupRunRequest) => Promise<AeSetupRunResult>
+    /** The registered repo behind a path, its role and its domain; null for a remote repo. */
+    repoInfo: (args: { path: string }) => Promise<AeSetupRepoInfo | null>
   }
   /** The dbt MCP server config Claude Code agents load through `--mcp-config`. */
   mcp: {

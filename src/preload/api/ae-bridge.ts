@@ -70,7 +70,9 @@ export const aeApi = {
   },
   setup: {
     detect: (args) => ipcRenderer.invoke('ae:setup:detect', args),
-    apply: (args) => ipcRenderer.invoke('ae:setup:apply', args)
+    apply: (args) => ipcRenderer.invoke('ae:setup:apply', args),
+    run: (args) => ipcRenderer.invoke('ae:setup:run', args),
+    repoInfo: (args) => ipcRenderer.invoke('ae:setup:repoInfo', args)
   },
   mcp: {
     configPath: () => ipcRenderer.invoke('ae:mcp:configPath'),

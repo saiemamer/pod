@@ -136,7 +136,7 @@ The dbt MCP server (slice 2) adds no upstream touch. `packages/pod-dbt-mcp/` is 
 
 | Upstream file                             | Touch                                                                    | Reason                                                                                                                                                                                                                                                                |
 | ----------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/renderer/src/components/Landing.tsx` | `<PodSetupButton whenNoDomain />` before the Add project button + import | A new user lands here; the button opens first setup from two repo folders and hides once a domain exists. Detection, apply and the dialog live in Pod-owned `src/main/ae/setup/`, `src/main/ipc/ae/ae-setup-handlers.ts` and `src/renderer/src/ae/AeSetupDialog.tsx`. |
+| `src/renderer/src/components/Landing.tsx` | `<PodSetupButton whenNoDomain />` before the Add project button + import | A new user lands here; the button asks for your dbt repo, sets it all up, and hides once a domain exists. Detection, apply and the dialog live in Pod-owned `src/main/ae/setup/`, `src/main/ipc/ae/ae-setup-handlers.ts` and `src/renderer/src/ae/AeSetupDialog.tsx`. |
 
 ## Fresh copies of a dbt repo
 

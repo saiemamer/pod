@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, CircleHelp } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, CircleHelp, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -20,150 +20,265 @@ import {
 } from '@/components/ui/select'
 import { PodPathInput } from '@/components/settings/PodPathInput'
 import { translate } from '@/i18n/i18n'
-import type { AeSetupDetection, AeSetupItem } from '../../../shared/ae/setup-types'
+import type {
+  AeSetupInitial,
+  AeSetupItem,
+  AeSetupQuestion,
+  AeSetupRunRequest,
+  AeSetupRunResult
+} from '../../../shared/ae/setup-types'
 
 /**
- * Pod: first setup from two folders. Detect reads the repos and runs `--version` on the
- * tools; Apply creates or updates the domain, its dbt defaults and the tool paths.
+ * Pod: first setup from one choice. Picking the dbt repo runs detection; when nothing needs
+ * the person Pod applies it and shows what it set up. It asks only for a production-looking
+ * default target, a repo with several dbt projects, or a dbt that runs.
  */
 export function AeSetupDialog({
-  onOpenChange
+  onOpenChange,
+  initial
 }: {
   onOpenChange: (open: boolean) => void
+  initial?: AeSetupInitial
 }): React.JSX.Element {
-  const [dbtRepoPath, setDbtRepoPath] = useState('')
-  const [omniRepoPath, setOmniRepoPath] = useState('')
-  const [detection, setDetection] = useState<AeSetupDetection | null>(null)
-  const [target, setTarget] = useState<string | undefined>(undefined)
-  const [busy, setBusy] = useState<'detect' | 'apply' | null>(null)
+  const [request, setRequest] = useState<AeSetupRunRequest | null>(null)
+  const [omniRepoPath, setOmniRepoPath] = useState(initial?.omniRepoPath ?? '')
+  const [result, setResult] = useState<AeSetupRunResult | null>(null)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const run = async (kind: 'detect' | 'apply', task: () => Promise<void>): Promise<void> => {
-    setBusy(kind)
+  const run = async (next: AeSetupRunRequest): Promise<void> => {
+    setRequest(next)
+    setBusy(true)
     setError(null)
     try {
-      await task()
+      const outcome = await window.api.ae.setup.run(next)
+      setResult(outcome)
+      if (outcome.applied) {
+        toast.success(
+          outcome.applied.changed
+            ? translate('pod.setup.applied', 'Domain set up')
+            : translate('pod.setup.unchanged', 'Domain already set up; nothing changed')
+        )
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
-  const detect = (): Promise<void> =>
-    run('detect', async () => {
-      const found = await window.api.ae.setup.detect({
-        dbtRepoPath,
-        omniRepoPath: omniRepoPath || undefined
-      })
-      setDetection(found)
-      setTarget(undefined)
-    })
-  const apply = (): Promise<void> =>
-    run('apply', async () => {
-      if (!detection) {
-        return
-      }
-      const result = await window.api.ae.setup.apply({ detection, target })
-      toast.success(
-        result.changed
-          ? translate('pod.setup.applied', 'Domain set up')
-          : translate('pod.setup.unchanged', 'Domain already set up; nothing changed')
-      )
-      onOpenChange(false)
-    })
-  const pathsChanged = (): void => setDetection(null)
+  const started = useRef(false)
+  useEffect(() => {
+    // Why once: a repo handed in by the Omni tab or the new-project offer is the person's choice already.
+    if (!started.current && initial?.dbtRepoPath) {
+      started.current = true
+      void run({ dbtRepoPath: initial.dbtRepoPath, omniRepoPath: initial.omniRepoPath })
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs once with the repo handed in at open.
+  }, [])
+  const pickRepo = (dbtRepoPath: string): void => {
+    if (dbtRepoPath) {
+      void run({ dbtRepoPath, omniRepoPath: omniRepoPath || undefined })
+    }
+  }
 
+  const applied = result?.applied ?? null
+  const questions = result && !applied ? result.questions : []
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-setup-phase={phaseOf(request, busy, result)}>
         <DialogHeader>
-          <DialogTitle>{translate('pod.setup.title', 'Set up from your repos')}</DialogTitle>
+          <DialogTitle>
+            {applied
+              ? translate('pod.setup.doneTitle', 'Pod is set up')
+              : translate('pod.setup.title', 'Set up Pod from your dbt repo')}
+          </DialogTitle>
           <DialogDescription>
-            {translate(
-              'pod.setup.description',
-              'Choose your dbt repo and, if you have one, your Omni repo. Pod finds dbt, your profile and target, the Omni CLI and Python, and shows what it found before changing anything.'
-            )}
+            {applied
+              ? translate(
+                  'pod.setup.doneDescription',
+                  'This is what Pod found and set up. Change any of it later in Settings > Analytics Tools or the domain settings.'
+                )
+              : translate(
+                  'pod.setup.description',
+                  'Choose the folder of your dbt repo. Pod finds dbt, your profile and target, the Omni CLI and Python, and sets them up. It asks only when it cannot choose safely.'
+                )}
           </DialogDescription>
         </DialogHeader>
         <div className="scrollbar-sleek max-h-[calc(100vh-14rem)] space-y-4 overflow-y-auto">
-          <div className="space-y-1">
-            <Label>{translate('pod.setup.dbtRepo', 'dbt repo')}</Label>
-            <PodPathInput
-              value={dbtRepoPath}
-              placeholder="~/Projects/dbt-analytics"
-              pick="directory"
-              onCommit={(value) => {
-                setDbtRepoPath(value)
-                pathsChanged()
-              }}
+          {!request ? (
+            <div className="space-y-1">
+              <Label>{translate('pod.setup.dbtRepo', 'dbt repo')}</Label>
+              <PodPathInput
+                value=""
+                placeholder="~/Projects/dbt-analytics"
+                pick="directory"
+                onCommit={pickRepo}
+              />
+              {omniRepoPath ? (
+                <p className="text-xs text-muted-foreground">
+                  {translate('pod.setup.omniWith', 'Omni repo: {{path}}', { path: omniRepoPath })}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="break-all font-mono text-[11px] text-muted-foreground">
+              {request.dbtRepoPath}
+            </p>
+          )}
+          {busy ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              {translate('pod.setup.running', 'Looking at the repo and your tools…')}
+            </p>
+          ) : null}
+          {request && questions.length > 0 ? (
+            <SetupQuestions
+              key={JSON.stringify(request)}
+              questions={questions}
+              busy={busy}
+              onAnswer={(answers) => void run({ ...request, ...answers })}
             />
-          </div>
-          <div className="space-y-1">
-            <Label>{translate('pod.setup.omniRepo', 'Omni repo (optional)')}</Label>
-            <PodPathInput
-              value={omniRepoPath}
-              placeholder="~/Projects/omni-analytics"
-              pick="directory"
-              onCommit={(value) => {
-                setOmniRepoPath(value)
-                pathsChanged()
-              }}
-            />
-          </div>
-          {detection ? (
+          ) : null}
+          {result && !busy ? (
             <ul className="space-y-2" aria-label={translate('pod.setup.summary', 'What Pod found')}>
-              {detection.items.map((item) => (
-                <SetupItemRow
-                  key={item.key}
-                  item={item}
-                  targets={item.key === 'target' ? detection.profiles.targets : []}
-                  target={target}
-                  onTarget={setTarget}
-                />
+              {result.detection.items.map((item) => (
+                <SetupItemRow key={item.key} item={item} />
               ))}
             </ul>
+          ) : null}
+          {applied && request && !request.omniRepoPath && !busy ? (
+            <div className="space-y-1">
+              <Label>{translate('pod.setup.addOmni', 'Add your Omni repo (optional)')}</Label>
+              <PodPathInput
+                value=""
+                placeholder="~/Projects/omni-analytics"
+                pick="directory"
+                onCommit={(path) => {
+                  if (path) {
+                    setOmniRepoPath(path)
+                    void run({ ...request, omniRepoPath: path })
+                  }
+                }}
+              />
+            </div>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy !== null || !dbtRepoPath}
-            onClick={() => void detect()}
-          >
-            {busy === 'detect'
-              ? translate('pod.setup.detecting', 'Detecting…')
-              : translate('pod.setup.detect', 'Detect')}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy !== null || !detection}
-            onClick={() => void apply()}
-          >
-            {busy === 'apply'
-              ? translate('pod.setup.applying', 'Applying…')
-              : translate('pod.setup.apply', 'Apply')}
-          </Button>
+          {applied ? (
+            <Button type="button" size="sm" onClick={() => onOpenChange(false)}>
+              {translate('pod.setup.done', 'Done')}
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              {translate('pod.setup.cancel', 'Cancel')}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
-function SetupItemRow({
-  item,
-  targets,
-  target,
-  onTarget
+function phaseOf(
+  request: AeSetupRunRequest | null,
+  busy: boolean,
+  result: AeSetupRunResult | null
+): string {
+  if (busy) {
+    return 'running'
+  }
+  if (result?.applied) {
+    return 'applied'
+  }
+  if (result) {
+    return 'question'
+  }
+  return request ? 'running' : 'pick'
+}
+
+type SetupAnswers = Pick<AeSetupRunRequest, 'target' | 'projectDir' | 'dbtBinary' | 'withoutDbt'>
+
+function SetupQuestions({
+  questions,
+  busy,
+  onAnswer
 }: {
-  item: AeSetupItem
-  targets: string[]
-  target: string | undefined
-  onTarget: (value: string) => void
+  questions: AeSetupQuestion[]
+  busy: boolean
+  onAnswer: (answers: SetupAnswers) => void
 }): React.JSX.Element {
+  const [answers, setAnswers] = useState<SetupAnswers>({})
+  const set = (patch: SetupAnswers): void => setAnswers((current) => ({ ...current, ...patch }))
+  const answered = questions.every((question) =>
+    question.kind === 'target'
+      ? Boolean(answers.target)
+      : question.kind === 'project'
+        ? Boolean(answers.projectDir)
+        : Boolean(answers.dbtBinary || answers.withoutDbt)
+  )
+  return (
+    <div className="space-y-3 rounded-md border border-border p-3" data-setup-questions>
+      {questions.map((question) => (
+        <div key={question.kind} className="space-y-1.5" data-setup-question={question.kind}>
+          <p className="text-xs text-foreground">{question.reason}</p>
+          {question.kind === 'dbt' ? (
+            <>
+              <PodPathInput
+                value={answers.dbtBinary ?? ''}
+                placeholder="/Users/you/.pyenv/versions/3.11.4/bin/dbt"
+                pick="file"
+                onCommit={(path) => set({ dbtBinary: path || undefined, withoutDbt: false })}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => onAnswer({ ...answers, withoutDbt: true })}
+              >
+                {translate('pod.setup.withoutDbt', 'Set up without dbt for now')}
+              </Button>
+            </>
+          ) : (
+            <Select
+              value={question.kind === 'target' ? answers.target : answers.projectDir}
+              onValueChange={(value) =>
+                set(question.kind === 'target' ? { target: value } : { projectDir: value })
+              }
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue
+                  placeholder={
+                    question.kind === 'target'
+                      ? translate('pod.setup.chooseTarget', 'Choose a target')
+                      : translate('pod.setup.chooseProject', 'Choose a project')
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {question.options.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        disabled={busy || !answered}
+        onClick={() => onAnswer(answers)}
+      >
+        {translate('pod.setup.continue', 'Continue')}
+      </Button>
+    </div>
+  )
+}
+
+function SetupItemRow({ item }: { item: AeSetupItem }): React.JSX.Element {
   const Icon =
     item.status === 'found' ? CheckCircle2 : item.status === 'choose' ? CircleHelp : AlertTriangle
   return (
@@ -179,20 +294,6 @@ function SetupItemRow({
           ) : null}
         </div>
         {item.hint ? <p className="text-muted-foreground">{item.hint}</p> : null}
-        {item.status === 'choose' && targets.length > 0 ? (
-          <Select value={target} onValueChange={onTarget}>
-            <SelectTrigger size="sm" className="w-48">
-              <SelectValue placeholder={translate('pod.setup.chooseTarget', 'Choose a target')} />
-            </SelectTrigger>
-            <SelectContent>
-              {targets.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
       </div>
     </li>
   )
