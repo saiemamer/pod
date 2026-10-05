@@ -1,5 +1,14 @@
 import { useEffect, useRef } from 'react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, type FitViewOptions } from '@xyflow/react'
+
+/**
+ * Centres at 100 %, or zoomed out until the node fits: at a fixed 100 % a node wider than
+ * a narrow canvas (the list open in a 1024 px window) put its side buttons out of reach.
+ * The padding clears the side buttons, which hang 10 px past each edge.
+ */
+export function lineageCentreFitOptions(nodeId: string): FitViewOptions {
+  return { nodes: [{ id: nodeId }], duration: 200, maxZoom: 1, padding: '24px' }
+}
 
 /**
  * Pod: centres the canvas on the node picked in the upstream/downstream list. Every
@@ -21,7 +30,7 @@ export function useLineageCentreOnSelect(
     const previous = last.current
     last.current = { key: centreKey, shown }
     if (shown && (centreKey !== previous.key || (!previous.shown && !anchored))) {
-      void fitView({ nodes: [{ id: selectedNodeId }], duration: 200, minZoom: 1, maxZoom: 1 })
+      void fitView(lineageCentreFitOptions(selectedNodeId))
     }
   }, [selectedNodeId, centreKey, visible, anchored, fitView])
 }

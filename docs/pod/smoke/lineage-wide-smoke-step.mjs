@@ -55,9 +55,27 @@ export async function checkWideLineage({ page, panel, out, log, sleep }) {
     'model.demo.events_enriched',
     'model.demo.fct_events'
   ]
-  for (const id of neighbourhood) {
-    if (!firstFrame.boxes[id]?.inside) {
-      throw new Error(`${id} is not inside the canvas on the first frame (zoom ${firstFrame.zoom})`)
+  // Why a narrow case: the open fit never goes below 60 %, and a canvas narrower than the
+  // neighbourhood at 60 % (a 1024 px window) opens at 60 % centred on the focus instead.
+  const [flowX, , flowWidth] = firstFrame.flow.split(',').map(Number)
+  const boxOf = (id) => firstFrame.boxes[id]?.box.split(',').map(Number)
+  const spans = neighbourhood.map(boxOf).filter(Boolean)
+  const span = Math.max(...spans.map(([x, , w]) => x + w)) - Math.min(...spans.map(([x]) => x))
+  const narrow = Number.parseInt(firstFrame.zoom, 10) === 60 && span + 48 > flowWidth
+  if (narrow) {
+    const [x, , w] = boxOf('model.demo.events_base')
+    const offCentre = Math.abs(x + w / 2 - (flowX + flowWidth / 2))
+    log(`  canvas ${flowWidth} px is narrower than the neighbourhood at 60 % (${span} px)`)
+    if (!firstFrame.boxes['model.demo.events_base'].inside || offCentre > 2) {
+      throw new Error(`events_base is not centred in a narrow canvas: ${offCentre} px off`)
+    }
+  } else {
+    for (const id of neighbourhood) {
+      if (!firstFrame.boxes[id]?.inside) {
+        throw new Error(
+          `${id} is not inside the canvas on the first frame (zoom ${firstFrame.zoom})`
+        )
+      }
     }
   }
   if (Number.parseInt(firstFrame.zoom, 10) < 60) {
