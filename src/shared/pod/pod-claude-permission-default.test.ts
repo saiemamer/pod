@@ -153,7 +153,7 @@ describe('Claude workers dispatched for an orchestration task', () => {
   })
 
   it("change nothing in Orca's own build", async () => {
-    const { podClaudeWorkerArgs } = await import('./pod-claude-permission-default')
+    const { podClaudeWorkerArgs } = await import('./pod-claude-permission-default.js')
     expect(podClaudeWorkerArgs({ ...worker, resolvedArgs: '--model opus' })).toBe('--model opus')
   })
 })
