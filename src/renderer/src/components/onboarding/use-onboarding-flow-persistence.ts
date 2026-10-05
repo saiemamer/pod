@@ -9,7 +9,7 @@ import type { EventProps } from '../../../../shared/telemetry-events'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { OnboardingState } from '../../../../shared/onboarding-state-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
-import { applyAgentPermissionMode } from '../../../../shared/tui-agent-permissions'
+import { podOnboardingAgentPermissionUpdate } from '../../../../shared/pod/pod-claude-permission-default'
 import type { StepId, StepNumber } from './use-onboarding-flow-types'
 
 export async function persistStep(
@@ -168,8 +168,8 @@ export function usePersistCurrentStep({
         const defaultTuiAgent = selectedAgentOrBlank(selectedAgent)
         await updateSettings({
           defaultTuiAgent,
-          ...applyAgentPermissionMode({
-            mode: yoloPermissions ? 'yolo' : 'manual',
+          ...podOnboardingAgentPermissionUpdate({
+            yoloPermissions,
             agentDefaultArgs: settings.agentDefaultArgs,
             agentDefaultEnv: settings.agentDefaultEnv
           })
