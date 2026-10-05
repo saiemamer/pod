@@ -103,12 +103,70 @@ describe('parseDbtManifest', () => {
   it('walks lineage both ways, skipping tests and honouring the depth cap', () => {
     const manifest = parseDbtManifest('/m.json', JSON.stringify(FIXTURE_MANIFEST))!
     expect(walkDbtLineage(manifest, 'model.demo.fct_orders', 'upstream', 5)).toEqual([
-      { uniqueId: 'model.demo.stg_orders', name: 'stg_orders', resourceType: 'model', depth: 1 },
-      { uniqueId: 'source.demo.shop.orders', name: 'orders', resourceType: 'source', depth: 2 }
+      {
+        uniqueId: 'model.demo.stg_orders',
+        name: 'stg_orders',
+        resourceType: 'model',
+        depth: 1,
+        via: ['model.demo.fct_orders']
+      },
+      {
+        uniqueId: 'source.demo.shop.orders',
+        name: 'orders',
+        resourceType: 'source',
+        depth: 2,
+        via: ['model.demo.stg_orders']
+      }
     ])
     expect(walkDbtLineage(manifest, 'model.demo.fct_orders', 'upstream', 1)).toHaveLength(1)
     expect(walkDbtLineage(manifest, 'model.demo.stg_orders', 'downstream', 5)).toEqual([
-      { uniqueId: 'model.demo.fct_orders', name: 'fct_orders', resourceType: 'model', depth: 1 }
+      {
+        uniqueId: 'model.demo.fct_orders',
+        name: 'fct_orders',
+        resourceType: 'model',
+        depth: 1,
+        via: ['model.demo.stg_orders']
+      }
+    ])
+  })
+
+  it('names every walked node a lineage entry is linked from, the first finder first', () => {
+    const model = (name: string, parents: string[]) => ({
+      name,
+      resource_type: 'model',
+      package_name: 'demo',
+      path: `${name}.sql`,
+      original_file_path: `models/${name}.sql`,
+      depends_on: { nodes: parents.map((parent) => `model.demo.${parent}`) }
+    })
+    const graph = { stg: [], a: ['stg'], b: ['stg'], a2: ['a'], b2: ['b', 'a'] }
+    const ids = (names: string[]) => names.map((name) => `model.demo.${name}`)
+    const manifest = parseDbtManifest(
+      '/m.json',
+      JSON.stringify({
+        metadata: { project_name: 'demo' },
+        nodes: Object.fromEntries(
+          Object.entries(graph).map(([name, parents]) => [
+            `model.demo.${name}`,
+            model(name, parents)
+          ])
+        ),
+        parent_map: Object.fromEntries(
+          Object.entries(graph).map(([name, parents]) => [`model.demo.${name}`, ids(parents)])
+        ),
+        child_map: {
+          'model.demo.stg': ids(['a', 'b']),
+          'model.demo.a': ids(['a2', 'b2']),
+          'model.demo.b': ids(['b2'])
+        }
+      })
+    )!
+    const walked = walkDbtLineage(manifest, 'model.demo.stg', 'downstream', 2)
+    expect(walked.map((entry) => [entry.name, entry.depth, entry.via])).toEqual([
+      ['a', 1, ids(['stg'])],
+      ['b', 1, ids(['stg'])],
+      ['a2', 2, ids(['a'])],
+      ['b2', 2, ids(['a', 'b'])]
     ])
   })
 })
