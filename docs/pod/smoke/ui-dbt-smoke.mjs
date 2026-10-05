@@ -5,6 +5,7 @@
 // REMOTE_DEBUGGING_PORT=9333 and the stand-in dbt at ~/Projects/pod-smoke/bin/dbt
 // (see README.md). Screenshots go to POD_SMOKE_OUT.
 import { createRequire } from 'node:module'
+import { openExplorerFile, primaryWorktreeRow } from './smoke-sidebar.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
 
@@ -52,49 +53,10 @@ if (!groups.some((g) => g.name === 'pod-smoke')) {
 }
 
 // 2. activate dbt-demo's primary worktree: the `master` row between the two project rows
-const rowY = async (locator) => (await locator.boundingBox())?.y ?? null
-const dbtProject = page.getByText('dbt-demo', { exact: true }).first()
-const omniProject = page.getByText('omni-demo', { exact: true }).first()
-const findDbtWorktreeRow = async () => {
-  const top = await rowY(dbtProject)
-  const bottom = await rowY(omniProject)
-  const rows = page.getByText('master', { exact: true })
-  for (let i = 0; i < (await rows.count()); i += 1) {
-    const y = await rowY(rows.nth(i))
-    if (top !== null && y !== null && y > top && (bottom === null || y < bottom)) {
-      return rows.nth(i)
-    }
-  }
-  return null
-}
-let worktreeRow = await findDbtWorktreeRow()
-if (!worktreeRow) {
-  await dbtProject.click()
-  await sleep(800)
-  worktreeRow = await findDbtWorktreeRow()
-}
-if (!worktreeRow) {
-  throw new Error('no worktree row under dbt-demo')
-}
-await worktreeRow.click()
+await (await primaryWorktreeRow(page, `${PARENT}/dbt-demo`)).click()
 await sleep(1500)
-const explorer = page.locator('[aria-label^="Explorer"]')
-if (await explorer.count()) {
-  await explorer.first().click()
-  await sleep(500)
-}
-// Why check first: the Explorer remembers expansion, so a click on an open folder closes it.
-const tree = ['models', 'marts', 'orders.sql']
-for (let i = 0; i < tree.length; i += 1) {
-  const node = page.getByText(tree[i], { exact: true }).first()
-  await node.waitFor({ state: 'visible' })
-  const child = tree[i + 1] ? page.getByText(tree[i + 1], { exact: true }).first() : null
-  if (!child || !(await child.isVisible())) {
-    await node.click()
-    await sleep(500)
-  }
-}
-const editor = page.locator('.monaco-editor .view-lines').first()
+await openExplorerFile(page, ['models', 'marts', 'orders.sql'])
+const editor = page.locator('.monaco-editor .view-lines').filter({ visible: true }).first()
 await editor.waitFor({ state: 'visible', timeout: 120000 })
 // Why close first: a tall dock left by the lineage smoke pushes the visible lines under
 // the editor header, and the click lands on that header instead.

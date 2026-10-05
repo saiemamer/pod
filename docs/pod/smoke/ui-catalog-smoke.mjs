@@ -6,6 +6,7 @@
 // and the stand-in dbt at ~/Projects/pod-smoke/bin/dbt (see README.md); run
 // ui-lineage-smoke.mjs once first so the smoke repo has its models.
 import { createRequire } from 'node:module'
+import { primaryWorktreeRow } from './smoke-sidebar.mjs'
 import { rmSync } from 'node:fs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
@@ -56,17 +57,7 @@ await setDocsMode('broken')
 try {
   // 2. the dbt-demo worktree, with no catalog on disk
   rmSync(`${repo}/target/catalog.json`, { force: true })
-  const dbtProject = page.getByText('dbt-demo', { exact: true }).first()
-  await dbtProject.click()
-  await sleep(800)
-  const top = (await dbtProject.boundingBox())?.y ?? 0
-  const rows = page.getByText('master', { exact: true })
-  for (let i = 0; i < (await rows.count()); i += 1) {
-    if (((await rows.nth(i).boundingBox())?.y ?? -1) > top) {
-      await rows.nth(i).click()
-      break
-    }
-  }
+  await (await primaryWorktreeRow(page, repo)).click()
   await sleep(1500)
 
   // Why via Explorer: switching tabs remounts the panel, which re-reads the tree.

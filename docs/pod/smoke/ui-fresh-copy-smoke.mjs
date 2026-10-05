@@ -6,6 +6,7 @@
 // Needs `pnpm dev` with REMOTE_DEBUGGING_PORT=9333, the stand-in dbt at
 // ~/Projects/pod-smoke/bin/dbt, and ui-lineage-smoke.mjs run once (it writes the models).
 import { createRequire } from 'node:module'
+import { openExplorerFile } from './smoke-sidebar.mjs'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 const require = createRequire(`${process.cwd()}/package.json`)
@@ -65,57 +66,52 @@ const created = await page.evaluate(
       throw new Error(`repo ${repoPath} not imported; run ui-lineage-smoke.mjs first`)
     }
     const result = await window.api.worktrees.create({ repoId: target.id, name: wtName })
-    return result.worktree.path
+    return { path: result.worktree.path, id: result.worktree.id }
   },
   [repo, name]
 )
-log('created', created)
+log('created', created.path)
 
-// 2. Pod prepares it unasked: packages copied from the main copy, then the manifest
-for (let i = 0; i < 60 && !existsSync(`${created}/target/manifest.json`); i += 1) {
-  await sleep(1000)
-}
-if (!existsSync(`${created}/dbt_packages/dbt_utils`)) {
-  throw new Error('the new copy has no packages: preparation did not run')
-}
-if (!existsSync(`${created}/target/manifest.json`)) {
-  throw new Error('the new copy has no manifest: preparation did not parse')
-}
-const readiness = await page.evaluate(
-  (path) => window.api.ae.dbt.readiness({ path }),
-  `${created}/models/marts/orders.sql`
-)
-log('readiness', JSON.stringify(readiness.readiness))
-
-// 3. open orders.sql in the new workspace and press Cmd+Alt+L
-await page.getByText(name, { exact: true }).first().click()
-await sleep(1500)
-const explorer = page.locator('[aria-label^="Explorer"]')
-if (await explorer.count()) {
-  await explorer.first().click()
-  await sleep(500)
-}
-for (const [i, entry] of ['models', 'marts', 'orders.sql'].entries()) {
-  const node = page.getByText(entry, { exact: true }).first()
-  await node.waitFor({ state: 'visible' })
-  const next = ['models', 'marts', 'orders.sql'][i + 1]
-  const child = next ? page.getByText(next, { exact: true }).first() : null
-  if (!child || !(await child.isVisible())) {
-    await node.click()
-    await sleep(500)
+try {
+  // 2. Pod prepares it unasked: packages copied from the main copy, then the manifest
+  for (let i = 0; i < 60 && !existsSync(`${created.path}/target/manifest.json`); i += 1) {
+    await sleep(1000)
   }
+  if (!existsSync(`${created.path}/dbt_packages/dbt_utils`)) {
+    throw new Error('the new copy has no packages: preparation did not run')
+  }
+  if (!existsSync(`${created.path}/target/manifest.json`)) {
+    throw new Error('the new copy has no manifest: preparation did not parse')
+  }
+  const readiness = await page.evaluate(
+    (path) => window.api.ae.dbt.readiness({ path }),
+    `${created.path}/models/marts/orders.sql`
+  )
+  log('readiness', JSON.stringify(readiness.readiness))
+
+  // 3. open orders.sql in the new workspace and press Cmd+Alt+L
+  await page.getByText(name, { exact: true }).first().click()
+  await sleep(1500)
+  await openExplorerFile(page, ['models', 'marts', 'orders.sql'])
+  const editor = page.locator('.monaco-editor .view-lines').filter({ visible: true }).first()
+  await editor.waitFor({ state: 'visible', timeout: 120000 })
+  await editor.click()
+  await page.keyboard.press(`${MOD}+Alt+L`)
+  // Visible only: the main copy's workspace keeps its own dock mounted, hidden.
+  const dock = page.locator('[data-testid="pod-dbt-dock"]').filter({ visible: true })
+  await dock.waitFor({ state: 'visible' })
+  await dock.locator('[data-testid="pod-lineage-node"]').first().waitFor({ state: 'visible' })
+  const text = await dock.innerText()
+  if (/DbtGraphNotReadyError|DbtRunError/.test(text)) {
+    throw new Error(`raw dbt error text in the dock: ${text.slice(0, 200)}`)
+  }
+  await page.screenshot({ path: `${OUT}/pod-fresh-copy-lineage.png` })
+  log('lineage drew in the fresh copy; screenshot', `${OUT}/pod-fresh-copy-lineage.png`)
+} finally {
+  // The workspace goes again so the next run starts from the sidebar it found.
+  await page.evaluate(
+    (worktreeId) => window.api.worktrees.remove({ worktreeId, force: true, skipArchive: true }),
+    created.id
+  )
+  await browser.close()
 }
-const editor = page.locator('.monaco-editor .view-lines').first()
-await editor.waitFor({ state: 'visible', timeout: 120000 })
-await editor.click()
-await page.keyboard.press(`${MOD}+Alt+L`)
-const dock = page.locator('[data-testid="pod-dbt-dock"]')
-await dock.waitFor({ state: 'visible' })
-await dock.locator('[data-testid="pod-lineage-node"]').first().waitFor({ state: 'visible' })
-const text = await dock.innerText()
-if (/DbtGraphNotReadyError|DbtRunError/.test(text)) {
-  throw new Error(`raw dbt error text in the dock: ${text.slice(0, 200)}`)
-}
-await page.screenshot({ path: `${OUT}/pod-fresh-copy-lineage.png` })
-log('lineage drew in the fresh copy; screenshot', `${OUT}/pod-fresh-copy-lineage.png`)
-await browser.close()

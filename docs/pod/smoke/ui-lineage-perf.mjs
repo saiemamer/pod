@@ -12,6 +12,7 @@
 // summarise the self time per function); the sampling costs a few percent, so the
 // gate itself runs without it.
 import { createRequire } from 'node:module'
+import { openExplorerFile, primaryWorktreeRow } from './smoke-sidebar.mjs'
 import { existsSync, writeFileSync } from 'node:fs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
@@ -150,39 +151,10 @@ try {
   record('graph IPC, 1000-node manifest, median', graphTimes[2], 'ms', 300)
 
   // 4. open the editor on orders.sql, then the Lineage tab; time to a ready canvas
-  const dbtProject = page.getByText('dbt-demo', { exact: true }).first()
-  const omniProject = page.getByText('omni-demo', { exact: true }).first()
-  const rowY = async (l) => (await l.boundingBox())?.y ?? null
-  const rows = page.getByText('master', { exact: true })
-  let worktreeRow = null
-  for (let i = 0; i < (await rows.count()); i += 1) {
-    const y = await rowY(rows.nth(i))
-    const top = await rowY(dbtProject)
-    const bottom = await rowY(omniProject)
-    if (top !== null && y !== null && y > top && (bottom === null || y < bottom)) {
-      worktreeRow = rows.nth(i)
-    }
-  }
-  if (worktreeRow) {
-    await worktreeRow.click()
-  }
+  await (await primaryWorktreeRow(page, REPO)).click()
   await sleep(800)
-  const explorerTab = page.locator('[aria-label^="Explorer"]')
-  if (await explorerTab.count()) {
-    await explorerTab.first().click()
-  }
-  await sleep(400)
-  for (const [i, name] of ['models', 'marts', 'orders.sql'].entries()) {
-    const node = page.getByText(name, { exact: true }).first()
-    await node.waitFor({ state: 'visible' })
-    const next = ['models', 'marts', 'orders.sql'][i + 1]
-    const child = next ? page.getByText(next, { exact: true }).first() : null
-    if (!child || !(await child.isVisible())) {
-      await node.click()
-      await sleep(400)
-    }
-  }
-  const editor = page.locator('.monaco-editor .view-lines').first()
+  await openExplorerFile(page, ['models', 'marts', 'orders.sql'])
+  const editor = page.locator('.monaco-editor .view-lines').filter({ visible: true }).first()
   await editor.waitFor({ state: 'visible', timeout: 120000 })
   const leftover = page.locator('[data-testid="pod-dbt-dock"] [aria-label="Close results"]')
   if (await leftover.count()) {

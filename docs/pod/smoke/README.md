@@ -8,15 +8,38 @@ mkdir dbt-demo && (cd dbt-demo && git init -q && printf 'name: demo\nprofile: de
 mkdir omni-demo && (cd omni-demo && git init -q && printf 'name: demo\n' > model.yaml && git add -A && git commit -qm init)
 
 cd ~/Projects/pod
-REMOTE_DEBUGGING_PORT=9333 ORCA_BACKGROUND_LAUNCH=1 pnpm dev   # separate terminal; uses ~/Library/Application Support/orca-dev
+REMOTE_DEBUGGING_PORT=9333 ORCA_BACKGROUND_LAUNCH=1 pnpm dev -- --use-mock-keychain   # separate terminal; uses ~/Library/Application Support/orca-dev
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-smoke.mjs
 ```
 
 The dev instance keeps its own data directory, so the installed Pod is untouched. Re-runs skip the import when a `pod-smoke` group with repos already exists and delete empty duplicates from earlier runs.
 
+## The whole pass
+
+Before a release, run every script against one freshly started dev build, in this order, and expect all of them to pass twice in a row:
+
+1. `ui-smoke.mjs`
+2. `ui-group-initiative-smoke.mjs`
+3. `ui-first-start-smoke.mjs`
+4. `ui-dbt-smoke.mjs`
+5. `ui-fresh-copy-smoke.mjs`
+6. `ui-lineage-smoke.mjs` (no `POD_SMOKE_PYTHON`: the engine label must read `sqlglot` from the copy Pod ships)
+7. `ui-catalog-smoke.mjs`
+8. `ui-panels-smoke.mjs`
+9. `ui-omni-smoke.mjs`
+10. `ui-setup-smoke.mjs`
+11. `pnpm build:cli`, then `pnpm --dir packages/pod-dbt-mcp install` and `pnpm --dir packages/pod-dbt-mcp test`
+12. `ui-mcp-smoke.mjs`
+13. `orchestration-folder-worker-smoke.mjs`
+14. `perf-fixture.mjs`, then `ui-lineage-perf.mjs`
+
+Copy `dbt-stub.sh` to `~/Projects/pod-smoke/bin/dbt` first. Start the build with `--use-mock-keychain` after `pnpm dev --`: without it, macOS asks for the login Keychain password at start (a `SecurityAgent` process appears) and the build waits for an answer nobody gives. Only one dev build may use port 9333 and `orca-dev` at a time.
+
+Each script leaves the app as it found it: what it creates (workspaces, initiatives, groups, domains, projects, settings) it removes or restores in a `finally`, a project it moves goes back to its old group and position, and a script that opens the Settings page leaves it through "Back to app" (Escape does not, and a restarted build reopens it). No script finds a sidebar row by its position or by the order of projects: `smoke-sidebar.mjs` finds a project's worktree row by its `data-worktree-id` and an Explorer row among the visible ones only, since other workspaces keep their trees and tab bars mounted but hidden under the same names.
+
 ## Group without a folder
 
-`ui-group-initiative-smoke.mjs` makes a group the way the project menu's "New group from project" does (a name only, no folder), moves `dbt-demo` into it, and opens Domain settings without pressing Detect: the role must read `dbt`. It then puts a file named `initiatives` in `~/Pod/pod-smoke-no-folder/`, opens New initiative, checks the dialog names the folder `~/Pod/pod-smoke-no-folder/initiatives/pod-smoke-test`, presses Start, and expects a plain error with no "Error invoking remote method" text and no initiative record. With the file gone, a second press must make exactly one initiative with its `INITIATIVE.md`. Claude opens with the prompt drafted, not sent. It removes the initiative's workspace, the domain, the group and `~/Pod/pod-smoke-no-folder` afterwards and moves `dbt-demo` back. On the code before the fix the role reads `other` and the start fails on `mkdir '/initiatives/pod-smoke-test'`. Three screenshots: `group-initiative-1-roles` to `group-initiative-3-started`.
+`ui-group-initiative-smoke.mjs` makes a group the way the project menu's "New group from project" does (a name only, no folder), moves `dbt-demo` into it, and opens Domain settings without pressing Detect: the role must read `dbt`. It then puts a file named `initiatives` in `~/Pod/pod-smoke-no-folder/`, opens New initiative, checks the dialog names the folder `~/Pod/pod-smoke-no-folder/initiatives/pod-smoke-test`, presses Start, and expects a plain error with no "Error invoking remote method" text and no initiative record. With the file gone, a second press must make exactly one initiative with its `INITIATIVE.md`. Claude opens with the prompt drafted, not sent. It removes the initiative's workspace, the domain, the group and `~/Pod/pod-smoke-no-folder` afterwards and moves `dbt-demo` back to its old position (a move without an order puts a project last in its group). On the code before the fix the role reads `other` and the start fails on `mkdir '/initiatives/pod-smoke-test'`. Three screenshots: `group-initiative-1-roles` to `group-initiative-3-started`.
 
 ```sh
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-group-initiative-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
@@ -56,7 +79,7 @@ Before pushing, run the full check with a bigger heap: `NODE_OPTIONS=--max-old-s
 
 ## Fresh copy of a dbt repo
 
-`ui-fresh-copy-smoke.mjs` commits a `packages.yml` to the smoke dbt repo, marks the package installed in the main copy (`dbt_packages/dbt_utils`), creates a new workspace through `window.api.worktrees.create`, and waits for Pod to prepare it unasked: packages copied from the main copy, then `dbt parse`. It then opens `orders.sql` in the new workspace, presses Cmd+Alt+L, and fails unless the canvas draws with no `DbtGraphNotReadyError` or `DbtRunError` text in the dock. The stand-in `dbt` refuses `parse` while a listed package is missing, as dbt Core does, so the step fails on a build without the preparation. Run `ui-lineage-smoke.mjs` once first; it writes the models.
+`ui-fresh-copy-smoke.mjs` commits a `packages.yml` to the smoke dbt repo, marks the package installed in the main copy (`dbt_packages/dbt_utils`), creates a new workspace through `window.api.worktrees.create`, and waits for Pod to prepare it unasked: packages copied from the main copy, then `dbt parse`. It then opens `orders.sql` in the new workspace, presses Cmd+Alt+L, and fails unless the canvas draws with no `DbtGraphNotReadyError` or `DbtRunError` text in the dock. The stand-in `dbt` refuses `parse` while a listed package is missing, as dbt Core does, so the step fails on a build without the preparation. It removes the new workspace afterwards. Run `ui-lineage-smoke.mjs` once first; it writes the models.
 
 ```sh
 cp docs/pod/smoke/dbt-stub.sh ~/Projects/pod-smoke/bin/dbt
@@ -158,7 +181,7 @@ Secrets (`OMNI_API_KEY`) are added afterwards in the dialog, because the script 
 
 ## First setup
 
-`ui-setup-smoke.mjs` makes two throwaway repos under `~/Projects/pod-smoke/setup/` (`dbt-setup` with `profiles.yml` at its root, a `prod` default target and a fake keyfile path; `omni-setup` with `model.yaml`), puts a broken `dbt` shim in `dbt-setup/.venv/bin` and the stand-in `dbt` in `setup/.venv/bin`, then opens Settings > Analytics Tools > Tools > Set up from repos and gives it only the dbt repo. Setup must run by itself, with no Detect step: it checks that the broken shim is skipped and named in plain words, the root `profiles.yml` is found, the only question is the `prod` default, no credential shows and nothing is written while the question is open. It picks `dev` and checks the result screen, the domain's target and profiles folder and the dbt tool path, then adds the Omni repo from the result screen and checks both roles. A last run must leave the domain's `updatedAt` alone. It restores the tool settings afterwards. Two screenshots: `setup-1-question`, `setup-2-applied`.
+`ui-setup-smoke.mjs` makes two throwaway repos under `~/Projects/pod-smoke/setup/` (`dbt-setup` with `profiles.yml` at its root, a `prod` default target and a fake keyfile path; `omni-setup` with `model.yaml`), puts a broken `dbt` shim in `dbt-setup/.venv/bin` and the stand-in `dbt` in `setup/.venv/bin`, then opens Settings > Analytics Tools > Tools > Set up from repos and gives it only the dbt repo. Setup must run by itself, with no Detect step: it checks that the broken shim is skipped and named in plain words, the root `profiles.yml` is found, the only question is the `prod` default, no credential shows and nothing is written while the question is open. It picks `dev` and checks the result screen, the domain's target and profiles folder and the dbt tool path, then adds the Omni repo from the result screen, which applies at once because the target answer carries over, and checks both roles. A last run must leave the domain's `updatedAt` alone. It restores the tool settings and removes the domain, the group and both projects afterwards. Two screenshots: `setup-1-question`, `setup-2-applied`.
 
 ```sh
 POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-setup-smoke.mjs   # against pnpm dev on port 9333

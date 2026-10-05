@@ -8,6 +8,7 @@
 // ~/Projects/pod-smoke/bin/dbt (see README.md). Screenshots go to POD_SMOKE_OUT.
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { leaveSettings } from './smoke-sidebar.mjs'
 import { join } from 'node:path'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
@@ -161,8 +162,9 @@ try {
     configPath
   )
   const defaultOnArgs = await claudeArgs()
+  // Pod's built-in Claude default is empty since the first-start change, so the pair stands alone.
   check(
-    defaultOnArgs.startsWith('--dangerously-skip-permissions --mcp-config'),
+    defaultOnArgs.startsWith('--mcp-config') && !defaultOnArgs.includes('--dangerously'),
     `on adds the pair to the built-in default (${defaultOnArgs})`
   )
   await toggle.click()
@@ -190,6 +192,7 @@ try {
   await page.evaluate((input) => window.api.settings.set(input), previous)
   rmSync(configPath, { force: true })
   await page.keyboard.press('Escape')
+  await leaveSettings(page)
 }
 log('done; screenshots in', OUT)
 await browser.close()

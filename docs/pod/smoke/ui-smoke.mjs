@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync } from 'node:fs'
+import { leaveSettings } from './smoke-sidebar.mjs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
 
@@ -31,6 +32,8 @@ page.setDefaultTimeout(30000)
 
 // 0. close anything left open, drop empty pod-smoke groups from earlier runs
 await page.keyboard.press('Escape')
+// The first script of a pass: a build may reopen the Settings page an earlier session left.
+await leaveSettings(page)
 await sleep(300)
 const cleanup = await page.evaluate(async () => {
   const groups = await window.api.projectGroups.list()
@@ -95,6 +98,25 @@ if (
   throw new Error('roles not detected')
 }
 
+// The smoke initiative, its coordinator workspace and its folder; removed before and after so
+// each run makes exactly one and the sidebar ends as it started.
+const forgetSmokeInitiatives = () =>
+  page.evaluate(async () => {
+    for (const initiative of await window.api.ae.initiatives.list()) {
+      if (initiative.title !== 'Smoke initiative') {
+        continue
+      }
+      const id = initiative.coordinatorWorkspaceKey?.replace(/^folder:/, '')
+      if (id) {
+        await window.api.folderWorkspaces.delete({ folderWorkspaceId: id })
+      }
+      await window.api.ae.initiatives.remove({ initiativeId: initiative.id })
+    }
+  })
+const initiativeFolder = `${PARENT}/initiatives/smoke-initiative`
+await forgetSmokeInitiatives()
+rmSync(initiativeFolder, { recursive: true, force: true })
+
 // 2. new initiative
 await openGroupMenu()
 await page.getByRole('menuitem', { name: 'New initiative…' }).click()
@@ -144,5 +166,7 @@ log(
   panelText.includes('initiatives/smoke-initiative')
 )
 log('active workspace:', await page.evaluate(() => document.title))
+await forgetSmokeInitiatives()
+rmSync(initiativeFolder, { recursive: true, force: true })
 await browser.close()
 log('done')
