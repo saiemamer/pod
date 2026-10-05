@@ -32,7 +32,7 @@ export function formatDomainShow(result: DomainShowResult): string {
   ]
   for (const initiative of initiatives) {
     lines.push(
-      `  ${initiative.title} [${initiative.status}]${initiative.stakeholderTeam ? ` for ${initiative.stakeholderTeam}` : ''}${initiative.runId ? ` run ${initiative.runId}` : ''} at ${initiative.folderPath}`
+      `  ${initiative.title} [${initiative.status}]${initiative.stakeholderTeam ? ` for ${initiative.stakeholderTeam}` : ''} repos: ${initiative.repoIds.join(', ') || 'none'}${initiative.runId ? ` run ${initiative.runId}` : ''} at ${initiative.folderPath}`
     )
   }
   return lines.join('\n')

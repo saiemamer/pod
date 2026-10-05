@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +72,7 @@ function memoryStore(group: Partial<ProjectGroup>, repos: Repo[]) {
 /** The Orca runtime is the boundary: folder workspaces and agent sessions. */
 function fakeRuntime(options: { failSessions: number }) {
   const workspaces = new Set<string>()
+  const prompts: string[] = []
   let failuresLeft = options.failSessions
   let next = 0
   const runtime = {
@@ -73,7 +82,8 @@ function fakeRuntime(options: { failSessions: number }) {
       return { id }
     },
     deleteFolderWorkspace: async (id: string) => ({ deleted: workspaces.delete(id) }),
-    createAgentSession: async () => {
+    createAgentSession: async (input: { prompt: string }) => {
+      prompts.push(input.prompt)
       if (failuresLeft > 0) {
         failuresLeft--
         throw new Error('pty_spawn_failed')
@@ -82,7 +92,7 @@ function fakeRuntime(options: { failSessions: number }) {
     }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: launchAeInitiative calls only these three runtime methods.
-  return { runtime: runtime as unknown as OrcaRuntimeService, workspaces }
+  return { runtime: runtime as unknown as OrcaRuntimeService, workspaces, prompts }
 }
 
 describe('launchAeInitiative', () => {
@@ -114,6 +124,28 @@ describe('launchAeInitiative', () => {
     expect(service.initiativeFolderPath('g1', 'X')).toBe(
       join(home, 'Pod', 'analytics', 'initiatives', 'x')
     )
+  })
+
+  it('names only the ticked repos in INITIATIVE.md and in the drafted prompt', async () => {
+    const dbt = makeRepo('r1', 'dbt-demo', ['dbt_project.yml'])
+    const omni = makeRepo('r2', 'omni-demo', ['model.yaml'])
+    const store = memoryStore({}, [dbt, omni])
+    const { runtime, prompts } = fakeRuntime({ failSessions: 0 })
+    const service = new AeDomainService(store, runtime)
+    service.saveDomain({ id: 'g1' })
+
+    const initiative = await launchAeInitiative(service, {
+      domainId: 'g1',
+      title: 'Real agent check',
+      repoIds: ['r1']
+    })
+
+    const markdown = readFileSync(join(initiative.folderPath, 'INITIATIVE.md'), 'utf8')
+    const repoSection = markdown.split('## Repos')[1].split('## Goal')[0]
+    expect(repoSection.trim()).toBe(`- ${dbt.path} (id: r1, role: dbt)`)
+    expect(prompts).toHaveLength(1)
+    expect(prompts[0]).toContain('works in dbt-demo (dbt) only')
+    expect(prompts[0]).not.toContain('omni-demo')
   })
 
   it('leaves no record, workspace or folder after a failed start, and a retry makes one initiative', async () => {
