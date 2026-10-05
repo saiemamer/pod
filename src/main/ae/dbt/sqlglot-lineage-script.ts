@@ -41,24 +41,8 @@ def relation_of(table):
     return ".".join(part for part in (table.catalog, table.db, table.name) if part)
 
 
-def direct_columns(expression, schema, dialect, qualify, build_scope, exp):
-    """Output columns that read one table column as is, qualified the way lineage() does.
-
-    lineage() re-qualifies the whole query per column, so a 500-column select * took
-    minutes; these need no walk.
-    """
-    try:
-        scope = build_scope(
-            qualify(
-                expression.copy(),
-                schema=schema,
-                dialect=dialect,
-                validate_qualify_columns=False,
-                identify=False,
-            )
-        )
-    except Exception:  # noqa: BLE001 - lineage() reports it per column
-        return {}
+def direct_columns(scope, exp):
+    """Output columns that read one table column as is; these need no lineage() walk."""
     direct = {}
     for select in scope.expression.selects if scope else []:
         inner = select.this if isinstance(select, exp.Alias) else select
@@ -76,17 +60,35 @@ def analyse(node, dialect, sqlglot, exp, lineage, qualify, build_scope):
     schema = nested_schema(node.get("schema") or {})
     try:
         expression = sqlglot.parse_one(sql, read=dialect)
-        qualified = qualify(expression.copy(), schema=schema, dialect=dialect)
-        outputs = list(qualified.named_selects)
+        outputs = list(qualify(expression.copy(), schema=schema, dialect=dialect).named_selects)
+        # lineage() qualifies and scopes the whole query on every call, and trim_selects
+        # copies each select it passes through: a 500-column model of CTEs took minutes.
+        # One qualify, with lineage()'s own settings, serves every column.
+        qualified = qualify(
+            expression,
+            schema=schema,
+            dialect=dialect,
+            validate_qualify_columns=False,
+            identify=False,
+        )
+        scope = build_scope(qualified)
     except Exception as error:  # noqa: BLE001 - reported to the caller
         return {"ok": False, "error": "%s: %s" % (type(error).__name__, error)}
-    columns = direct_columns(expression, schema, dialect, qualify, build_scope, exp)
+    columns = direct_columns(scope, exp)
     errors = {}
     for name in outputs:
         if name in columns:
             continue
         try:
-            root = lineage(name, sql, schema=schema, dialect=dialect)
+            root = lineage(
+                name,
+                qualified,
+                schema=schema,
+                dialect=dialect,
+                scope=scope,
+                copy=False,
+                trim_selects=False,
+            )
         except Exception as error:  # noqa: BLE001
             errors[name] = "%s: %s" % (type(error).__name__, error)
             columns[name] = []
@@ -99,7 +101,8 @@ def analyse(node, dialect, sqlglot, exp, lineage, qualify, build_scope):
             if isinstance(source, exp.Table):
                 ref = {
                     "relation": relation_of(source),
-                    "column": item.name.rsplit(".", 1)[-1],
+                    # A leaf is named by its SQL, so a quoted column arrives quoted.
+                    "column": exp.to_column(item.name).name,
                 }
                 if ref not in refs:
                     refs.append(ref)
