@@ -81,6 +81,9 @@ const upstreamPackage = (version, scripts, dependencies) =>
 
 const ATTRIBUTES = '/config/scripts/**/*.mjs text eol=lf\n'
 const POD_ATTRIBUTES =
+  "# Pod: keep Pod's front page across rebases (driver configured in docs/pod/sync.md)\n/README.md merge=pod-keep\n"
+// The unanchored line Pod's history added first, which matched every README.md in the tree.
+const OLD_POD_ATTRIBUTES =
   "# Pod: keep Pod's front page across rebases (driver configured in docs/pod/README.md)\nREADME.md merge=pod-keep\n"
 
 const builderConfig = (
@@ -151,7 +154,13 @@ function tagRelease(f, tag) {
 }
 
 // Orca v1.0.0 with Pod's commits on top, then Orca v1.1.0 editing next to each Pod touch.
-function forkedRepos({ podPackageExtra = {}, nextAppIdLine, podEditsMovedWorkflow = false } = {}) {
+function forkedRepos({
+  podPackageExtra = {},
+  nextAppIdLine,
+  podEditsMovedWorkflow = false,
+  podAttributes = ATTRIBUTES + POD_ATTRIBUTES,
+  laterPodAttributes
+} = {}) {
   const f = fixture()
   const { up, pod, git, read, commit } = f
   commit(up, 'orca 1.0.0', {
@@ -178,7 +187,7 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine, podEditsMovedWorkflo
       dependencies: { tweetnacl: '^1.0.3', ws: '^8.0.0' },
       ...podPackageExtra
     }),
-    '.gitattributes': ATTRIBUTES + POD_ATTRIBUTES,
+    '.gitattributes': podAttributes,
     'config/electron-builder.config.cjs': podBuilderConfig(
       read(pod, 'config/electron-builder.config.cjs')
     )
@@ -194,6 +203,9 @@ function forkedRepos({ podPackageExtra = {}, nextAppIdLine, podEditsMovedWorkflo
   const podPackage = JSON.parse(read(pod, 'package.json'))
   podPackage.dependencies = { tweetnacl: '^1.0.3', 'vscode-jsonrpc': '9.0.2', ws: '^8.0.0' }
   commit(pod, 'pod: LSP framing library', { 'package.json': json(podPackage) })
+  if (laterPodAttributes) {
+    commit(pod, 'pod: change the attributes', { '.gitattributes': laterPodAttributes })
+  }
 
   commit(up, 'orca 1.1.0', {
     'package.json': upstreamPackage(
@@ -266,6 +278,64 @@ test('re-applies Pod touches over upstream edits to the clashing files and bumps
       ],
       ['pod: LSP framing library', ['package.json']]
     ]
+  )
+})
+
+test('replays the unanchored pod-keep line and a later commit that anchors it', () => {
+  // Catches: a .gitattributes rule that knows only one form of the line, so a sync stops on
+  // the old commit that added it unanchored or on the commit that anchors it.
+  const { pod, read, sync } = forkedRepos({
+    podAttributes: ATTRIBUTES + OLD_POD_ATTRIBUTES,
+    laterPodAttributes: ATTRIBUTES + POD_ATTRIBUTES
+  })
+
+  const { code, output, report } = sync('v1.1.0')
+
+  assert.equal(code, 0, output)
+  assert.equal(
+    read(pod, '.gitattributes'),
+    `${ATTRIBUTES}/resources/plugins/** text eol=lf\n${POD_ATTRIBUTES}`
+  )
+  const resolvedAttributes = report.resolved
+    .filter((entry) => entry.files.includes('.gitattributes'))
+    .map((entry) => entry.subject)
+  assert.deepEqual(resolvedAttributes, [
+    'pod: brand constants and identity touchpoints',
+    'pod: change the attributes'
+  ])
+})
+
+test('stops when a Pod commit changes a .gitattributes line other than its own', () => {
+  // Catches: a rule that re-applies any line Pod adds, carrying an unreviewed attribute along.
+  const { sync } = forkedRepos({
+    laterPodAttributes: `${ATTRIBUTES}*.png binary\n${POD_ATTRIBUTES}`
+  })
+
+  const { code, output, report } = sync('v1.1.0')
+
+  assert.equal(code, 2, output)
+  assert.equal(report.commit.subject, 'pod: change the attributes')
+  const stop = report.needsPerson.find((entry) => entry.path === '.gitattributes')
+  assert.match(stop.reason, /other than its \/README\.md merge=pod-keep line/)
+})
+
+test("the repository's pod-keep driver covers only the top-level README.md", () => {
+  // Catches: an unanchored pattern, under which a rebase replaced main's
+  // docs/pod/smoke/README.md with the rebased commit's copy.
+  const result = spawnSync(
+    'git',
+    ['check-attr', 'merge', '--', 'README.md', 'docs/pod/smoke/README.md', 'docs/pod/README.md'],
+    { cwd: resolve(import.meta.dirname, '..'), encoding: 'utf8' }
+  )
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(
+    result.stdout,
+    [
+      'README.md: merge: pod-keep',
+      'docs/pod/smoke/README.md: merge: unspecified',
+      'docs/pod/README.md: merge: unspecified',
+      ''
+    ].join('\n')
   )
 })
 

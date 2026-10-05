@@ -88,5 +88,5 @@
 /mobile/web-entry/**/*.otf -text
 /mobile/web-entry/**/*.woff -text
 /mobile/web-entry/**/*.woff2 -text
-# Pod: keep Pod's front page across rebases (driver configured in docs/pod/README.md)
-README.md merge=pod-keep
+# Pod: keep Pod's front page across rebases (driver configured in docs/pod/sync.md)
+/README.md merge=pod-keep
