@@ -19,6 +19,7 @@ import {
 } from '../../../shared/ae/domain-types'
 import { taskLabel, useInitiativeRunTasks } from './use-initiative-run-tasks'
 import { revealPodFolderWorkspace } from './reveal-folder-workspace'
+import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { resolveTuiAgentLaunchArgs } from '../../../shared/tui-agent-launch-defaults'
 import { podClaudeWorkerAddsBypassFlag } from '../../../shared/pod/pod-claude-permission-default'
 
@@ -79,6 +80,25 @@ function RepoRoles({
         </li>
       ))}
     </ul>
+  )
+}
+
+/** The worktree a task's worker ran in, named and opened from the row. */
+function WorkerCopy({ worktreeId }: { worktreeId: string }): React.JSX.Element {
+  const name = useAppStore((s) => s.getKnownWorktreeById(worktreeId)?.displayName)
+  return (
+    <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span className="shrink-0">{translate('pod.initiative.panel.workerCopy', 'Copy')}</span>
+      <button
+        type="button"
+        className="min-w-0 truncate font-mono text-foreground hover:underline disabled:text-muted-foreground disabled:no-underline"
+        title={translate('pod.initiative.panel.openWorkerCopy', 'Open the worker’s copy')}
+        disabled={!name}
+        onClick={() => activateAndRevealWorktree(worktreeId)}
+      >
+        {name ?? worktreeId}
+      </button>
+    </div>
   )
 }
 
@@ -184,6 +204,7 @@ function InitiativeView({
                       {task.status}
                     </span>
                   </div>
+                  {task.worker_worktree_id && <WorkerCopy worktreeId={task.worker_worktree_id} />}
                   {task.assignee_handle && (
                     <div className="truncate font-mono text-[11px] text-muted-foreground">
                       {task.assignee_handle}

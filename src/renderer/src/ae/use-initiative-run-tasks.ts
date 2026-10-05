@@ -13,9 +13,34 @@ export type InitiativeRunTask = {
   spec: string
   assignee_handle?: string | null
   dispatch_id?: string | null
+  /** Pod: the worktree the task's latest worker ran in, from `orchestration.workerList`. */
+  worker_worktree_id?: string | null
 }
 
 type TaskListResult = { runId: string; legacyReadOnly: boolean; tasks: InitiativeRunTask[] }
+/** Unpaginated `orchestration.workerList` rows: the fleet projection rides beside the durable row. */
+type WorkerListResult = {
+  workers: {
+    taskId: string
+    projection?: { workspace: { id: string } | null }
+    resource?: { worktreeId: string | null } | null
+  }[]
+}
+
+/** Attaches each task's worker worktree; the list is newest first, so a retry's copy wins. */
+export function withWorkerWorktrees(
+  tasks: InitiativeRunTask[],
+  workers: WorkerListResult['workers']
+): InitiativeRunTask[] {
+  const worktreeByTask = new Map<string, string>()
+  for (const worker of workers) {
+    const worktreeId = worker.projection?.workspace?.id ?? worker.resource?.worktreeId
+    if (worktreeId && !worktreeByTask.has(worker.taskId)) {
+      worktreeByTask.set(worker.taskId, worktreeId)
+    }
+  }
+  return tasks.map((task) => ({ ...task, worker_worktree_id: worktreeByTask.get(task.id) ?? null }))
+}
 
 export type InitiativeRunTasks = {
   tasks: InitiativeRunTask[]
@@ -70,14 +95,21 @@ export function useInitiativeRunTasks(
         setLoading(true)
         setError(null)
       }
-      callRuntimeRpc<TaskListResult>(
-        getActiveRuntimeTarget({ activeRuntimeEnvironmentId: environmentId }),
-        'orchestration.taskList',
-        { run: runId }
+      const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: environmentId })
+      // Why the catch: a host without workerList still lists tasks, just without the copy.
+      const workers = callRuntimeRpc<WorkerListResult>(target, 'orchestration.workerList', {
+        run: runId
+      }).then(
+        (result) => result.workers ?? [],
+        () => []
       )
-        .then((result) => {
+      Promise.all([
+        callRuntimeRpc<TaskListResult>(target, 'orchestration.taskList', { run: runId }),
+        workers
+      ])
+        .then(([result, workerRows]) => {
           if (request === latestRef.current) {
-            setTasks(result.tasks)
+            setTasks(withWorkerWorktrees(result.tasks, workerRows))
             setError(null)
           }
         })
