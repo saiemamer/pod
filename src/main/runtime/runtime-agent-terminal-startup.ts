@@ -45,8 +45,9 @@ export async function buildRuntimeAgentTerminalStartupOptions(
   if (opts.startupPrompt && !agentPromptRidesLaunchCommand(agent)) {
     throw new Error(`Agent ${agent} does not take a startup prompt on its launch command.`)
   }
+  const podScope = { ...workspace, launchSource: opts.launchSource } // Pod
   const { plan: startupPlan, promptCarried } = await planExecutionHostStartupWithPromptCandidate({
-    inputs: resolvePodAgentStartupPlanInputs(workspace, {
+    inputs: resolvePodAgentStartupPlanInputs(podScope, {
       agent,
       settings,
       platform,

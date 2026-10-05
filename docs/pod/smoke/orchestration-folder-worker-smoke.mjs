@@ -3,11 +3,13 @@
 // worker's worktree in that repo as a child of the folder workspace (it failed with a bare
 // selector_not_found before the fix), and leaving out --repo must say why. Needs `pnpm dev`
 // with REMOTE_DEBUGGING_PORT=9333, `pnpm build:cli`, and the pod-smoke group from
-// ui-smoke.mjs. Claude's command is pointed at /bin/cat for the run, so no agent starts and
-// no usage is spent; worker readiness then times out, which is expected and checked.
+// ui-smoke.mjs. Claude's command is pointed at a shell stand-in that records its arguments and
+// then waits on cat, so no agent starts and no usage is spent; worker readiness then times out,
+// which is expected. The recorded arguments must carry the bypass flag Pod gives Claude workers.
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { chromium } = require('playwright')
@@ -60,8 +62,12 @@ const previous = {
   agentCmdOverrides: settings.agentCmdOverrides ?? {},
   agentDefaultArgs: settings.agentDefaultArgs ?? {}
 }
+const argsFile = join(tmpdir(), `pod-worker-args-${Date.now().toString(36)}.txt`)
 await page.evaluate((input) => window.api.settings.set(input), {
-  agentCmdOverrides: { ...previous.agentCmdOverrides, claude: '/bin/cat' },
+  agentCmdOverrides: {
+    ...previous.agentCmdOverrides,
+    claude: `/bin/sh -c 'printf "%s\\n" "$*" > ${argsFile}; exec /bin/cat' claude`
+  },
   agentDefaultArgs: { ...previous.agentDefaultArgs, claude: '' }
 })
 const folder = await page.evaluate(
@@ -128,6 +134,11 @@ try {
   log('worker-start answered', JSON.stringify(started).slice(0, 400))
   created = orca('worktree', 'show', '--worktree', `branch:${name}`).result?.worktree
   check(created?.repoId === dbtRepo.repoId, `worktree ${created?.id} created in dbt-demo`)
+  const workerArgs = existsSync(argsFile) ? readFileSync(argsFile, 'utf8').trim() : null
+  check(
+    workerArgs?.split(/\s+/).includes('--dangerously-skip-permissions'),
+    `the Claude worker started with --dangerously-skip-permissions (${workerArgs})`
+  )
   // Why the renderer's lineage list: worktree show carries no parent, and a folder parent is
   // workspace lineage keyed by the child's workspace key.
   const lineage = await page.evaluate(() => window.api.worktrees.listLineage())
@@ -170,6 +181,7 @@ try {
     folder.id
   )
   await page.evaluate((input) => window.api.settings.set(input), previous)
+  rmSync(argsFile, { force: true })
 }
 log('done')
 await browser.close()

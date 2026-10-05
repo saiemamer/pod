@@ -29,6 +29,20 @@ function Row({ label, children }: { label: string; children: React.ReactNode }):
   )
 }
 
+// Why: Pod starts Claude workers with the bypass flag, and Claude Code confirms that mode once.
+function ClaudeWorkerNotice(): React.JSX.Element {
+  return (
+    <Row label={translate('pod.initiative.panel.workers', 'Workers')}>
+      <span className="text-muted-foreground">
+        {translate(
+          'pod.initiative.panel.claudeWorkerNotice',
+          'Claude workers run without asking before each command. The first time, Claude Code asks you to accept Bypass Permissions mode in the worker’s terminal: open it and choose "Yes, I accept".'
+        )}
+      </span>
+    </Row>
+  )
+}
+
 function RepoRoles({
   domain,
   repoIds
@@ -112,6 +126,7 @@ function InitiativeView({
         <Row label={translate('pod.initiative.panel.folder', 'Folder')}>
           <span className="break-all font-mono text-[11px]">{initiative.folderPath}</span>
         </Row>
+        <ClaudeWorkerNotice />
         <Row label={translate('pod.initiative.panel.run', 'Run')}>
           {initiative.runId ? (
             <span className="font-mono text-[11px]">{initiative.runId}</span>
@@ -186,6 +201,7 @@ function DomainView({ domain }: { domain: AeDomainConfig }): React.JSX.Element {
         <Row label={translate('pod.initiative.panel.repos', 'Repos')}>
           <RepoRoles domain={domain} />
         </Row>
+        <ClaudeWorkerNotice />
         <div className="space-y-1">
           <span className="text-xs text-muted-foreground">
             {translate('pod.initiative.panel.initiatives', 'Initiatives')}
