@@ -1,6 +1,6 @@
 import { safeStorage } from 'electron'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { integrationCredentialDir } from '../pod/pod-credential-folder'
 import { join } from 'node:path'
 import {
   hardenExistingSecureFile,
@@ -38,7 +38,7 @@ export function createEncryptedApiKeyFileStore({
   }
 
   function getOrcaDir(): string {
-    return join(homedir(), '.orca')
+    return integrationCredentialDir()
   }
 
   function getApiKeyPath(): string {

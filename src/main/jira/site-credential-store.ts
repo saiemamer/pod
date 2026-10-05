@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { integrationCredentialDir } from '../pod/pod-credential-folder'
 import { join } from 'node:path'
 import { getSecretStore } from '../../shared/secret-store'
 import { readCredentialFileProtection } from '../credential-file-protection'
@@ -26,7 +26,7 @@ const cachedTokens = new Map<string, string>()
 export const credentialErrors = new Map<string, string>()
 
 function getOrcaDir(): string {
-  return join(homedir(), '.orca')
+  return integrationCredentialDir()
 }
 
 function getSiteFilePath(): string {

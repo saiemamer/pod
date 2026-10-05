@@ -2,7 +2,7 @@ import { getSecretStore } from '../../shared/secret-store'
 import { readCredentialFileProtection } from '../credential-file-protection'
 import type { SecretAtRestProtection } from '../../shared/secret-at-rest-protection'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { integrationCredentialDir } from '../pod/pod-credential-folder'
 import { join } from 'node:path'
 
 type StoredOpenAiKey = {
@@ -13,7 +13,7 @@ const OPENAI_SPEECH_TOKEN_FILE = 'openai-speech-token.enc'
 let cachedOpenAiSpeechApiKey: string | null = null
 
 function getOrcaDir(): string {
-  return join(homedir(), '.orca')
+  return integrationCredentialDir()
 }
 
 function ensureOrcaDir(): void {
