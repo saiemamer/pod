@@ -1,0 +1,141 @@
+name: Pod UI smoke
+
+# Why a workflow of its own: the click-through scripts in docs/pod/smoke drive a real `pnpm dev`
+# build over DevTools and are a reporting check, not a required one yet; outside pod-pr.yml a
+# failure here cannot fail a required check. Why macOS: Pod ships for macOS only, the scripts are
+# written and run there (Cmd shortcuts, --use-mock-keychain, window geometry), and a Linux
+# runner would add a virtual display, a keyring and Chromium sandbox switches nobody runs locally.
+# The performance gate (ui-lineage-perf.mjs) stays out: its timings miss on a busy machine.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pod-ui-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  click-through:
+    name: click-through scripts (reporting)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      POD_SMOKE_OUT: ${{ runner.temp }}/pod-smoke-out
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          cache-electron-package: 'true'
+      - name: Install Electron package binary
+        run: node config/scripts/install-electron-package-binary.mjs
+      - name: Build native modules for Electron
+        run: pnpm run ensure:electron-runtime
+
+      - name: Create the sample project
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh docs/pod/smoke/ci-smoke-project.sh "$HOME/Projects/pod-smoke"
+          mkdir -p "$POD_SMOKE_OUT"
+
+      - name: Print tool versions and the sample project
+        shell: bash
+        run: |
+          set -uo pipefail
+          sw_vers
+          uname -m
+          echo "node $(node --version), pnpm $(pnpm --version)"
+          git --version
+          python3 --version
+          echo "electron $(node -p "require('./node_modules/electron/package.json').version")"
+          echo "playwright $(node -p "require('./node_modules/playwright/package.json').version")"
+          "$HOME/Projects/pod-smoke/bin/dbt" --version
+          find "$HOME/Projects/pod-smoke" -path '*/.git' -prune -o -print | sort
+          git -C "$HOME/Projects/pod-smoke/dbt-demo" log --oneline --branches
+
+      - name: Start the app
+        shell: bash
+        env:
+          REMOTE_DEBUGGING_PORT: '9333'
+          ORCA_BACKGROUND_LAUNCH: '1'
+        run: |
+          set -euo pipefail
+          nohup pnpm dev -- --use-mock-keychain > "$POD_SMOKE_OUT/app.log" 2>&1 &
+          echo "pnpm dev started as pid $!"
+
+      - name: Wait for the app and close first-run screens
+        timeout-minutes: 8
+        run: node docs/pod/smoke/ci-app-ready.mjs
+
+      - name: Run the click-through scripts
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=0
+          {
+            echo '## Pod click-through scripts'
+            echo
+            echo 'Logs and screenshots: the `pod-ui-smoke` artifact of this run.'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          # README order; each script gets six minutes so one hang still leaves a summary.
+          for script in ui-smoke ui-dbt-smoke ui-lineage-smoke; do
+            log="$POD_SMOKE_OUT/$script.log"
+            echo "::group::$script.mjs"
+            perl -e 'alarm shift; exec @ARGV' 360 node "docs/pod/smoke/$script.mjs" 2>&1 | tee "$log"
+            rc=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$rc" -eq 0 ]; then
+              echo "- \`$script.mjs\` passed" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            failed=1
+            # Why the last timestamped line: each script logs as it finishes a step, so it names the last step that passed.
+            last_step=$(grep -E '^[0-9]{2}:[0-9]{2}:[0-9]{2} ' "$log" | tail -n 1 || true)
+            # Node prints an uncaught error as `<Name>Error: message`, with the script line in its stack.
+            error_line=$(grep -E '^[A-Za-z]*Error: ' "$log" | tail -n 1 || true)
+            where=$(grep -oE 'docs/pod/smoke/[a-z-]+\.mjs:[0-9]+' "$log" | head -n 1 || true)
+            [ "$rc" -eq 142 ] && error_line="stopped after six minutes"
+            message="${where:+$where }${error_line:-exit $rc}"
+            echo "::error title=$script.mjs failed::${message//%/%25}"
+            {
+              echo "- \`$script.mjs\` **failed** (exit $rc) at \`${where:-unknown line}\`"
+              echo "  - last step logged: \`${last_step:-none}\`"
+              echo "  - error: \`${error_line:-see log}\`"
+              echo
+              echo '```text'
+              tail -n 25 "$log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit "$failed"
+
+      - name: Stop the app
+        if: always()
+        shell: bash
+        run: |
+          pkill -TERM -f run-electron-vite-dev.mjs || true
+          for _ in $(seq 1 15); do
+            pgrep -f run-electron-vite-dev.mjs > /dev/null || break
+            sleep 1
+          done
+          pkill -KILL -f electron-vite || true
+          tail -n 60 "$POD_SMOKE_OUT/app.log" || true
+
+      - name: Keep screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pod-ui-smoke
+          path: ${{ runner.temp }}/pod-smoke-out
+          retention-days: 14
+          if-no-files-found: warn
