@@ -89,6 +89,8 @@ export function PodStartNoticeHost(): null {
   const openSettingsPage = useAppStore((s) => s.openSettingsPage)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
   const openAeDialog = useAppStore((s) => s.openAeDialog)
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
+  const setSidebarBody = useAppStore((s) => s.setSidebarBody)
 
   useEffect(() => {
     const startNotice = typeof window !== 'undefined' ? window.api?.ae?.startNotice : undefined
@@ -126,6 +128,9 @@ export function PodStartNoticeHost(): null {
             label: buttonLabel(first.target),
             onClick: () => {
               if (first.target.kind === 'domain') {
+                // Why: Domain settings mounts from the projects list, which a closed sidebar or the Agents view unmounts.
+                setSidebarOpen(true)
+                setSidebarBody('workspaces')
                 openAeDialog({
                   kind: 'domain-settings',
                   groupId: first.target.domainId,
@@ -140,7 +145,7 @@ export function PodStartNoticeHost(): null {
         })
       })
       .catch(() => {})
-  }, [openSettingsPage, openSettingsTarget, openAeDialog])
+  }, [openSettingsPage, openSettingsTarget, openAeDialog, setSidebarOpen, setSidebarBody])
 
   return null
 }
