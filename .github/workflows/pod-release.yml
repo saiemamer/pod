@@ -391,7 +391,11 @@ jobs:
           echo "Throwaway certificate (public part only):"
           /usr/bin/openssl x509 -in "$work/cert.pem" -noout -subject -dates
           /usr/bin/openssl x509 -in "$work/cert.pem" -noout -text | grep -A1 'Extended Key Usage' || true
-          echo "SHA-1 of the certificate, used as the codesign identity: $identity"
+          echo "SHA-1 of the certificate, used as the codesign identity: ${identity:-(empty)}"
+          if ! [[ "$identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+            echo "::error::the certificate's SHA-1 fingerprint came back as \"$identity\", not 40 hex digits"; exit 1
+          fi
+          leaf="$(printf '%s' "$identity" | tr 'A-F' 'a-f')"
 
           security create-keychain -p "$kc_password" "$skc"
           security set-keychain-settings "$skc"
@@ -438,27 +442,49 @@ jobs:
 
           failed=0
           drs=()
+          cdhashes=()
           for copy in "${signed_apps[@]}"; do
             echo "== $copy"
             if ! codesign --verify --deep --strict --verbose=2 "$copy"; then
               echo "::error::codesign --verify --deep --strict failed on $copy"; failed=1
             fi
-            codesign -d -vv "$copy" 2>&1 | grep -E '^(Identifier|Format|CodeDirectory|Authority|TeamIdentifier|Signature size|CDHash)=' || true
+            # Why -vvv: codesign prints CDHash= only from the third verbosity level up.
+            details="$(codesign -d -vvv "$copy" 2>&1 || true)"
+            printf '%s\n' "$details" | grep -E '^(Identifier|Format|CodeDirectory|Hash type|Authority|TeamIdentifier|Signature size|CDHash)[ =]' || true
             echo "Architectures of the main binary: $(lipo -archs "$copy/Contents/MacOS/Pod" 2>/dev/null || echo unknown)"
+            echo "SHA-256 of the main binary: $(shasum -a 256 "$copy/Contents/MacOS/Pod" | cut -d ' ' -f 1)"
+            cdhash="$(printf '%s\n' "$details" | sed -n 's/^CDHash=//p' | head -n 1)"
+            if [[ -z "$cdhash" ]]; then
+              echo "::error::codesign printed no CDHash= line for $copy, so its code hash is empty. Full output:"
+              printf '%s\n' "$details"
+              failed=1
+            fi
+            cdhashes+=("$cdhash")
+            if ! printf '%s\n' "$details" | grep -qxF 'Authority=Pod trial signing (throwaway)'; then
+              echo "::error::$copy is not signed by \"Pod trial signing (throwaway)\": no such Authority= line"; failed=1
+            fi
             dr="$(codesign -d -r- "$copy" 2>&1 | sed -n 's/^designated => //p')"
-            echo "Designated requirement: ${dr:-(none)}"
-            test -n "$dr" || { echo "::error::$copy has no designated requirement"; failed=1; }
+            echo "Designated requirement: ${dr:-(empty)}"
+            if [[ -z "$dr" ]]; then
+              echo "::error::the designated requirement of $copy is empty"; failed=1
+            elif [[ "$dr" != *"certificate leaf = H\"$leaf\""* ]]; then
+              echo "::error::the designated requirement of $copy does not name the throwaway certificate (leaf H\"$leaf\")"; failed=1
+            fi
             drs+=("$dr")
           done
-          cdhash_1="$(codesign -d -vv "${signed_apps[0]}" 2>&1 | sed -n 's/^CDHash=//p')"
-          cdhash_2="$(codesign -d -vv "${signed_apps[1]}" 2>&1 | sed -n 's/^CDHash=//p')"
-          if [[ "$cdhash_1" == "$cdhash_2" ]]; then
-            echo "::error::both signed apps have code hash $cdhash_1, so they are not two different binaries"; failed=1
+          if [[ -z "${cdhashes[0]}" || -z "${cdhashes[1]}" ]]; then
+            echo "::error::cannot tell whether the two signed apps are different binaries: code hash 1 is \"${cdhashes[0]}\", code hash 2 is \"${cdhashes[1]}\""; failed=1
+          elif [[ "${cdhashes[0]}" == "${cdhashes[1]}" ]]; then
+            echo "::error::both signed apps have code hash ${cdhashes[0]}, so they are not two different binaries"; failed=1
           else
-            echo "The two signed apps are different binaries: code hash $cdhash_1 and $cdhash_2"
+            echo "The two signed apps are different binaries: code hash ${cdhashes[0]} and ${cdhashes[1]}"
           fi
           same_dr=no
-          if [[ "${drs[0]}" == "${drs[1]}" ]]; then same_dr=yes; fi
+          if [[ -z "${drs[0]}" || -z "${drs[1]}" ]]; then
+            same_dr="unknown (a designated requirement was empty)"
+          elif [[ "${drs[0]}" == "${drs[1]}" ]]; then
+            same_dr=yes
+          fi
           {
             echo "signed=yes"
             echo "route=$route"
@@ -468,7 +494,7 @@ jobs:
             echo "second=${signed_apps[1]}"
           } > "$trial/signing.txt"
           if [[ "$same_dr" != yes ]]; then
-            echo "::error::the two signed apps have different designated requirements:"
+            echo "::error::the two signed apps do not have the same designated requirement:"
             printf '  %s\n' "${drs[@]}"
             failed=1
           else
@@ -548,8 +574,20 @@ jobs:
               printf '%s\n' "$baseline" | grep -qxF "$line" || printf '%s\n' "$line"
             done
           }
+          # Why the content test: Pod writes {"lastReportedGap":...} in one non-atomic write, so a
+          # file caught mid-write is not a report yet.
           report_file() {
-            find "$data" -name 'orca-secret-protection.json' -type f 2>/dev/null | head -n 1 || true
+            local f
+            f="$(find "$data" -name 'orca-secret-protection.json' -type f 2>/dev/null | head -n 1 || true)"
+            if [[ -n "$f" ]] && grep -qE '^\{"lastReportedGap":(null|".*")\}$' "$f" 2>/dev/null; then
+              printf '%s\n' "$f"
+            fi
+          }
+          # Prints any report file, complete or not, so a partial or odd one is visible in the log.
+          raw_report() {
+            local f
+            f="$(find "$data" -name 'orca-secret-protection.json' -type f 2>/dev/null | head -n 1 || true)"
+            if [[ -n "$f" ]]; then echo "  $f holds: [$(cat "$f")]"; else echo "  (no orca-secret-protection.json under $data)"; fi
           }
           show_acl() {
             # ACLs and partition lists only; -d (secret data) is never passed.
@@ -572,9 +610,15 @@ jobs:
             echo "======== $label pair: $first, then $second"
             for app in "$first" "$second"; do
               echo "-- $app"
-              codesign -d -vv "$app" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|CDHash|Signature)' || echo "   (codesign reports no signature details)"
+              # Why -vvv: codesign prints CDHash= only from the third verbosity level up.
+              codesign -d -vvv "$app" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|CDHash|Signature)' || echo "   (codesign reports no signature details)"
               echo "   designated => $(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')"
+              echo "   SHA-256 of the main binary: $(shasum -a 256 "$app/Contents/MacOS/Pod" | cut -d ' ' -f 1)"
             done
+            if cmp -s "$first/Contents/MacOS/Pod" "$second/Contents/MacOS/Pod"; then
+              detail="the two apps have the same main binary, so this pair is not an update to a different binary"
+              echo "::error::$label pair: $detail"; return 0
+            fi
             kc="$RUNNER_TEMP/pod-trial-$label.keychain-db"
             security delete-keychain "$kc" 2>/dev/null || true
             security create-keychain -p "pod-trial-$label" "$kc"
@@ -596,6 +640,8 @@ jobs:
               if ((waited % 30 == 0)); then echo "still waiting for the first app after $waited s"; fi
             done
             stop_app
+            echo "Report file after the first app:"
+            raw_report
             echo "Waited $waited s. App log lines about secrets or the Keychain:"
             grep -iE '\[secrets\]|keychain|safe ?storage' "$log" || echo "  (none)"
             if ! security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1; then
@@ -635,7 +681,8 @@ jobs:
             local alive=no
             if kill -0 "$pid" 2>/dev/null; then alive=yes; fi
             state="$(report_file)"
-            echo "After $waited s: app still running: $alive; report file: ${state:-(not written)}"
+            echo "After $waited s: app still running: $alive; complete report file: ${state:-(not written)}"
+            raw_report
             if [[ -n "$state" ]]; then echo "Report file content: $(cat "$state")"; fi
             echo "SecurityAgent processes that appeared while waiting:"
             if [[ -n "$agents_seen" ]]; then printf '%s\n' "$agents_seen" | sed 's/^/  /'; else echo "  (none)"; fi
