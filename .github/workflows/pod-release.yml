@@ -204,11 +204,67 @@ jobs:
       # Why: 0.1.8 and 0.1.9 packaged fine and exited at startup on a missing
       # main-process dependency; only launching the built apps catches that. The
       # release is still a draft here, so a failure ships nothing.
-      - name: Verify the packaged apps start
+      # Why the Keychain check: packaged Pod names itself "Pod" before `ready`
+      # (pod-user-data.ts), so Electron's item must be "Pod Safe Storage", never Orca's
+      # "orca Safe Storage"; dev builds and unit tests cannot show that. Pod asks for the
+      # key on its own after the first window (scheduleSecretProtectionGapReport, 15 s
+      # fallback), so a poll of up to 90 s needs nobody at the screen. Each app gets a
+      # fresh unlocked keychain as the default and only search entry: a second unsigned
+      # binary finding the first one's item would hang on a dialog nobody answers, and
+      # the login keychain's lock state stops mattering.
+      - name: Verify the packaged apps start and use their own Keychain item
         shell: bash
         run: |
           set -euo pipefail
+          kc="$RUNNER_TEMP/pod-launch-check.keychain-db"
+          kc_password="pod-launch-check"
+          echo "Runner keychains before the check:"
+          security list-keychains -d user || true
+          security default-keychain -d user || true
+          orig_default="$(security default-keychain -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"$//')"
+          orig_list=()
+          while IFS= read -r line; do
+            orig_list+=("$line")
+          done < <(security list-keychains -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"$//')
+          pid=""
+          stop_app() {
+            if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" 2>/dev/null || true
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$pid" 2>/dev/null || break
+                sleep 1
+              done
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+            pid=""
+          }
+          restore_keychains() {
+            stop_app
+            if ((${#orig_list[@]})); then security list-keychains -d user -s "${orig_list[@]}" || true; fi
+            if [[ -n "$orig_default" ]]; then security default-keychain -d user -s "$orig_default" || true; fi
+            security delete-keychain "$kc" 2>/dev/null || true
+          }
+          trap restore_keychains EXIT
+          report() {
+            echo "Keychain search list and default during the check:"
+            security list-keychains -d user || true
+            security default-keychain -d user || true
+            security show-keychain-info "$kc" || true
+            echo "Items in the check keychain (service, account):"
+            security dump-keychain "$kc" 2>&1 | grep -E '"(svce|acct)"' || echo "  (none)"
+            echo "Listing of ~/.pod:"
+            ls -la "$HOME/.pod" 2>&1 || true
+          }
           for app in $(find dist -maxdepth 2 -name 'Pod.app' -type d | sort); do
+            # Clean slate: no Keychain item, no ~/.pod, no Pod data from the app before.
+            security delete-keychain "$kc" 2>/dev/null || true
+            security create-keychain -p "$kc_password" "$kc"
+            security set-keychain-settings "$kc"
+            security unlock-keychain -p "$kc_password" "$kc"
+            security list-keychains -d user -s "$kc"
+            security default-keychain -d user -s "$kc"
+            rm -rf "$HOME/.pod" "$HOME/Library/Application Support/Pod"
+
             log="$RUNNER_TEMP/pod-launch-$(basename "$(dirname "$app")").log"
             "$app/Contents/MacOS/Pod" > "$log" 2>&1 &
             pid=$!
@@ -219,9 +275,34 @@ jobs:
             if grep -q 'fatal-exit' "$log"; then
               echo "::error::$app reported a fatal exit"; cat "$log"; exit 1
             fi
-            kill "$pid" || true
-            sleep 3
             echo "$app stayed up for 20 s"
+
+            waited=20
+            until security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1; do
+              if ((waited >= 90)); then break; fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                echo "::error::$app exited after $waited s, before it created its Keychain item"; cat "$log"; exit 1
+              fi
+              sleep 2
+              waited=$((waited + 2))
+            done
+            stop_app
+            report
+
+            failed=0
+            if ! security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1; then
+              echo "::error::$app created no Keychain item named \"Pod Safe Storage\" within $waited s of launch"; failed=1
+            fi
+            if security find-generic-password -s 'orca Safe Storage' "$kc" >/dev/null 2>&1; then
+              echo "::error::$app created Orca's Keychain item \"orca Safe Storage\""; failed=1
+            fi
+            if [[ ! -f "$HOME/.pod/pod-credentials-origin.json" ]]; then
+              echo "::error::$app did not write ~/.pod/pod-credentials-origin.json"; failed=1
+            fi
+            if ((failed)); then
+              echo "App log:"; cat "$log"; exit 1
+            fi
+            echo "$app created \"Pod Safe Storage\" within $waited s, no \"orca Safe Storage\", and ~/.pod/pod-credentials-origin.json"
           done
 
       # Why last: the draft becomes visible to users and to the tap's bump job only
