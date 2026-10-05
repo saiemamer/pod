@@ -22,6 +22,7 @@ import { getFolderWorkspaceCardPrDisplay } from '../../folder-workspace-card-pr-
 import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
 import type { FolderWorkspaceItemRow } from '../listing/renderable-rows'
 import { getWorktreeOptionId } from './option-dom'
+import { PodFolderWorkspaceCopies } from '@/ae/PodFolderWorkspaceCopies' // Pod
 
 export type FolderWorkspaceRowContext = {
   groupBy: WorktreeGroupBy
@@ -136,6 +137,10 @@ export function renderFolderWorkspaceVirtualRow(args: {
           <FolderPathStatusIndicator status={pathStatus} />
         </div>
       </div>
+      <PodFolderWorkspaceCopies
+        folderWorkspaceId={row.folderWorkspace.id}
+        indent={surfaceInset + cardContentIndent}
+      />
     </div>
   )
 }
