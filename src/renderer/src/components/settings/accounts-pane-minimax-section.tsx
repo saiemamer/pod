@@ -9,6 +9,7 @@ import { DebouncedSettingsTextInput } from './DebouncedSettingsTextInput'
 
 import { MiniMaxCredentials } from './accounts-pane-minimax-credentials'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { PodCredentialsLeftBehindNotice } from '@/ae/PodCredentialsLeftBehindNotice' // Pod
 
 export function renderMiniMaxAccountsSection(model: AccountsPaneSectionModel): React.JSX.Element {
   const {
@@ -33,6 +34,7 @@ export function renderMiniMaxAccountsSection(model: AccountsPaneSectionModel): R
   }
   return (
     <section key="minimax" id="accounts-minimax" className="space-y-4 scroll-mt-6">
+      <PodCredentialsLeftBehindNotice services={['minimax']} />
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 className="flex items-center gap-2 text-sm font-semibold">

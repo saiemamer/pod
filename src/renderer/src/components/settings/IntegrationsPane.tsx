@@ -8,6 +8,7 @@ import {
 import { JiraIntegrationCard, LinearIntegrationCard } from './task-tracker-integration-cards'
 import { useIntegrationProviderStatusRefresh } from './use-integration-provider-status-refresh'
 import { translate } from '@/i18n/i18n'
+import { PodCredentialsLeftBehindNotice } from '@/ae/PodCredentialsLeftBehindNotice' // Pod
 export { getIntegrationsPaneSearchEntries } from './integrations-search'
 
 export function IntegrationsPane(): React.JSX.Element {
@@ -15,6 +16,7 @@ export function IntegrationsPane(): React.JSX.Element {
 
   return (
     <div className="space-y-5">
+      <PodCredentialsLeftBehindNotice services={['linear', 'jira', 'bitbucket']} />
       <section className="space-y-3">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-foreground">

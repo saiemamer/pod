@@ -178,12 +178,28 @@ export class AeDomainService {
 
   /** Decrypted secrets for one domain; values never leave the main process except into an agent's env. */
   readSecrets(domainId: string): Record<string, string> {
+    const { values, unreadable } = this.openSecrets(domainId)
+    if (unreadable.length > 0) {
+      console.warn(
+        `[pod-domains] Agents start without ${unreadable.join(', ')}: Pod could not read them. Domain settings asks for them again.`
+      )
+    }
+    return values
+  }
+
+  /** Names whose stored value Pod's key cannot open, such as one sealed by Orca or by Pod before 0.1.15. */
+  unreadableSecretNames(domainId: string): string[] {
+    return this.openSecrets(domainId).unreadable
+  }
+
+  private openSecrets(domainId: string): { values: Record<string, string>; unreadable: string[] } {
     const domain = this.store.getAeDomain(domainId)
+    const values: Record<string, string> = {}
+    const unreadable: string[] = []
     if (!domain) {
-      return {}
+      return { values, unreadable }
     }
     const secrets = getSecretStore()
-    const values: Record<string, string> = {}
     for (const name of domain.secretNames) {
       const cipher = this.store.getAeDomainSecretCipher(domainId, name)
       if (!cipher) {
@@ -192,10 +208,11 @@ export class AeDomainService {
       try {
         values[name] = secrets.decryptString(Buffer.from(cipher, 'base64'))
       } catch {
-        // Why: a secret sealed on another machine is unreadable here; leave it out rather than fail the launch.
+        // Why kept: the sealed value stays until the person saves a new one; the launch goes on without it.
+        unreadable.push(name)
       }
     }
-    return values
+    return { values, unreadable }
   }
 
   listInitiatives(domainId?: string): AeInitiative[] {

@@ -15,6 +15,7 @@ import { VoiceSpeechModelSection } from './VoiceSpeechModelSection'
 import { matchesSettingsSearch } from './settings-search'
 import { getOpenaiTranscriptionSearchEntry } from './voice-pane-search'
 import { translate } from '@/i18n/i18n'
+import { PodCredentialsLeftBehindNotice } from '@/ae/PodCredentialsLeftBehindNotice' // Pod
 
 export { handleVoiceDictationToggle }
 
@@ -220,6 +221,7 @@ export function VoicePane({ settings, updateSettings }: VoicePaneProps): React.J
 
   return (
     <div ref={handlePaneRef} className="space-y-1">
+      <PodCredentialsLeftBehindNotice services={['openai-speech']} />
       <VoiceDictationSettingsSection
         voiceSettings={voiceSettings}
         permissionPending={permissionPending}
