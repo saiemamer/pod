@@ -71,4 +71,5 @@ to look at rows while you work.
 
 Commit on the worktree branch, open the merge request the repo's conventions ask
 for, and report: models touched, columns changed, tests run, anything unresolved.
-Then run `orca orchestration worker-done` as the orchestration guide describes.
+Then send `worker_done` once with the `orca orchestration send --type worker_done` command
+your dispatch preamble gives, IDs filled in; the orchestration guide has the rules.
