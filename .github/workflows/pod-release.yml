@@ -208,7 +208,9 @@ jobs:
       # (pod-user-data.ts), so Electron's item must be "Pod Safe Storage", never Orca's
       # "orca Safe Storage"; dev builds and unit tests cannot show that. Pod asks for the
       # key on its own after the first window (scheduleSecretProtectionGapReport, 15 s
-      # fallback), so a poll of up to 90 s needs nobody at the screen. Each app gets a
+      # fallback), so a poll of up to 300 s needs nobody at the screen. The limit is
+      # 300 s because the x64 app runs through Rosetta on the arm64 runner and took
+      # 66 s in one run and more than 90 s in the next. Each app gets a
       # fresh unlocked keychain as the default and only search entry: a second unsigned
       # binary finding the first one's item would hang on a dialog nobody answers, and
       # the login keychain's lock state stops mattering.
@@ -278,13 +280,18 @@ jobs:
             echo "$app stayed up for 20 s"
 
             waited=20
+            last_progress=20
             until security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1; do
-              if ((waited >= 90)); then break; fi
+              if ((waited >= 300)); then break; fi
               if ! kill -0 "$pid" 2>/dev/null; then
                 echo "::error::$app exited after $waited s, before it created its Keychain item"; cat "$log"; exit 1
               fi
               sleep 2
               waited=$((waited + 2))
+              if ((waited - last_progress >= 30)); then
+                echo "still waiting for \"Pod Safe Storage\" after $waited s"
+                last_progress=$waited
+              fi
             done
             stop_app
             report
