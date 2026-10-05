@@ -91,7 +91,11 @@ function InitiativeView({
 }): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const saveAeInitiative = useAppStore((s) => s.saveAeInitiative)
-  const { tasks, loading, error, refresh } = useInitiativeRunTasks(initiative.runId, settings)
+  const { tasks, loading, error, refresh } = useInitiativeRunTasks(
+    initiative.runId,
+    initiative.status,
+    settings
+  )
   const setStatus = (status: AeInitiativeStatus): void => {
     void saveAeInitiative({
       id: initiative.id,
