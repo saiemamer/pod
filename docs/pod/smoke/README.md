@@ -31,7 +31,8 @@ Before a release, run every script against one freshly started dev build, in thi
 11. `pnpm build:cli`, then `pnpm --dir packages/pod-dbt-mcp install` and `pnpm --dir packages/pod-dbt-mcp test`
 12. `ui-mcp-smoke.mjs`
 13. `orchestration-folder-worker-smoke.mjs`
-14. `perf-fixture.mjs`, then `ui-lineage-perf.mjs`
+14. `ui-initiative-run-smoke.mjs`
+15. `perf-fixture.mjs`, then `ui-lineage-perf.mjs`
 
 Copy `dbt-stub.sh` to `~/Projects/pod-smoke/bin/dbt` first. Start the build with `--use-mock-keychain` after `pnpm dev --`: without it, macOS asks for the login Keychain password at start (a `SecurityAgent` process appears) and the build waits for an answer nobody gives. Only one dev build may use port 9333 and `orca-dev` at a time.
 
@@ -162,6 +163,15 @@ node docs/pod/smoke/orchestration-folder-worker-smoke.mjs   # against pnpm dev o
 ```
 
 **Parked until every phase has shipped:** a Claude Code worker, launched through an Initiative, running the `ae-dbt` skill's `orca dbt` commands on its own in a smoke initiative. The commands are tested by hand and by unit tests; what is unproven is an agent choosing them unprompted. It costs Claude usage and a full initiative run, so it comes after Phase 4, and every resume doc carries this line until it is done.
+
+## Initiative run
+
+`ui-initiative-run-smoke.mjs` starts "Smoke run initiative" with `omni-demo` unticked and expects the record and the Repos section of `INITIATIVE.md` to hold `dbt-demo` only. It then opens a terminal in the initiative's folder workspace, records a run on the initiative, creates one task and opens the Initiative panel, where the row reads `ready`. `worker-start --worktree new-child --repo id:<dbt-demo>` makes the worker's copy and fails at readiness against the same `/bin/sh` stand-in as above; the row must follow the CLI's status and name the copy ("Copy <name>") within eight seconds. `task-update --status completed` must reach the row the same way, still naming the copy, and pressing the name must reveal the copy's sidebar row. Nothing presses "Refresh tasks". It removes the copy, the terminal, the initiative, its workspace and folder, and restores the agent settings. On the code before the fix the Repos section lists both repos, the row stays at `ready`, and no copy is named. Screenshots: `initiative-run-1-dialog` to `initiative-run-3-completed`.
+
+```sh
+pnpm build:cli
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-initiative-run-smoke.mjs   # against pnpm dev on port 9333, after ui-smoke.mjs
+```
 
 ## Domain setup on a real machine
 
