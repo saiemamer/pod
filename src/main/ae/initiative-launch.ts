@@ -11,12 +11,24 @@ function operationId(): string {
   return `${Date.now()}-${randomBytes(16).toString('hex')}`
 }
 
-function repoLines(service: AeDomainService, domain: AeDomainConfig): string[] {
+/** The domain's repos that were ticked when the initiative started. */
+function initiativeRepos(
+  service: AeDomainService,
+  domain: AeDomainConfig,
+  initiative: AeInitiative
+): { id: string; name: string; path: string; role: string }[] {
   const repos = service.reposInGroup(domain.id)
-  return domain.repos.map((entry) => {
-    const repo = repos.find((candidate) => candidate.id === entry.repoId)
-    return `- ${repo?.path ?? entry.repoId} (id: ${entry.repoId}, role: ${entry.role})`
-  })
+  return domain.repos
+    .filter((entry) => initiative.repoIds.includes(entry.repoId))
+    .map((entry) => {
+      const repo = repos.find((candidate) => candidate.id === entry.repoId)
+      return {
+        id: entry.repoId,
+        name: repo?.displayName ?? entry.repoId,
+        path: repo?.path ?? entry.repoId,
+        role: entry.role
+      }
+    })
 }
 
 export function renderInitiativeMarkdown(
@@ -34,7 +46,9 @@ export function renderInitiativeMarkdown(
     '',
     '## Repos',
     '',
-    ...repoLines(service, domain),
+    ...initiativeRepos(service, domain, initiative).map(
+      (repo) => `- ${repo.path} (id: ${repo.id}, role: ${repo.role})`
+    ),
     '',
     '## Goal',
     '',
@@ -68,12 +82,19 @@ export function renderInitiativeMarkdown(
     .join('\n')
 }
 
-function initiativePrompt(domain: AeDomainConfig, initiative: AeInitiative): string {
+function initiativePrompt(
+  service: AeDomainService,
+  domain: AeDomainConfig,
+  initiative: AeInitiative
+): string {
   const audience = initiative.stakeholderTeam ? ` for the ${initiative.stakeholderTeam} team` : ''
+  const repos = initiativeRepos(service, domain, initiative)
+    .map((repo) => `${repo.name} (${repo.role})`)
+    .join(', ')
   return [
     `You are the main agent of the ${domain.name} domain, starting the initiative "${initiative.title}"${audience}.`,
     'Read INITIATIVE.md in this folder, then run `orca skills get ae-initiative` and follow that guide.',
-    `Run \`orca domain show --domain ${domain.id} --json\` to see the repos and their roles (dbt, omni, other).`,
+    `This initiative works in ${repos || 'no repos'} only; \`orca domain show --domain ${domain.id} --json\` gives their ids and env names.`,
     'Then ask me for the goal if INITIATIVE.md does not have one yet, write the plan into INITIATIVE.md as parts with the repo each touches, and stop for my review before dispatching any worker.'
   ].join(' ')
 }
@@ -149,7 +170,7 @@ export async function launchAeInitiative(
       clientOperationId: operationId(),
       worktree: `id:folder:${workspace.id}`,
       agent,
-      prompt: initiativePrompt(domain, initiative),
+      prompt: initiativePrompt(service, domain, initiative),
       promptDelivery: 'draft'
     })
     return initiative

@@ -28,7 +28,9 @@ if set, else `orca` on PATH. Every command below is run through it.
    your environment whenever you run inside a domain. In a folder workspace you also
    get `POD_WORKSPACE_KEY`, and in an initiative folder `POD_INITIATIVE_ID` and
    `POD_INITIATIVE_TITLE`.
-2. Read `INITIATIVE.md` in the current folder. If it has no goal, ask the person for
+2. Read `INITIATIVE.md` in the current folder. Its Repos section lists the repos the
+   person ticked for this initiative, the same ones as the initiative's `repoIds` in
+   `domain show`; plan parts in those repos only. If it has no goal, ask the person for
    one before planning. If you are in the domain folder rather than an initiative
    folder, create `initiatives/<slug>/INITIATIVE.md` first.
 
