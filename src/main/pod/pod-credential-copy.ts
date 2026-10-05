@@ -38,6 +38,7 @@ export type PodCredentialCopyResult =
 /** Packaged Pod only, before `ready`: copy Orca's unsealed credential files once, then use `~/.pod`. */
 export function applyPodCredentialFolder(homeDir: string): void {
   const target = join(homeDir, POD_CREDENTIAL_DIR_NAME)
+  setPodCredentialDir(target)
   try {
     const result = copyOrcaCredentialsOnce({ sourceDir: join(homeDir, '.orca'), targetDir: target })
     if (result.kind === 'copied') {
@@ -49,7 +50,6 @@ export function applyPodCredentialFolder(homeDir: string): void {
     // Why: a failed copy costs only retyping; the next start retries it without overwriting.
     console.warn('[pod-credentials] Could not copy credential files from ~/.orca:', error)
   }
-  setPodCredentialDir(target)
 }
 
 /**
