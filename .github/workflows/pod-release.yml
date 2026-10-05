@@ -312,6 +312,418 @@ jobs:
             echo "$app created \"Pod Safe Storage\" within $waited s, no \"orca Safe Storage\", and ~/.pod/pod-credentials-origin.json"
           done
 
+      # Why (trial only): Pod is unsigned, so macOS cannot tell an updated Pod from a
+      # new app and asks for the Keychain password after each update. This step and the
+      # next answer whether a certificate Pod makes itself would stop that, with no key
+      # kept anywhere: the certificate and its key live only in a temporary keychain on
+      # this runner and are deleted at the end of this step, before any app starts.
+      # Signed copies go to $RUNNER_TEMP so dist/ keeps the unsigned apps. No hardened
+      # runtime, matching the unsigned release build: without it macOS does not enforce
+      # library validation, so the disable-library-validation caveat does not arise.
+      - name: 'Trial: sign copies of both apps with a throwaway certificate'
+        if: inputs.mode == 'trial'
+        shell: bash
+        run: |
+          set -euo pipefail
+          trial="$RUNNER_TEMP/pod-trial"
+          work="$RUNNER_TEMP/pod-trial-signing"
+          skc="$work/pod-trial-signing.keychain-db"
+          rm -rf "$trial" "$work"
+          mkdir -p "$trial/signed" "$work"
+          chmod 700 "$work"
+          echo "signed=no" > "$trial/signing.txt"
+          orig_list=()
+          while IFS= read -r line; do
+            orig_list+=("$line")
+          done < <(security list-keychains -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"$//')
+          trusted=0
+          cleanup() {
+            if ((trusted)); then sudo security remove-trusted-cert -d "$work/cert.pem" || true; fi
+            if ((${#orig_list[@]})); then security list-keychains -d user -s "${orig_list[@]}" || true; fi
+            security delete-keychain "$skc" 2>/dev/null || true
+            rm -rf "$work"
+            echo "Throwaway signing keychain and key files removed. Code-signing identities left on the runner:"
+            security find-identity -p codesigning 2>&1 || true
+          }
+          trap cleanup EXIT
+          # Runs a command for at most $1 seconds, so a macOS dialog nobody answers cannot eat the job.
+          bounded() {
+            local secs="$1" p i=0
+            shift
+            "$@" &
+            p=$!
+            while kill -0 "$p" 2>/dev/null; do
+              if ((i >= secs)); then
+                echo "::warning::timed out after $secs s: $*"
+                kill "$p" 2>/dev/null || true; sleep 1; kill -9 "$p" 2>/dev/null || true
+                wait "$p" 2>/dev/null || true
+                return 124
+              fi
+              sleep 1
+              i=$((i + 1))
+            done
+            wait "$p"
+          }
+
+          # A one-day self-signed code-signing certificate. /usr/bin/openssl is LibreSSL,
+          # whose .p12 encryption `security import` reads (OpenSSL 3's default it cannot).
+          cat > "$work/cert.cnf" <<'EOF'
+          [req]
+          distinguished_name = dn
+          prompt = no
+          x509_extensions = ext
+          [dn]
+          CN = Pod trial signing (throwaway)
+          [ext]
+          basicConstraints = critical, CA:false
+          keyUsage = critical, digitalSignature
+          extendedKeyUsage = critical, codeSigning
+          subjectKeyIdentifier = hash
+          EOF
+          /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 1 -config "$work/cert.cnf" \
+            -keyout "$work/key.pem" -out "$work/cert.pem"
+          p12_password="$(/usr/bin/openssl rand -hex 16)"
+          kc_password="$(/usr/bin/openssl rand -hex 16)"
+          /usr/bin/openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" -name 'Pod trial signing (throwaway)' \
+            -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 -passout "pass:$p12_password" -out "$work/id.p12"
+          rm -f "$work/key.pem"
+          identity="$(/usr/bin/openssl x509 -in "$work/cert.pem" -noout -fingerprint -sha1 | sed -e 's/^.*=//' -e 's/://g')"
+          echo "Throwaway certificate (public part only):"
+          /usr/bin/openssl x509 -in "$work/cert.pem" -noout -subject -dates
+          /usr/bin/openssl x509 -in "$work/cert.pem" -noout -text | grep -A1 'Extended Key Usage' || true
+          echo "SHA-1 of the certificate, used as the codesign identity: $identity"
+
+          security create-keychain -p "$kc_password" "$skc"
+          security set-keychain-settings "$skc"
+          security unlock-keychain -p "$kc_password" "$skc"
+          security import "$work/id.p12" -k "$skc" -P "$p12_password" -T /usr/bin/codesign >/dev/null
+          rm -f "$work/id.p12"
+          # Why: without this partition list, codesign's use of the key raises a Keychain dialog nobody answers.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kc_password" "$skc" >/dev/null
+          security list-keychains -d user -s "$skc" ${orig_list[@]+"${orig_list[@]}"}
+          echo "Identities in the signing keychain (\"valid\" needs trust, which a self-made certificate lacks):"
+          security find-identity -p codesigning "$skc" || true
+          security find-identity -v -p codesigning "$skc" || true
+
+          sign() {
+            codesign --force --deep --timestamp=none --sign "$identity" --keychain "$skc" "$1"
+          }
+          apps="$(find dist -maxdepth 2 -name 'Pod.app' -type d | sort)"
+          count="$(printf '%s\n' "$apps" | grep -c . || true)"
+          test "$count" -eq 2 || { echo "::error::expected 2 packaged Pod.app bundles, found $count"; exit 1; }
+          signed_apps=()
+          route="codesign with the untrusted certificate"
+          for app in $apps; do
+            slice="$(basename "$(dirname "$app")")"
+            copy="$trial/signed/$slice/Pod.app"
+            mkdir -p "$(dirname "$copy")"
+            ditto "$app" "$copy"
+            xattr -cr "$copy"
+            echo "== Signing $copy (copy of $app)"
+            if ! bounded 600 sign "$copy"; then
+              if ((trusted)); then echo "::error::codesign failed on $copy even with the certificate trusted"; exit 1; fi
+              # Fallback: trust the certificate for code signing in the runner's admin trust settings, removed in cleanup.
+              echo "::warning::codesign refused the untrusted certificate; trusting it for code signing on this runner and retrying"
+              sudo security authorizationdb write com.apple.trust-settings.admin allow
+              bounded 60 sudo security add-trusted-cert -d -r trustRoot -p codeSign -k "$skc" "$work/cert.pem" \
+                || { echo "::error::could not trust the throwaway certificate for code signing"; exit 1; }
+              trusted=1
+              route="codesign with the certificate trusted in the runner's admin trust settings"
+              security find-identity -v -p codesigning "$skc" || true
+              bounded 600 sign "$copy"
+            fi
+            signed_apps+=("$copy")
+          done
+          echo "Signing route: $route"
+
+          failed=0
+          drs=()
+          for copy in "${signed_apps[@]}"; do
+            echo "== $copy"
+            if ! codesign --verify --deep --strict --verbose=2 "$copy"; then
+              echo "::error::codesign --verify --deep --strict failed on $copy"; failed=1
+            fi
+            codesign -d -vv "$copy" 2>&1 | grep -E '^(Identifier|Format|CodeDirectory|Authority|TeamIdentifier|Signature size|CDHash)=' || true
+            echo "Architectures of the main binary: $(lipo -archs "$copy/Contents/MacOS/Pod" 2>/dev/null || echo unknown)"
+            dr="$(codesign -d -r- "$copy" 2>&1 | sed -n 's/^designated => //p')"
+            echo "Designated requirement: ${dr:-(none)}"
+            test -n "$dr" || { echo "::error::$copy has no designated requirement"; failed=1; }
+            drs+=("$dr")
+          done
+          cdhash_1="$(codesign -d -vv "${signed_apps[0]}" 2>&1 | sed -n 's/^CDHash=//p')"
+          cdhash_2="$(codesign -d -vv "${signed_apps[1]}" 2>&1 | sed -n 's/^CDHash=//p')"
+          if [[ "$cdhash_1" == "$cdhash_2" ]]; then
+            echo "::error::both signed apps have code hash $cdhash_1, so they are not two different binaries"; failed=1
+          else
+            echo "The two signed apps are different binaries: code hash $cdhash_1 and $cdhash_2"
+          fi
+          same_dr=no
+          if [[ "${drs[0]}" == "${drs[1]}" ]]; then same_dr=yes; fi
+          {
+            echo "signed=yes"
+            echo "route=$route"
+            echo "same_dr=$same_dr"
+            echo "dr=${drs[0]}"
+            echo "first=${signed_apps[0]}"
+            echo "second=${signed_apps[1]}"
+          } > "$trial/signing.txt"
+          if [[ "$same_dr" != yes ]]; then
+            echo "::error::the two signed apps have different designated requirements:"
+            printf '  %s\n' "${drs[@]}"
+            failed=1
+          else
+            echo "Both signed apps have the same designated requirement."
+          fi
+          if ((failed)); then exit 1; fi
+
+      # Why: the question the trial answers. In one keychain, the first app creates "Pod
+      # Safe Storage"; then the second app, a different binary, starts as an update would.
+      # If macOS trusts it, its Keychain call returns and Pod writes its secret-protection
+      # report file (orca-secret-protection.json, written only after that call returns). If
+      # macOS asks, SecurityAgent shows a dialog nobody answers and the call blocks Pod's
+      # main process, so the file never appears. The unsigned pair is the control: if it
+      # does not ask, this test cannot tell the cases apart, and the job fails.
+      - name: 'Trial: does the second app read the first one''s Keychain item without asking'
+        if: inputs.mode == 'trial'
+        shell: bash
+        run: |
+          set -euo pipefail
+          trial="$RUNNER_TEMP/pod-trial"
+          first_signed="$(sed -n 's/^first=//p' "$trial/signing.txt")"
+          second_signed="$(sed -n 's/^second=//p' "$trial/signing.txt")"
+          if [[ -z "$first_signed" || -z "$second_signed" ]]; then echo "::error::no signed apps from the signing step"; exit 1; fi
+          unsigned=()
+          while IFS= read -r app; do unsigned+=("$app"); done < <(find dist -maxdepth 2 -name 'Pod.app' -type d | sort)
+          test "${#unsigned[@]}" -eq 2 || { echo "::error::expected 2 unsigned Pod.app bundles, found ${#unsigned[@]}"; exit 1; }
+          data="$HOME/Library/Application Support/Pod"
+          orig_default="$(security default-keychain -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"$//')"
+          orig_list=()
+          while IFS= read -r line; do
+            orig_list+=("$line")
+          done < <(security list-keychains -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"$//')
+          pid=""
+          kc=""
+          stop_app() {
+            if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" 2>/dev/null || true
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$pid" 2>/dev/null || break
+                sleep 1
+              done
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+            pid=""
+          }
+          restore_keychains() {
+            stop_app
+            if ((${#orig_list[@]})); then security list-keychains -d user -s "${orig_list[@]}" || true; fi
+            if [[ -n "$orig_default" ]]; then security default-keychain -d user -s "$orig_default" || true; fi
+            if [[ -n "$kc" ]]; then security delete-keychain "$kc" 2>/dev/null || true; fi
+          }
+          trap restore_keychains EXIT
+          bounded() {
+            local secs="$1" p i=0
+            shift
+            "$@" &
+            p=$!
+            while kill -0 "$p" 2>/dev/null; do
+              if ((i >= secs)); then
+                echo "(timed out after $secs s: $*)"
+                kill "$p" 2>/dev/null || true; sleep 1; kill -9 "$p" 2>/dev/null || true
+                wait "$p" 2>/dev/null || true
+                return 124
+              fi
+              sleep 1
+              i=$((i + 1))
+            done
+            wait "$p"
+          }
+          agents() {
+            pgrep -l SecurityAgent || true
+          }
+          # SecurityAgent processes that were not running before $baseline was taken.
+          new_agents() {
+            local line
+            agents | while IFS= read -r line; do
+              printf '%s\n' "$baseline" | grep -qxF "$line" || printf '%s\n' "$line"
+            done
+          }
+          report_file() {
+            find "$data" -name 'orca-secret-protection.json' -type f 2>/dev/null | head -n 1 || true
+          }
+          show_acl() {
+            # ACLs and partition lists only; -d (secret data) is never passed.
+            echo "Access list of the items in $kc (the creator's requirement and partition IDs):"
+            bounded 30 security dump-keychain -a "$kc" > "$trial/acl.txt" 2>&1 || true
+            grep -vE '^[[:space:]]*$' "$trial/acl.txt" | head -n 150 || true
+            for hex in $(grep -oiE '3C3F786D6C[0-9A-F]{20,}' "$trial/acl.txt" | sort -u || true); do
+              echo "Partition list (decoded):"
+              printf '%s' "$hex" | xxd -r -p | grep -E '<string>|<key>' || true
+            done
+          }
+
+          # $1 label, $2 first app, $3 second app. Sets $outcome to no-dialog, asked or unclear.
+          run_pair() {
+            local label="$1" first="$2" second="$3" log waited state agents_seen="" baseline
+            outcome="unclear"
+            detail=""
+            if [[ -n "$kc" ]]; then security delete-keychain "$kc" 2>/dev/null || true; fi
+            echo
+            echo "======== $label pair: $first, then $second"
+            for app in "$first" "$second"; do
+              echo "-- $app"
+              codesign -d -vv "$app" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|CDHash|Signature)' || echo "   (codesign reports no signature details)"
+              echo "   designated => $(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')"
+            done
+            kc="$RUNNER_TEMP/pod-trial-$label.keychain-db"
+            security delete-keychain "$kc" 2>/dev/null || true
+            security create-keychain -p "pod-trial-$label" "$kc"
+            security set-keychain-settings "$kc"
+            security unlock-keychain -p "pod-trial-$label" "$kc"
+            security list-keychains -d user -s "$kc"
+            security default-keychain -d user -s "$kc"
+            rm -rf "$HOME/.pod" "$data"
+
+            echo "-- Step 1: start the first app until it has created \"Pod Safe Storage\" and its report file"
+            log="$RUNNER_TEMP/pod-trial-$label-first.log"
+            "$first/Contents/MacOS/Pod" > "$log" 2>&1 &
+            pid=$!
+            waited=0
+            until security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1 && [[ -n "$(report_file)" ]]; do
+              if ((waited >= 300)) || ! kill -0 "$pid" 2>/dev/null; then break; fi
+              sleep 2
+              waited=$((waited + 2))
+              if ((waited % 30 == 0)); then echo "still waiting for the first app after $waited s"; fi
+            done
+            stop_app
+            echo "Waited $waited s. App log lines about secrets or the Keychain:"
+            grep -iE '\[secrets\]|keychain|safe ?storage' "$log" || echo "  (none)"
+            if ! security find-generic-password -s 'Pod Safe Storage' "$kc" >/dev/null 2>&1; then
+              detail="the first app created no \"Pod Safe Storage\" in $waited s"
+              echo "::error::$label pair: $detail"; tail -n 60 "$log"; return 0
+            fi
+            state="$(report_file)"
+            if [[ -z "$state" ]]; then
+              detail="the first app wrote no orca-secret-protection.json in $waited s"
+              echo "::error::$label pair: $detail"; tail -n 60 "$log"; return 0
+            fi
+            echo "First app created \"Pod Safe Storage\" and wrote $state: $(cat "$state")"
+            if ! grep -q '"lastReportedGap":null' "$state"; then
+              detail="the first app could not use its own Keychain item: $(cat "$state")"
+              echo "::error::$label pair: $detail"; return 0
+            fi
+            show_acl
+            rm -f "$state"
+
+            echo "-- Step 2: start the second app with the same keychain and data, as after an update"
+            baseline="$(agents)"
+            echo "SecurityAgent processes before the start:"
+            if [[ -n "$baseline" ]]; then printf '%s\n' "$baseline" | sed 's/^/  /'; else echo "  (none)"; fi
+            local since
+            since="$(date '+%Y-%m-%d %H:%M:%S')"
+            log="$RUNNER_TEMP/pod-trial-$label-second.log"
+            "$second/Contents/MacOS/Pod" > "$log" 2>&1 &
+            pid=$!
+            waited=0
+            while ((waited < 150)); do
+              if [[ -n "$(new_agents)" ]]; then agents_seen="$(new_agents)"; fi
+              [[ -n "$(report_file)" ]] && break
+              kill -0 "$pid" 2>/dev/null || break
+              sleep 2
+              waited=$((waited + 2))
+            done
+            local alive=no
+            if kill -0 "$pid" 2>/dev/null; then alive=yes; fi
+            state="$(report_file)"
+            echo "After $waited s: app still running: $alive; report file: ${state:-(not written)}"
+            if [[ -n "$state" ]]; then echo "Report file content: $(cat "$state")"; fi
+            echo "SecurityAgent processes that appeared while waiting:"
+            if [[ -n "$agents_seen" ]]; then printf '%s\n' "$agents_seen" | sed 's/^/  /'; else echo "  (none)"; fi
+            echo "Main-thread sample of the second app (a Keychain wait shows SecKeychain or securityd frames):"
+            if [[ "$alive" == yes ]]; then
+              bounded 30 sudo -n sample "$pid" 1 -mayDie 2>/dev/null | grep -iE 'SecKeychain|Keychain|securityd|SecurityAgent|mach_msg' | head -n 15 || echo "  (no Keychain frames)"
+            else
+              echo "  (app not running)"
+            fi
+            echo "App log lines about secrets or the Keychain:"
+            grep -iE '\[secrets\]|keychain|safe ?storage' "$log" || echo "  (none)"
+            echo "System log from SecurityAgent and securityd since the start:"
+            bounded 60 log show --style compact --start "$since" \
+              --predicate 'process == "SecurityAgent" OR (process == "securityd" AND (eventMessage CONTAINS[c] "partition" OR eventMessage CONTAINS[c] "prompt" OR eventMessage CONTAINS[c] "Pod Safe Storage"))' \
+              2>&1 | tail -n 40 || true
+            stop_app
+            echo "SecurityAgent processes after stopping the app:"
+            agents | sed 's/^/  /'
+
+            if [[ -n "$state" ]] && grep -q '"lastReportedGap":null' "$state" && [[ -z "$agents_seen" ]]; then
+              outcome="no-dialog"
+              detail="the Keychain call returned in $waited s and no SecurityAgent process appeared"
+            elif [[ -z "$state" && "$alive" == yes ]]; then
+              outcome="asked"
+              detail="the Keychain call never returned in $waited s"
+              if [[ -n "$agents_seen" ]]; then detail="$detail, and a SecurityAgent dialog process was running"; fi
+            elif [[ -n "$state" && -n "$agents_seen" ]]; then
+              outcome="asked"
+              detail="a SecurityAgent process appeared, though the Keychain call returned: $(cat "$state")"
+            elif [[ -n "$state" ]]; then
+              # The first app's report was clean in this keychain, so a gap here is macOS refusing the second app.
+              outcome="asked"
+              detail="macOS refused the Keychain item without a visible dialog, so Pod reported: $(cat "$state")"
+            else
+              detail="the second app exited after $waited s without writing its report"
+              tail -n 60 "$log"
+            fi
+            echo "$label pair: $outcome ($detail)"
+            security delete-keychain "$kc" 2>/dev/null || true
+            kc=""
+            return 0
+          }
+
+          # x64 first, arm64 second: the x64 app runs through Rosetta and has needed over 90 s to
+          # create its item, while the native arm64 app reports well inside the 150 s wait, so a
+          # slow start is not mistaken for a dialog.
+          x64_first() {
+            if [[ "$1" == */mac-arm64/* ]]; then printf '%s\n%s\n' "$2" "$1"; else printf '%s\n%s\n' "$1" "$2"; fi
+          }
+          pair=()
+          while IFS= read -r app; do pair+=("$app"); done < <(x64_first "$first_signed" "$second_signed")
+          first_signed="${pair[0]}"
+          second_signed="${pair[1]}"
+          pair=()
+          while IFS= read -r app; do pair+=("$app"); done < <(x64_first "${unsigned[0]}" "${unsigned[1]}")
+          unsigned=("${pair[@]}")
+          echo "Runner CPU: $(uname -m)"
+          for app in "$first_signed" "$second_signed" "${unsigned[@]}"; do
+            echo "$app: $(lipo -archs "$app/Contents/MacOS/Pod" 2>/dev/null || echo unknown)"
+          done
+          # Signed first: a dialog left over from the control could only make the signed pair look like it asked.
+          run_pair signed "$first_signed" "$second_signed"
+          signed_outcome="$outcome"
+          signed_detail="$detail"
+          run_pair unsigned "${unsigned[0]}" "${unsigned[1]}"
+          unsigned_outcome="$outcome"
+          unsigned_detail="$detail"
+          {
+            echo "signed_pair=$signed_outcome"
+            echo "signed_detail=$signed_detail"
+            echo "unsigned_pair=$unsigned_outcome"
+            echo "unsigned_detail=$unsigned_detail"
+          } > "$trial/pairs.txt"
+
+          echo
+          echo "Signed pair: $signed_outcome ($signed_detail)"
+          echo "Unsigned pair: $unsigned_outcome ($unsigned_detail)"
+          if [[ "$unsigned_outcome" != asked ]]; then
+            echo "::error::the unsigned control pair did not show a dialog or a hang, so this test cannot tell the cases apart"; exit 1
+          fi
+          if [[ "$signed_outcome" == "$unsigned_outcome" ]]; then
+            echo "::error::the signed and unsigned pairs look the same: signing with a self-made certificate did not stop the Keychain from asking"; exit 1
+          fi
+          if [[ "$signed_outcome" != no-dialog ]]; then
+            echo "::error::the signed pair's result is unclear: $signed_detail"; exit 1
+          fi
+          echo "The signed second app read the first one's Keychain item without a dialog; the unsigned pair asked."
+
       # Why last: the draft becomes visible to users and to the tap's bump job only
       # after the built apps proved they start.
       - name: Publish the release
@@ -345,15 +757,44 @@ jobs:
             gh release view "$TAG" --json assets --jq '.assets[] | "- " + .name + " (" + (.size|tostring) + " bytes)"'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Why always: a failed signing trial still has to say how far it got.
       - name: Trial summary
-        if: inputs.mode == 'trial'
+        if: always() && inputs.mode == 'trial'
         shell: bash
         env:
           VERSION: ${{ steps.target.outputs.version }}
         run: |
           set -euo pipefail
+          trial="$RUNNER_TEMP/pod-trial"
+          field() { sed -n "s/^$2=//p" "$trial/$1" 2>/dev/null | head -n 1 || true; }
+          yes_no() {
+            case "$1" in
+              no-dialog) echo "$2" ;;
+              asked) echo "$3" ;;
+              '') echo "not reached" ;;
+              *) echo "unclear" ;;
+            esac
+          }
+          signed="$(field signing.txt signed)"
+          same_dr="$(field signing.txt same_dr)"
+          signed_pair="$(field pairs.txt signed_pair)"
+          unsigned_pair="$(field pairs.txt unsigned_pair)"
+          dr="$(field signing.txt dr)"
+          signed_note="$(field pairs.txt signed_detail)"
+          unsigned_note="$(field pairs.txt unsigned_detail)"
           {
             echo "## Pod trial $VERSION from ${GITHUB_REF_NAME} (nothing published)"
             echo
-            find dist -maxdepth 1 -name '*.dmg' -exec stat -f '- %N (%z bytes)' {} \;
+            find dist -maxdepth 1 -name '*.dmg' -exec stat -f '- %N (%z bytes)' {} \; 2>/dev/null || true
+            echo
+            echo "### Signing with a self-made certificate"
+            echo
+            if [[ "$signed" == yes ]]; then
+              echo "- Signed with a throwaway certificate: yes, by $(field signing.txt route); its key was deleted before any app started."
+            else
+              echo "- Signed with a throwaway certificate: no (the signing step did not finish)."
+            fi
+            echo "- Same designated requirement on both apps: ${same_dr:-not reached}${dr:+ (\`$dr\`)}"
+            echo "- The second signed app read the first one's Keychain item without a dialog: $(yes_no "$signed_pair" yes no)${signed_note:+ ($signed_note)}"
+            echo "- The unsigned pair asked: $(yes_no "$unsigned_pair" no yes)${unsigned_note:+ ($unsigned_note)}"
           } >> "$GITHUB_STEP_SUMMARY"
