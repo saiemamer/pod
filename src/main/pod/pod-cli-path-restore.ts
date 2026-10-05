@@ -7,7 +7,7 @@
  * The shell wrappers re-prepend the folder after the user's startup files have run.
  */
 
-/** Set on the PTY env by `prependOrcaCliDirToChildPath` for packaged macOS builds. */
+/** Set on the PTY env by `prependOrcaCliDirToChildPath` on macOS: the bundled `bin`, or the dev CLI's. */
 export const BUNDLED_CLI_BIN_DIR_ENV = 'ORCA_BUNDLED_CLI_BIN_DIR'
 
 /** POSIX, so the zsh hook and both bash rcfiles share it; `-x` makes it a no-op on SSH hosts. */
