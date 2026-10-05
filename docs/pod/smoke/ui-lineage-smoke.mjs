@@ -369,6 +369,8 @@ await clickSideSampled('bring the selected stg_orders back:', ORDERS, ordersSide
 await expectCount('nodes after restoring orders parents:', 4)
 
 // 6a. a dragged node ignores the layout, so its own side button must not move it
+// Why centre: in a narrow canvas (a 1024 px window) the pan in 6c leaves stg_orders under the list.
+await centreOn('stg_orders')
 const header = stgNode.locator('text=stg_orders').first()
 const before = await header.boundingBox()
 const undragged = await stgNode.boundingBox()

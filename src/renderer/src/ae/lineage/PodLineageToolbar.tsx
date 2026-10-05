@@ -170,7 +170,9 @@ function PodLineageToolbarComponent(props: PodLineageToolbarProps): React.JSX.El
       ? `sqlglot ${props.engine.sqlglotVersion ?? ''} · ${props.engine.python ?? ''}`.trim()
       : (props.engine.note ?? '')
   return (
-    <div className="flex h-8 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4 text-xs">
+    // Why wrap: in a narrow editor column the row overflowed its pane, cutting off the zoom
+    // buttons, and a click on one scrolled the whole pane sideways.
+    <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-1 pr-2 pl-4 text-xs">
       <Stepper
         label={translate('pod.lineage.toolbar.upstream', 'Upstream')}
         value={String(props.upstreamDepth)}
