@@ -37,6 +37,12 @@ export class ProtectedSecretPersistence {
   private readonly sealedSlots = new Set<string>()
   private readonly pendingEncryption = new Set<string>()
   private readonly retentionEpochs = new Map<string, symbol>()
+  // Pod: slots whose blob this key could not open, so Settings can ask for the value again.
+  private readonly unreadable = new Set<string>()
+
+  unreadableSlots(): string[] {
+    return [...this.unreadable]
+  }
 
   hasPendingEncryption(): boolean {
     return this.pendingEncryption.size > 0
@@ -47,6 +53,7 @@ export class ProtectedSecretPersistence {
     this.retainedBlobs.delete(slot)
     this.sealedSlots.delete(slot)
     this.pendingEncryption.delete(slot)
+    this.unreadable.delete(slot)
   }
 
   isSealed(slot: string, value: string): boolean {
@@ -66,6 +73,7 @@ export class ProtectedSecretPersistence {
       } else {
         this.retainedBlobs.set(update.slot, update.blob)
         this.sealedSlots.delete(update.slot)
+        this.unreadable.delete(update.slot)
       }
     }
   }
@@ -141,14 +149,17 @@ export class ProtectedSecretPersistence {
         status: 'decrypted' as const
       }
       this.sealedSlots.delete(slot)
+      this.unreadable.delete(slot)
       return decrypted
     } catch {
       if (isLegacyPlaintext?.(ciphertext)) {
         this.sealedSlots.delete(slot)
+        this.unreadable.delete(slot)
         console.warn('[persistence] secret decryption failed; accepting legacy plaintext.')
         return { plaintext: ciphertext, status: 'failed' }
       }
       this.sealedSlots.add(slot)
+      this.unreadable.add(slot)
       console.warn(
         '[persistence] secret decryption failed; retaining the protected value without exposing it.'
       )

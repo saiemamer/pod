@@ -155,6 +155,11 @@ export class Store {
     return dirname(this.runtime.dataFile)
   }
 
+  // Pod: saved-setting secrets sealed with a key this app cannot open.
+  unreadableProtectedSecretSlots(): string[] {
+    return this.runtime.protectedSecrets.unreadableSlots()
+  }
+
   /**
    * Prepare a storage-form export for a database importer.
    *

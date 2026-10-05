@@ -4,6 +4,7 @@ import { normalizeKagiSessionLink } from '../../../../shared/browser-url'
 import { useAppStore } from '../../store'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { PodUnreadableSettingNotice } from '@/ae/PodUnreadableSettingNotice' // Pod
 import { translate } from '@/i18n/i18n'
 
 export type KagiSessionLinkDraftState = {
@@ -86,6 +87,7 @@ export function KagiSessionLinkForm(): React.JSX.Element {
         save()
       }}
     >
+      <PodUnreadableSettingNotice setting="browserKagiSessionLink" value={browserKagiSessionLink} />
       <p className="max-w-72 text-right text-[11px] leading-snug text-muted-foreground">
         {translate(
           'auto.components.settings.KagiSessionLinkForm.81409d9362',

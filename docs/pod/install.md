@@ -76,7 +76,8 @@ Pod 0.1.14 and older encrypted secrets with Orca's Keychain item, `orca Safe Sto
 
 - It copies the unencrypted credential files from `~/.orca` into `~/.pod` once and leaves the encrypted tokens in `~/.orca`, unchanged. Settings > Integrations then asks you to connect Linear, Jira or Bitbucket again, Settings > Voice asks for the OpenAI speech key, and the MiniMax section of Settings > Accounts asks for MiniMax.
 - A domain secret Pod cannot read is named in that domain's settings, above the secrets form. Agents start without it until you enter the value again and click Add; the old encrypted value stays until then.
-- Other encrypted settings, such as the OpenCode session cookie or a proxy URL with a password, need entering again too, and Pod does not point these out yet.
+- Four encrypted settings are named beside their field when Pod cannot read them: the OpenCode Go API key and session cookie (Settings > Accounts), the proxy URL (Settings > Advanced, Network) and the Kagi session link (Settings > Browser, with Kagi as the search engine). The old value stays until you enter a new one.
+- A plugin that kept a secret gets an error when it reads it; how it asks you again is up to the plugin. Plugins are off unless you turned them on.
 
 Your domains, repos, initiatives and every unencrypted setting carry over unchanged.
 
