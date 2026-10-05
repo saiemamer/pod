@@ -9,7 +9,8 @@ name: Pod release (macOS, unsigned)
 #
 # mode=trial builds and packages the dispatched branch as 0.0.0-trial.<run number>
 # and runs the packaged-app checks, but packages with --publish never, gets no
-# token for packaging and skips every release step, so it publishes nothing.
+# token for packaging and skips every release step, so it publishes nothing. It
+# runs as the trial-mac job, whose token can only read the repository.
 
 on:
   push:
@@ -31,19 +32,24 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: pod-release-${{ inputs.mode == 'trial' && format('trial-{0}', github.ref_name) || inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
+# Why two jobs: `permissions` takes no expressions, so only a separate job can give a
+# trial a read-only token. Both run the same steps through the &pod-build-steps anchor.
 jobs:
   build-mac:
+    if: inputs.mode != 'trial'
+    permissions:
+      contents: write
     runs-on: macos-15
     timeout-minutes: 90
     env:
       NODE_OPTIONS: --max-old-space-size=4096
-    steps:
+    steps: &pod-build-steps
       - name: Resolve the Pod version
         id: target
         shell: bash
@@ -357,3 +363,11 @@ jobs:
             echo
             find dist -maxdepth 1 -name '*.dmg' -exec stat -f '- %N (%z bytes)' {} \;
           } >> "$GITHUB_STEP_SUMMARY"
+
+  trial-mac:
+    if: inputs.mode == 'trial'
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps: *pod-build-steps
