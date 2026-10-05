@@ -48,6 +48,16 @@ POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-group-initiative-smoke.mjs   # against
 
 For the orchestration half (run-create, task-create, two-step dispatch, `check --wait`), build the CLI once with `pnpm build:cli` and use `out/bin/orca` with `--from <coordinator terminal handle>`; the steps and what they taught are in `docs/pod/PLAN.md` under "Phase 1 outcome".
 
+## Start notice
+
+`ui-start-notice-smoke.mjs` checks the one-time notice Pod shows at the first start that finds values it cannot read. It needs one such value; a `pod-smoke` domain secret saved by a build started without `--use-mock-keychain` serves, because a build with the switch cannot open it. The script deletes `pod-start-notice-shown.json` from `~/Library/Application Support/orca-dev` (`POD_SMOKE_USER_DATA` overrides the folder), reloads the window, and expects one notice that names Orca and lists each unreadable domain secret. Its button must open the screen of the first value (Domain settings, which asks for the secret again) and close the notice; the next reload must show nothing. It deletes the record again afterwards if there was none before. It is not in the whole pass because fresh dev data has nothing unreadable. Two screenshots: `start-notice-1-shown` and `start-notice-2-opened`.
+
+```sh
+POD_SMOKE_OUT=/tmp node docs/pod/smoke/ui-start-notice-smoke.mjs
+```
+
+To see the notice again by hand in any build, quit Pod, delete `pod-start-notice-shown.json` from its data folder, and start it.
+
 ## Test rules
 
 Pod's own tests follow these rules (2026-10-03):

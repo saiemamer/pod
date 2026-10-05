@@ -20,6 +20,9 @@ export const aeApi = {
   settings: {
     unreadableSecrets: () => ipcRenderer.invoke('ae:settings:unreadableSecrets')
   },
+  startNotice: {
+    take: () => ipcRenderer.invoke('ae:startNotice:take')
+  },
   initiatives: {
     list: (args) => ipcRenderer.invoke('ae:initiatives:list', args),
     save: (input) => ipcRenderer.invoke('ae:initiatives:save', input),

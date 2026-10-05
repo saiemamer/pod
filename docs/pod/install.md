@@ -81,6 +81,8 @@ Pod 0.1.14 and older encrypted secrets with Orca's Keychain item, `orca Safe Sto
 
 Your domains, repos, initiatives and every unencrypted setting carry over unchanged.
 
+On that first start Pod also shows one notice, "Pod could not read some saved values", that lists each of these values you had, with a button to the screen where the first one is entered. It shows once; closing it or pressing the button ends it, and the screens above keep asking until each value is entered again. Pod records that it was shown in `pod-start-notice-shown.json` in its data folder; delete that file to see the notice again on the next start. A fresh install with nothing to read again shows no notice.
+
 ## Uninstall
 
 ```sh

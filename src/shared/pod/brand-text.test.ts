@@ -21,6 +21,15 @@ describe('rebrandProductName', () => {
     )
   })
 
+  it('keeps Orca where a request to enter a value again names the app that sealed it', () => {
+    expect(rebrandProductName('Orca or an earlier Pod saved them with a key')).toBe(
+      'Orca or an earlier Pod saved them with a key'
+    )
+    expect(rebrandProductName('They were saved by Orca or by an earlier Pod, with')).toBe(
+      'They were saved by Orca or by an earlier Pod, with'
+    )
+  })
+
   it('does not touch lowercase command names, URLs or unrelated text', () => {
     expect(rebrandProductName('run orca worktree create')).toBe('run orca worktree create')
     expect(rebrandProductName('https://onorca.dev/docs')).toBe('https://onorca.dev/docs')

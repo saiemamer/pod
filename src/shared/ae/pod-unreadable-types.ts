@@ -22,3 +22,17 @@ export const POD_UNREADABLE_SETTING_LABELS: Record<PodUnreadableSetting, string>
   httpProxyUrl: 'proxy URL',
   browserKagiSessionLink: 'Kagi session link'
 }
+
+/** One domain's secrets that Pod's key cannot open; entered again in that domain's Domain settings. */
+export type PodUnreadableDomainSecrets = {
+  domainId: string
+  domainName: string
+  secretNames: string[]
+}
+
+/** Everything the first start found that Pod cannot read, for the one-time notice. */
+export type PodStartNoticeContent = {
+  credentials: PodCredentialService[]
+  domainSecrets: PodUnreadableDomainSecrets[]
+  settings: PodUnreadableSetting[]
+}
