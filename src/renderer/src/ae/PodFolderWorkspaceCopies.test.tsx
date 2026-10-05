@@ -100,4 +100,20 @@ describe('PodFolderWorkspaceCopies', () => {
     seed(worktree({ isArchived: true }))
     expect((await render()).textContent).toBe('')
   })
+
+  it("renders nothing when the store lacks the values it reads, as in Orca's sidebar row tests", async () => {
+    const partialState = { ...initialAppState }
+    for (const key of [
+      'folderWorkspaces',
+      'workspaceLineageByChildKey',
+      'worktreeLineageById',
+      'worktreesByRepo',
+      'collapsedGroups'
+    ]) {
+      Reflect.deleteProperty(partialState, key)
+    }
+    useAppStore.setState(partialState, true)
+
+    expect((await render()).textContent).toBe('')
+  })
 })
