@@ -53,6 +53,9 @@ export function applyPodUserDataFolder(
 ): void {
   const appDataDir = app.getPath('appData')
   app.setPath('userData', join(appDataDir, POD_USER_DATA_DIR_NAME))
+  // Why before the rename and the data move: once the name seals with Pod's key, no store may
+  // still point at Orca's `~/.orca`, even if the move below throws.
+  applyPodCredentialFolder(app.getPath('home'))
   // Why after setPath: userData is pinned, so the rename moves no path.
   app.setName(POD_KEYCHAIN_APP_NAME)
   const result = movePodUserDataOnce({
@@ -65,8 +68,6 @@ export function applyPodUserDataFolder(
       `[pod-user-data] Copied ${ORCA_USER_DATA_DIR_NAME} into ${POD_USER_DATA_DIR_NAME} (old folder ${result.oldFolder}, profile database ${result.profileDatabase})`
     )
   }
-  // Why: Orca's `~/.orca` credentials are sealed with Orca's key, which Pod no longer holds.
-  applyPodCredentialFolder(app.getPath('home'))
 }
 
 function hasPodData(folder: string): boolean {
