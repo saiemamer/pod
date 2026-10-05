@@ -169,6 +169,33 @@ describe('AeDbtService', () => {
     expect(readFileSync(stubLog, 'utf8').trim().split('\n')).toHaveLength(2)
   })
 
+  it("gives model info the catalog's columns where it has the relation", async () => {
+    const service = makeService()
+    await service.parse({ path: project })
+    writeFileSync(
+      join(project, 'target', 'catalog.json'),
+      JSON.stringify({
+        nodes: {
+          'model.demo.fct_orders': {
+            metadata: { name: 'fct_orders' },
+            columns: {
+              STATUS: { name: 'status', type: 'STRING', index: 2 },
+              ORDER_ID: { name: 'order_id', type: 'INT64', index: 1 }
+            }
+          }
+        }
+      })
+    )
+    const built = await service.modelInfo({ path: project, model: 'fct_orders' })
+    expect(built.columns).toEqual([
+      { name: 'order_id', dataType: 'INT64' },
+      { name: 'status', dataType: 'STRING' }
+    ])
+    // Why: the catalog lacks stg_orders, so its documented columns stand.
+    const unbuilt = await service.modelInfo({ path: project, model: 'stg_orders' })
+    expect(unbuilt.columns).toEqual([{ name: 'id', description: 'pk', dataType: 'INT64' }])
+  })
+
   it('compiles through JSON logs and names the compiled file', async () => {
     const result = await makeService().compile({ path: project, model: 'fct_orders' })
     expect(result.sql).toBe('select 1 as compiled')
