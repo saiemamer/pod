@@ -200,6 +200,27 @@ try {
   log(`row moved to ${afterStart} in ${Date.now() - changedAt} ms:`, await rowText())
   await page.screenshot({ path: `${OUT}/initiative-run-2-worker-copy.png` })
 
+  // 4b. the left sidebar lists the copy inside the initiative's row; collapsing hides it
+  const initiativeRow = page.locator(
+    `[data-worktree-virtual-row][data-worktree-id="${initiative.coordinatorWorkspaceKey}"]`
+  )
+  const copyLink = initiativeRow.locator(`[data-pod-folder-copy-id="${created.id}"]`)
+  await copyLink.waitFor({ timeout: 8000 })
+  check(
+    (await copyLink.innerText()).includes(name),
+    'the sidebar lists the copy under the initiative'
+  )
+  await initiativeRow.locator('[data-pod-folder-copies] button[aria-expanded]').click()
+  await copyLink.waitFor({ state: 'detached', timeout: 8000 })
+  check(true, 'collapsing the initiative copies hides the copy')
+  await initiativeRow.locator('[data-pod-folder-copies] button[aria-expanded]').click()
+  await copyLink.waitFor({ timeout: 8000 })
+  check(
+    (await page.locator(`[role="option"][data-worktree-id="${created.id}"]`).count()) > 0,
+    'the copy still shows under its repo'
+  )
+  await page.screenshot({ path: `${OUT}/initiative-run-2b-sidebar-copy.png` })
+
   // 5. the coordinator settles the task; the row follows within a few seconds
   const updated = orca(
     'orchestration',

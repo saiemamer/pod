@@ -72,7 +72,8 @@ Take `<worktree_id>` from the JSON of the first command. Do not pass `--agent` t
 waits until it is ready and delivers the task, so a second agent would sit idle. The
 `--parent-worktree` value records the new worktree as a child of this initiative's
 folder workspace. The Initiative panel names it on the task's row, with a link that
-opens it; the left sidebar still lists it under its repo, not under the initiative.
+opens it, and the left sidebar lists it under the initiative's row, as well as under
+its repo.
 
 The worktree name is also the git branch name and, for an Omni repo, the Omni model
 branch name. Keep it short and unique: `<initiative-slug>-<part>`.
