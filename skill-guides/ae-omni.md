@@ -69,4 +69,5 @@ reviewer opens.
 
 Report back with the branch name, the topics and views touched, the validation
 result, the pull request URL, and anything the reviewer must check in the Omni UI.
-Then run `orca orchestration worker-done` as the orchestration guide describes.
+Then send `worker_done` once with the `orca orchestration send --type worker_done` command
+your dispatch preamble gives, IDs filled in; the orchestration guide has the rules.
