@@ -25,9 +25,11 @@ jobs:
     name: click-through scripts (reporting)
     runs-on: macos-15
     timeout-minutes: 30
-    env:
-      POD_SMOKE_OUT: ${{ runner.temp }}/pod-smoke-out
     steps:
+      # Why here and not in the job's env: GitHub rejects the runner context there and starts no job.
+      - name: Choose the output folder
+        shell: bash
+        run: echo "POD_SMOKE_OUT=$RUNNER_TEMP/pod-smoke-out" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
@@ -84,6 +86,7 @@ jobs:
           {
             echo '## Pod click-through scripts'
             echo
+            # shellcheck disable=SC2016 # literal Markdown backticks
             echo 'Logs and screenshots: the `pod-ui-smoke` artifact of this run.'
             echo
           } >> "$GITHUB_STEP_SUMMARY"
@@ -133,9 +136,9 @@ jobs:
 
       - name: Keep screenshots and logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: pod-ui-smoke
-          path: ${{ runner.temp }}/pod-smoke-out
+          path: ${{ env.POD_SMOKE_OUT }}
           retention-days: 14
           if-no-files-found: warn
