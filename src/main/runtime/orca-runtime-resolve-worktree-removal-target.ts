@@ -215,8 +215,9 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
       return opts
     }
 
+    const podScope = { ...workspace, launchSource: opts.launchSource } // Pod
     const startupPlan = buildAgentStartupPlan({
-      ...resolvePodAgentStartupPlanInputs(workspace, {
+      ...resolvePodAgentStartupPlanInputs(podScope, {
         agent,
         settings,
         platform,

@@ -103,3 +103,57 @@ describe("onboarding's agent permission toggle in Pod", () => {
     expect(turnedOn.agentDefaultArgs?.claude).toBe(BYPASS)
   })
 })
+
+describe('Claude workers dispatched for an orchestration task', () => {
+  const worker = { agent: 'claude' as const, launchSource: 'orchestration' }
+
+  it('start with the bypass flag in front of the Settings arguments', async () => {
+    const { pod } = await loadAsPodBuild()
+    expect(pod.podClaudeWorkerArgs({ ...worker, resolvedArgs: '' })).toBe(BYPASS)
+    expect(pod.podClaudeWorkerArgs({ ...worker, resolvedArgs: null })).toBe(BYPASS)
+    expect(pod.podClaudeWorkerArgs({ ...worker, resolvedArgs: MCP_PAIR })).toBe(
+      `${BYPASS} ${MCP_PAIR}`
+    )
+  })
+
+  it('keep a permission choice typed in Settings > Agents exactly as typed', async () => {
+    const { pod } = await loadAsPodBuild()
+    for (const typed of [
+      BYPASS,
+      `--model opus ${BYPASS}`,
+      '--allow-dangerously-skip-permissions',
+      '--permission-mode acceptEdits',
+      '--permission-mode=plan',
+      '--safe-mode'
+    ]) {
+      expect(pod.podClaudeWorkerArgs({ ...worker, resolvedArgs: typed })).toBe(typed)
+    }
+  })
+
+  it('keep arguments the dispatching caller passed', async () => {
+    const { pod } = await loadAsPodBuild()
+    expect(pod.podClaudeWorkerArgs({ ...worker, callerArgs: null, resolvedArgs: null })).toBe(null)
+    expect(
+      pod.podClaudeWorkerArgs({
+        ...worker,
+        callerArgs: '--model opus',
+        resolvedArgs: '--model opus'
+      })
+    ).toBe('--model opus')
+  })
+
+  it('leave interactive sessions, main agents and other agents as resolved', async () => {
+    const { pod } = await loadAsPodBuild()
+    for (const launchSource of [undefined, 'sidebar', 'cli', 'unknown']) {
+      expect(pod.podClaudeWorkerArgs({ agent: 'claude', launchSource, resolvedArgs: '' })).toBe('')
+    }
+    expect(
+      pod.podClaudeWorkerArgs({ ...worker, agent: 'codex', resolvedArgs: '--model gpt-5' })
+    ).toBe('--model gpt-5')
+  })
+
+  it("change nothing in Orca's own build", async () => {
+    const { podClaudeWorkerArgs } = await import('./pod-claude-permission-default')
+    expect(podClaudeWorkerArgs({ ...worker, resolvedArgs: '--model opus' })).toBe('--model opus')
+  })
+})

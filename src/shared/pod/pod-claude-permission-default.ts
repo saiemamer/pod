@@ -69,3 +69,35 @@ export function podOnboardingAgentPermissionUpdate(args: {
   }
   return applyAgentPermissionMode({ ...args, mode: args.yoloPermissions ? 'yolo' : 'manual' })
 }
+
+const CLAUDE_BYPASS_FLAG = '--dangerously-skip-permissions'
+// A person who typed any of these chose Claude's permission behaviour; their arguments stand.
+const CLAUDE_PERMISSION_CHOICE =
+  /(^|\s)(--dangerously-skip-permissions|--allow-dangerously-skip-permissions|--permission-mode|--safe-mode)(?=\s|=|$)/
+
+/**
+ * A Claude worker dispatched for an orchestration task runs in a terminal nobody watches, so it
+ * starts with Orca's bypass flag in front of the person's own arguments. Claude Code still shows
+ * its one-time Bypass Permissions confirmation; Pod tells the person to accept it there. Every
+ * other session, and any launch whose caller passed its own arguments, is left as resolved.
+ */
+export function podClaudeWorkerArgs(args: {
+  agent: TuiAgent
+  launchSource?: string
+  callerArgs?: string | null
+  resolvedArgs: string | null
+}): string | null {
+  if (
+    !POD_CLAUDE_FOLLOWS_OWN_PERMISSIONS ||
+    args.agent !== 'claude' ||
+    args.launchSource !== 'orchestration' ||
+    args.callerArgs !== undefined
+  ) {
+    return args.resolvedArgs
+  }
+  const typed = args.resolvedArgs?.trim() ?? ''
+  if (CLAUDE_PERMISSION_CHOICE.test(typed)) {
+    return args.resolvedArgs
+  }
+  return typed ? `${CLAUDE_BYPASS_FLAG} ${typed}` : CLAUDE_BYPASS_FLAG
+}

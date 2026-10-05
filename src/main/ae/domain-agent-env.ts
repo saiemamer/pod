@@ -5,11 +5,14 @@ import {
   resolveAgentStartupPlanInputs,
   type AgentStartupPlanInputs
 } from '../../shared/agent-startup-plan-inputs'
+import { podClaudeWorkerArgs } from '../../shared/pod/pod-claude-permission-default'
 import { getAeDomainServiceIfInstalled } from './domain-service'
 
 export type AeAgentLaunchScope = {
   repo?: Repo | null
   folderWorkspace?: FolderWorkspace | null
+  /** `'orchestration'` marks a dispatched worker, which Pod starts able to run unattended. */
+  launchSource?: string
 }
 
 /**
@@ -64,11 +67,23 @@ export function podDomainAgentEnv(scope: AeAgentLaunchScope): Record<string, str
   return env
 }
 
-/** Upstream's settings-derived launch inputs with the domain env layered over the agent defaults. */
+/**
+ * Upstream's settings-derived launch inputs with the domain env layered over the agent defaults,
+ * and the bypass flag for a dispatched Claude worker.
+ */
 export function resolvePodAgentStartupPlanInputs(
   scope: AeAgentLaunchScope,
   args: Parameters<typeof resolveAgentStartupPlanInputs>[0]
 ): AgentStartupPlanInputs {
   const inputs = resolveAgentStartupPlanInputs(args)
-  return { ...inputs, agentEnv: { ...inputs.agentEnv, ...podDomainAgentEnv(scope) } }
+  return {
+    ...inputs,
+    agentArgs: podClaudeWorkerArgs({
+      agent: args.agent,
+      launchSource: scope.launchSource,
+      callerArgs: args.agentArgs,
+      resolvedArgs: inputs.agentArgs
+    }),
+    agentEnv: { ...inputs.agentEnv, ...podDomainAgentEnv(scope) }
+  }
 }
