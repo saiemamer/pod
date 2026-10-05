@@ -27,6 +27,8 @@ import type { DbtSqlglotSidecar, SqlglotNodeInput, SqlglotNodeOutput } from './d
  */
 export type DbtColumnLineageEngineContext = {
   python?: string
+  /** The dbt executable; its interpreter runs sqlglot when Settings names no Python. */
+  dbtBinary?: string | null
   env: NodeJS.ProcessEnv
   dialect: string
 }
@@ -177,7 +179,11 @@ export class DbtColumnLineageService {
       downstreamDepth: depth,
       maxNodes
     })
-    const status = await this.sidecar.status(engineContext.python, engineContext.env)
+    const status = await this.sidecar.status(
+      engineContext.python,
+      engineContext.env,
+      engineContext.dbtBinary
+    )
     const analyses = await this.analyseNodes(graph, project, hood.nodeIds, engineContext, status)
     const edges = analyses.flatMap((entry) => entry.analysis.edges)
     const propagation = propagateDbtColumnLineage(

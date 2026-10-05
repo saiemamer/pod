@@ -6,6 +6,7 @@ import type {
   DbtGraphResult,
   DbtLineageEngineStatus
 } from '../../../shared/ae/dbt-graph-types'
+import { runProcess } from '../../../shared/child-process/run-process'
 import type { DbtLineageResult, DbtPathRequest } from '../../../shared/ae/dbt-types'
 import { dbtManifestPath, loadDbtManifest, walkDbtLineage } from './dbt-manifest'
 import { buildDbtCatalogTree, loadDbtCatalog } from './dbt-catalog'
@@ -15,6 +16,7 @@ import { DbtGraphService } from './dbt-graph'
 import type { DbtContext } from './dbt-context'
 import type { AeDbtService } from './dbt-service'
 import { DbtSqlglotSidecar, sqlglotDialectFor } from './dbt-sqlglot-sidecar'
+import type { SqlglotBundle } from './dbt-sqlglot-python'
 
 /**
  * Pod: the Phase 3 operations behind the Lineage tab, the Database explorer and
@@ -27,9 +29,11 @@ export type DbtLineageServices = {
   sidecar: DbtSqlglotSidecar
 }
 
-export function createDbtLineageServices(): DbtLineageServices {
+export function createDbtLineageServices(
+  sqlglotBundle: SqlglotBundle | null = null
+): DbtLineageServices {
   const graph = new DbtGraphService()
-  const sidecar = new DbtSqlglotSidecar()
+  const sidecar = new DbtSqlglotSidecar({ run: runProcess, bundle: sqlglotBundle })
   return {
     graph,
     sidecar,
@@ -40,8 +44,10 @@ export function createDbtLineageServices(): DbtLineageServices {
 
 let installed: DbtLineageServices | null = null
 
-export function installDbtLineageServices(): DbtLineageServices {
-  installed = createDbtLineageServices()
+export function installDbtLineageServices(
+  sqlglotBundle: SqlglotBundle | null = null
+): DbtLineageServices {
+  installed = createDbtLineageServices(sqlglotBundle)
   return installed
 }
 
@@ -90,6 +96,7 @@ export async function dbtColumnLineageRequest(
     focus,
     {
       python: context.toolOverrides.python,
+      dbtBinary: context.binary?.path,
       env: context.env,
       dialect: sqlglotDialectFor(context.settings.coreAdapter)
     },
@@ -161,5 +168,5 @@ export async function dbtLineageEngineRequest(
   request: DbtPathRequest
 ): Promise<DbtLineageEngineStatus> {
   const context = await service.resolve(request)
-  return services.sidecar.status(context.toolOverrides.python, context.env)
+  return services.sidecar.status(context.toolOverrides.python, context.env, context.binary?.path)
 }

@@ -4,8 +4,8 @@
 // relation, filter, and jump to another model's lineage. Last, a model with 500
 // columns must open fitted with its neighbours in view, bounded nodes and layer
 // labels. Needs `pnpm dev` with REMOTE_DEBUGGING_PORT=9333 and the stand-in dbt at ~/Projects/pod-smoke/bin/dbt (see
-// README.md). POD_SMOKE_PYTHON points at a python with sqlglot; without it, name
-// matching answers. Screenshots go to POD_SMOKE_OUT.
+// README.md). POD_SMOKE_PYTHON sets the python command; without it, Pod finds a Python
+// itself and the engine label must still read sqlglot (the copy Pod ships). Screenshots go to POD_SMOKE_OUT.
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { checkWideLineage } from './lineage-wide-smoke-step.mjs'
@@ -90,7 +90,7 @@ page.setDefaultTimeout(30000)
 await page.keyboard.press('Escape')
 await sleep(300)
 
-// 1. settings: the stand-in dbt and, when given, a python with sqlglot
+// 1. settings: the stand-in dbt and, when given, a python command
 await page.evaluate(
   ([dbt, python]) =>
     window.api.settings.set({
@@ -222,6 +222,19 @@ log(
   '|',
   await dock.locator('[data-testid="pod-lineage-engine"]').innerText()
 )
+// 4b. column lineage runs on sqlglot with no python command set (Pod ships sqlglot)
+const engineLabel = dock.locator('[data-testid="pod-lineage-engine"]')
+const engineDeadline = Date.now() + 60000
+while ((await engineLabel.innerText()) !== 'sqlglot' && Date.now() < engineDeadline) {
+  await sleep(500)
+}
+const engineText = await engineLabel.innerText()
+if (engineText !== 'sqlglot') {
+  throw new Error(
+    `engine label reads "${engineText}" (${await engineLabel.getAttribute('title')}), expected sqlglot`
+  )
+}
+log('engine:', await engineLabel.getAttribute('title'))
 await page.screenshot({ path: `${OUT}/lineage-1-canvas.png` })
 
 // 4c. the toolbar's zoom buttons step by ten percent (pinch and wheel stay continuous)

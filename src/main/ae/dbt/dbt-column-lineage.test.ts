@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { runProcess } from '../../../shared/child-process/run-process'
 import type { DbtGraphNode } from '../../../shared/ae/dbt-graph-types'
@@ -7,6 +10,7 @@ import { buildDbtGraphIndex, type DbtGraph, type DbtGraphSqlSource } from './dbt
 import { parseDbtManifest, type DbtManifestNode } from './dbt-manifest'
 import type { DbtProjectInfo } from './dbt-project-discovery'
 import { DbtSqlglotSidecar, type SqlglotOutput } from './dbt-sqlglot-sidecar'
+import { findSqlglotBundle } from './dbt-sqlglot-python'
 
 const manifestJson = JSON.stringify({
   nodes: {
@@ -307,11 +311,23 @@ describe('DbtColumnLineageService', () => {
     ).rejects.toThrow(/no column named "nope"/)
   })
 
-  // Why gated: CI has no sqlglot; locally, POD_SQLGLOT_PYTHON points at a venv that has it.
+  // Why gated: it starts a real Python. Any Python 3.9+ will do, with or without sqlglot of
+  // its own: the copy in resources/pod-sqlglot comes first on PYTHONPATH.
   const python = process.env.POD_SQLGLOT_PYTHON
-  it.skipIf(!python)('answers through the real sqlglot sidecar', async () => {
+  it.skipIf(!python)('answers through the real sidecar and the bundled sqlglot', async () => {
     const graph = makeGraph()
-    const service = new DbtColumnLineageService(new DbtSqlglotSidecar({ run: runProcess }), readSql)
+    const bundle = findSqlglotBundle(
+      resolve(__dirname, '../../../..'),
+      mkdtempSync(join(tmpdir(), 'pod-sqlglot-'))
+    )
+    expect(bundle).not.toBeNull()
+    const sidecar = new DbtSqlglotSidecar({ run: runProcess, bundle })
+    expect(await sidecar.status(python, process.env)).toMatchObject({
+      engine: 'sqlglot',
+      python,
+      sqlglotVersion: '30.21.0'
+    })
+    const service = new DbtColumnLineageService(sidecar, readSql)
     const result = await service.lineage(
       graph,
       project,

@@ -161,7 +161,9 @@ function PodLineageToolbarComponent(props: PodLineageToolbarProps): React.JSX.El
     ? ''
     : props.engine.engine === 'sqlglot'
       ? 'sqlglot'
-      : translate('pod.lineage.toolbar.nameMatch', 'name match')
+      : props.engine.noPython
+        ? translate('pod.lineage.toolbar.nameMatchNoPython', 'name match · no Python found')
+        : translate('pod.lineage.toolbar.nameMatch', 'name match')
   const engineTitle = !props.engine
     ? ''
     : props.engine.engine === 'sqlglot'

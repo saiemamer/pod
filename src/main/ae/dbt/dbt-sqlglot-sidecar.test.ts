@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ProcessResult, ProcessSpec } from '../../../shared/child-process/process-spec'
 import {
   DbtSqlglotSidecar,
+  NO_PYTHON_NOTE,
   parseSidecarOutput,
-  resolvePython,
   SQLGLOT_PROBE_RETRY_MS,
   sqlglotDialectFor
 } from './dbt-sqlglot-sidecar'
+import type { SqlglotPythonCandidate } from './dbt-sqlglot-python'
 
 function result(partial: Partial<ProcessResult>): ProcessResult {
   return {
@@ -27,17 +28,7 @@ describe('sqlglotDialectFor', () => {
   })
 })
 
-describe('resolvePython', () => {
-  it('prefers the settings path and falls back to PATH', () => {
-    expect(resolvePython('/venv/bin/python', {})).toEqual({
-      path: '/venv/bin/python',
-      source: 'settings'
-    })
-    expect(resolvePython('   ', { PATH: '/nonexistent-dir' })?.source ?? null).toBe(
-      resolvePython(undefined, { PATH: '/nonexistent-dir' })?.source ?? null
-    )
-  })
-})
+const settingsPython = (): SqlglotPythonCandidate[] => [{ path: '/py', source: 'settings' }]
 
 describe('parseSidecarOutput', () => {
   it('takes the last JSON line and ignores warnings before it', () => {
@@ -67,13 +58,13 @@ describe('DbtSqlglotSidecar', () => {
       }
       return result({ stdout: '{}' })
     })
-    const sidecar = new DbtSqlglotSidecar({ run, now: () => now })
+    const sidecar = new DbtSqlglotSidecar({ run, now: () => now, findPythons: settingsPython })
     const first = await sidecar.status('/py', {})
     expect(first).toEqual({
       engine: 'name-match',
       python: '/py',
       pythonSource: 'settings',
-      note: "ModuleNotFoundError: No module named 'sqlglot'"
+      note: "/py could not run sqlglot: ModuleNotFoundError: No module named 'sqlglot'"
     })
     expect(await sidecar.status('/py', {})).toBe(first)
     now += SQLGLOT_PROBE_RETRY_MS + 1
@@ -86,6 +77,44 @@ describe('DbtSqlglotSidecar', () => {
     })
     expect(await sidecar.status('/py', {})).toBe(second)
     expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('says plainly when no Python exists, and probes nothing', async () => {
+    const run = vi.fn(async () => result({}))
+    const sidecar = new DbtSqlglotSidecar({ run, findPythons: () => [] })
+    expect(await sidecar.status(undefined, {}, '/fusion/dbt')).toEqual({
+      engine: 'name-match',
+      noPython: true,
+      note: NO_PYTHON_NOTE
+    })
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('starts the probe and the analysis with the bundled sqlglot first on PYTHONPATH', async () => {
+    const specs: ProcessSpec[] = []
+    const run = vi.fn(async (spec: ProcessSpec) => {
+      specs.push(spec)
+      return spec.args?.[1]?.includes('__version__')
+        ? result({ stdout: '30.21.0' })
+        : result({ stdout: '{"ok": true, "sqlglot": "30.21.0", "nodes": {}}' })
+    })
+    const bundle = { dir: '/app/resources/pod-sqlglot', pycacheDir: '/data/sqlglot-pycache' }
+    const sidecar = new DbtSqlglotSidecar({ run, bundle, findPythons: settingsPython })
+    const status = await sidecar.status(undefined, { PYTHONPATH: '/mine', HOME: '/h' })
+    expect(status).toMatchObject({ engine: 'sqlglot', sqlglotVersion: '30.21.0' })
+    await sidecar.analyse('/py', { PYTHONPATH: '/mine', HOME: '/h' }, 'bigquery', [
+      { id: 'x', sql: 'select 1', schema: {} }
+    ])
+    expect(specs).toHaveLength(2)
+    for (const spec of specs) {
+      expect(spec.cwd).toBe(bundle.dir)
+      expect(spec.env).toMatchObject({
+        HOME: '/h',
+        PYTHONPYCACHEPREFIX: bundle.pycacheDir
+      })
+      expect(spec.env?.PYTHONPATH?.startsWith(bundle.dir)).toBe(true)
+      expect(spec.env?.PYTHONPATH?.endsWith('/mine')).toBe(true)
+    }
   })
 
   it('sends the script through -c and the nodes on stdin', async () => {

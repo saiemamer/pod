@@ -52,7 +52,7 @@ export const DBT_COMMAND_SPECS: CommandSpec[] = [
     examples: ['orca dbt column-lineage --model fct_orders --column customer_id --json'],
     notes: [
       PROJECT_NOTE,
-      'Reads target/manifest.json, target/catalog.json and the compiled SQL; runs sqlglot through the python in Settings > Analytics Tools, or matches column names when sqlglot is missing. Nothing touches the warehouse.'
+      'Reads target/manifest.json, target/catalog.json and the compiled SQL; runs the sqlglot copy built into Pod through the Python in Settings > Analytics Tools, the one that runs dbt, or python3 on PATH, and matches column names when there is no Python. Nothing touches the warehouse.'
     ]
   },
   {

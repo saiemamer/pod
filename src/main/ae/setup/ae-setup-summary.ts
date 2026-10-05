@@ -98,7 +98,7 @@ export function summarizeAeSetup(d: Omit<AeSetupDetection, 'items'>): AeSetupIte
           key: 'python',
           label: 'Python with sqlglot',
           status: 'missing',
-          hint: 'No Python here can import sqlglot. Column lineage falls back to matching column names until one is set in Settings > Analytics Tools > Tools.'
+          hint: 'No Python here has sqlglot of its own. Column lineage still uses the copy built into Pod, run by the Python that runs dbt or python3 on PATH.'
         }
   )
   return items
