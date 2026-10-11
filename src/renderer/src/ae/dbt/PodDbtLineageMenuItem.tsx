@@ -17,7 +17,6 @@ export function PodDbtLineageMenuItem({
   filePath: string
   isDirectory: boolean
 }): React.JSX.Element | null {
-  const worktree = useActiveWorktree()
   const [isModel, setIsModel] = useState(false)
   const candidate = !isDirectory && filePath.toLowerCase().endsWith('.sql')
   useEffect(() => {
@@ -39,7 +38,18 @@ export function PodDbtLineageMenuItem({
       cancelled = true
     }
   }, [candidate, filePath])
-  if (!isModel || !worktree) {
+  // Why a child: only a model needs the worktree, and Orca's row-menu tests mount this with a
+  // mocked store that has no worktree lookup.
+  return isModel ? <PodDbtLineageMenuItemForModel filePath={filePath} /> : null
+}
+
+function PodDbtLineageMenuItemForModel({
+  filePath
+}: {
+  filePath: string
+}): React.JSX.Element | null {
+  const worktree = useActiveWorktree()
+  if (!worktree) {
     return null
   }
   return (
