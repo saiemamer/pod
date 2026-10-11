@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type TestProjectConfiguration } from 'vitest/config'
 import upstreamConfig from './vitest.config'
 // Why: upstream applies this list only on its balanced CI shards; it holds the tests that need
 // a live shell, node-pty, or a real Chrome.
@@ -31,16 +31,37 @@ const POD_IDENTITY_TEST_EXCLUDES = [
 // Why: these read upstream workflow files, which Pod keeps in .github/workflows-upstream.
 const POD_MOVED_WORKFLOW_TEST_EXCLUDES = ['src/shared/windows-lane-tree-removal-boundary.test.ts']
 
+const POD_EXCLUDE = [
+  ...UNIT_EXCLUDE,
+  ...POD_IDENTITY_TEST_EXCLUDES,
+  ...POD_MOVED_WORKFLOW_TEST_EXCLUDES
+]
+
 // Why src only: upstream's config/scripts and tests/ suites are contracts over its CI
 // workflows, signing, and packaging pipeline, most of which Pod removed. Pod's own
 // pipeline is verified by pod-release.yml producing an installable DMG.
+// Why per project: upstream's projects set `extends: false`, so root include, exclude and env
+// never reach them.
+function scopeToPod(project: TestProjectConfiguration): TestProjectConfiguration {
+  if (typeof project !== 'object' || !('test' in project) || !project.test) {
+    return project
+  }
+  return {
+    ...project,
+    test: {
+      ...project.test,
+      include: project.test.include?.filter((pattern) => pattern.startsWith('src/')),
+      exclude: [...(project.test.exclude ?? []), ...POD_EXCLUDE],
+      // Why: upstream's CI jobs set it, and the browser-manager tests assert it before each case.
+      env: { ...project.test.env, ORCA_BACKGROUND_LAUNCH: '1' }
+    }
+  }
+}
+
 export default defineConfig({
   ...upstreamConfig,
   test: {
     ...upstreamConfig.test,
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    // Why: upstream's CI jobs set it, and the browser-manager tests assert it before each case.
-    env: { ...upstreamConfig.test?.env, ORCA_BACKGROUND_LAUNCH: '1' },
-    exclude: [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES, ...POD_MOVED_WORKFLOW_TEST_EXCLUDES]
+    projects: upstreamConfig.test?.projects?.map(scopeToPod)
   }
 })
