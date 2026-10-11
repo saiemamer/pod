@@ -226,6 +226,9 @@ const DOCUMENT_FOLDER_ACCESS_BUILDERS = [
 ]
 
 const USER_NAMED_TAB_OPENERS = [
+  // Pod: look-alikes; both refuse a target outside the worktree (FORK_TOUCHPOINTS.md).
+  'ae/dbt/dbt-lsp-definition.ts',
+  'ae/dbt/pod-dbt-open-file.ts',
   'components/browser-pane/navigate/navigate-browser-page-url.ts',
   'components/editor/editor-dropped-file-open.ts',
   'components/editor/markdown-preview-link-actions.ts',

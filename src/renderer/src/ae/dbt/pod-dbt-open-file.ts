@@ -2,7 +2,7 @@ import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
 import { joinPath } from '@/lib/path'
 import { getOpenedEditFileIdAfterOpen } from '@/store/slices/editor/file-ids/editor-file-ids'
-import { relativeToRoot, worktreeRootOf } from './pod-dbt-paths'
+import { relativeInsideRoot, worktreeRootOf } from './pod-dbt-paths'
 
 /**
  * Pod: open a model file from the lineage canvas or the Database explorer, the way the
@@ -16,12 +16,17 @@ export type PodDbtOpenTarget = {
   runtimeEnvironmentId?: string | null
 }
 
+/** Null, opening nothing, when the model's path resolves outside the worktree. */
 export function openPodDbtFile(target: PodDbtOpenTarget): string | null {
+  const relativePath = relativeInsideRoot(target.worktreePath, target.filePath)
+  if (relativePath === null) {
+    return null
+  }
   const state = useAppStore.getState()
   state.openFile(
     {
       filePath: target.filePath,
-      relativePath: relativeToRoot(target.worktreePath, target.filePath),
+      relativePath,
       worktreeId: target.worktreeId,
       runtimeEnvironmentId: target.runtimeEnvironmentId ?? undefined,
       language: detectLanguage(target.filePath),

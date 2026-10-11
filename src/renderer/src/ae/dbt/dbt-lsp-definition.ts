@@ -6,7 +6,7 @@ import { scheduleEditorLineReveal } from '@/store/slices/editor/focus/editor-foc
 import { getOpenedEditFileIdAfterOpen } from '@/store/slices/editor/file-ids/editor-file-ids'
 import { dbtLspUriToPath } from '../../../../shared/ae/dbt-lsp-types'
 import { findDbtCteDefinition, findDbtRefAtPosition } from './dbt-ref-navigation'
-import { relativeToRoot, worktreeRootOf } from './pod-dbt-paths'
+import { relativeInsideRoot, worktreeRootOf } from './pod-dbt-paths'
 
 type MonacoModule = typeof Monaco
 
@@ -94,43 +94,58 @@ export function installPodDbtEditorOpener(monaco: MonacoModule): Monaco.IDisposa
       ) {
         return false
       }
-      const sourcePath = sourceModel.uri.fsPath
-      const state = useAppStore.getState()
-      const owner = state.openFiles.find(
-        (file) => file.filePath === sourcePath && file.mode === 'edit'
+      return openPodDbtDefinitionTarget(
+        sourceModel.uri.fsPath,
+        resource.fsPath,
+        lineOf(selectionOrPosition)
       )
-      if (!owner) {
-        return false
-      }
-      const root = worktreeRootOf(owner.filePath, owner.relativePath)
-      const targetPath = resource.fsPath
-      state.openFile(
-        {
-          filePath: targetPath,
-          relativePath: relativeToRoot(root, targetPath),
-          worktreeId: owner.worktreeId,
-          runtimeEnvironmentId: owner.runtimeEnvironmentId,
-          language: detectLanguage(targetPath),
-          mode: 'edit'
-        },
-        {
-          preview: true,
-          targetGroupId: state.activeGroupIdByWorktree?.[owner.worktreeId],
-          recordReplacedPreview: true
-        }
-      )
-      const line = lineOf(selectionOrPosition)
-      if (line) {
-        const fileId = getOpenedEditFileIdAfterOpen(
-          useAppStore.getState(),
-          targetPath,
-          owner.worktreeId
-        )
-        scheduleEditorLineReveal(useAppStore.getState, targetPath, line.line, line.column, fileId)
-      }
-      return true
     }
   })
+}
+
+/**
+ * False when no dbt edit tab owns the source. A target outside that tab's worktree is
+ * handled by opening nothing, so Monaco does not fall back to showing it.
+ */
+export function openPodDbtDefinitionTarget(
+  sourcePath: string,
+  targetPath: string,
+  line: { line: number; column: number } | null
+): boolean {
+  const state = useAppStore.getState()
+  const owner = state.openFiles.find((file) => file.filePath === sourcePath && file.mode === 'edit')
+  if (!owner) {
+    return false
+  }
+  const root = worktreeRootOf(owner.filePath, owner.relativePath)
+  const relativePath = relativeInsideRoot(root, targetPath)
+  if (relativePath === null) {
+    return true
+  }
+  state.openFile(
+    {
+      filePath: targetPath,
+      relativePath,
+      worktreeId: owner.worktreeId,
+      runtimeEnvironmentId: owner.runtimeEnvironmentId,
+      language: detectLanguage(targetPath),
+      mode: 'edit'
+    },
+    {
+      preview: true,
+      targetGroupId: state.activeGroupIdByWorktree?.[owner.worktreeId],
+      recordReplacedPreview: true
+    }
+  )
+  if (line) {
+    const fileId = getOpenedEditFileIdAfterOpen(
+      useAppStore.getState(),
+      targetPath,
+      owner.worktreeId
+    )
+    scheduleEditorLineReveal(useAppStore.getState, targetPath, line.line, line.column, fileId)
+  }
+  return true
 }
 
 function lineOf(

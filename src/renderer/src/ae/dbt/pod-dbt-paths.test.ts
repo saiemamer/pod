@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { relativeToRoot, worktreeRootOf } from './pod-dbt-paths'
+import { relativeInsideRoot, worktreeRootOf } from './pod-dbt-paths'
 
 describe('worktree path arithmetic', () => {
   it('derives the root from an open file and its relative path', () => {
@@ -12,8 +12,19 @@ describe('worktree path arithmetic', () => {
   })
 
   it('makes the target relative when it lives under the root', () => {
-    expect(relativeToRoot('/w/repo', '/w/repo/models/stg_orders.sql')).toBe('models/stg_orders.sql')
-    expect(relativeToRoot('/w/repo', '/elsewhere/x.sql')).toBe('/elsewhere/x.sql')
-    expect(relativeToRoot(null, '/w/repo/x.sql')).toBe('/w/repo/x.sql')
+    expect(relativeInsideRoot('/w/repo', '/w/repo/models/stg_orders.sql')).toBe(
+      'models/stg_orders.sql'
+    )
+    expect(relativeInsideRoot('/w/repo', '/w/repo/dbt_packages/utils/macros/x.sql')).toBe(
+      'dbt_packages/utils/macros/x.sql'
+    )
+  })
+
+  it('refuses a target that resolves outside the root', () => {
+    expect(relativeInsideRoot('/w/repo', '/elsewhere/x.sql')).toBeNull()
+    expect(relativeInsideRoot('/w/repo', '/w/repo/models/../../secrets.sql')).toBeNull()
+    expect(relativeInsideRoot('/w/repo', '/w/repo-other/x.sql')).toBeNull()
+    expect(relativeInsideRoot('/w/repo', '/w/repo')).toBeNull()
+    expect(relativeInsideRoot(null, '/w/repo/x.sql')).toBeNull()
   })
 })
