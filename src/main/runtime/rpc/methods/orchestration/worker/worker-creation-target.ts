@@ -1,6 +1,7 @@
 import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
+import { assertOrchestrationWorktreeCreationSupported } from './folder-worktree-placement'
 
 /** A folder parent goes by its workspace key, as `worktree create --parent-worktree folder:<id>` does. */
 export type WorkerCreationTarget = {
@@ -36,4 +37,25 @@ export async function resolveWorkerCreationTarget(args: {
     repoSelector: repo ?? coordinator.repoId,
     parentWorktreeId: requestedWorktree === 'new-child' ? coordinator.id : undefined
   }
+}
+
+/** The target, refused for a folder repo as Orca's local-worker-start.ts did inline; moved here
+ *  to keep that file under the line limit. Undefined when the worker reuses a workspace. */
+export async function resolveCheckedWorkerCreationTarget(args: {
+  runtime: OrcaRuntimeService
+  createsWorktree: boolean
+  coordinatorWorktreeId: string
+  requestedWorktree: string
+  repo?: string
+}): Promise<WorkerCreationTarget | undefined> {
+  if (!args.createsWorktree) {
+    return undefined
+  }
+  const target = await resolveWorkerCreationTarget(args)
+  await assertOrchestrationWorktreeCreationSupported({
+    runtime: args.runtime,
+    repoSelector: target.repoSelector,
+    existingPlacement: 'current or an exact existing folder workspace'
+  })
+  return target
 }

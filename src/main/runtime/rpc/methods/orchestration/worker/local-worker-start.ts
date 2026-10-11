@@ -17,8 +17,7 @@ import {
 } from '../../orchestration-worker-start-mode'
 import { EXISTING_WORKTREE_SETUP, placeWorkerAgent } from './worker-start-agent-placement'
 import { awaitStructuredWorkerSetupGate } from './worker-start-structured-setup-gate'
-import { assertOrchestrationWorktreeCreationSupported } from './folder-worktree-placement'
-import { resolveWorkerCreationTarget } from './worker-creation-target'
+import { resolveCheckedWorkerCreationTarget } from './worker-creation-target'
 import type { WorkerStartInput } from './worker-start-schema'
 import {
   persistGatedSetupSpawnFailure,
@@ -105,21 +104,13 @@ export async function startLocalWorker(args: {
     params.from,
     callerSession
   )
-  const creationTarget = createsWorktree
-    ? await resolveWorkerCreationTarget({
-        runtime,
-        coordinatorWorktreeId,
-        requestedWorktree,
-        repo: params.repo
-      })
-    : undefined
-  if (creationTarget) {
-    await assertOrchestrationWorktreeCreationSupported({
-      runtime,
-      repoSelector: creationTarget.repoSelector,
-      existingPlacement: 'current or an exact existing folder workspace'
-    })
-  }
+  const creationTarget = await resolveCheckedWorkerCreationTarget({
+    runtime,
+    createsWorktree,
+    coordinatorWorktreeId,
+    requestedWorktree,
+    repo: params.repo
+  })
   let resolvedWorktree = creationTarget
     ? undefined
     : requestedWorktree === 'current'

@@ -14,6 +14,7 @@ import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import type { OrchestrationDb } from '../../../../orchestration/db'
 import { WORKER_START_VOCABULARY } from '../../orchestration-worker-start-mode'
 import { structuredWorkerIdentities } from '../../../../structured-worker-identity'
+import type { WorkerCreationTarget } from './worker-creation-target'
 import type { WorkerEffect } from './worker-topology'
 import { WorkerStartParams } from './worker-start-schema'
 
@@ -41,7 +42,11 @@ const TERMINAL: AgentLaunchModeReceipt = {
   reason: 'user_default',
   detail: 'Started a terminal agent worker, the default for new agent tabs in your settings.'
 }
-const COORDINATOR = { id: 'wt_coord', repoId: 'repo_1' }
+// What resolveWorkerCreationTarget returns for a new-child worker of coordinator wt_coord.
+const COORDINATOR_TARGET: WorkerCreationTarget = {
+  repoSelector: 'repo_1',
+  parentWorktreeId: 'wt_coord'
+}
 const EXISTING = { id: 'wt_existing', repoId: 'repo_1' }
 
 function fakes() {
@@ -91,7 +96,7 @@ function place(
       ...(args.terminal ? { terminal: args.terminal } : {})
     }),
     requestedWorktree: args.existing ? 'id:wt_existing' : 'new-child',
-    creationWorktree: args.existing ? undefined : COORDINATOR,
+    creationTarget: args.existing ? undefined : COORDINATOR_TARGET,
     resolvedWorktree: args.existing ? EXISTING : undefined,
     mode: args.mode,
     agent: args.terminal ? undefined : 'claude',
