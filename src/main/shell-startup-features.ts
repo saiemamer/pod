@@ -11,7 +11,7 @@
  * unsets it before the user's own config (or anything it spawns) can see it.
  */
 
-import { BUNDLED_CLI_BIN_DIR_ENV } from './pod/pod-cli-path-restore'
+import { BUNDLED_CLI_BIN_DIR_ENV } from './pod/pod-pane-wrap-env'
 
 export const SHELL_STARTUP_FEATURE_ENV = 'ORCA_SHELL_FEATURES'
 

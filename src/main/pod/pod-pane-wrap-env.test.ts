@@ -1,7 +1,8 @@
 /**
- * Real-shell proof that `orca` in a terminal Pod opens runs Pod's own CLI, even when the
+ * Real-shell proof that `orca` in a plain pane Pod opens runs Pod's own CLI, even when the
  * login startup files put stock Orca's `/usr/local/bin/orca` first (what macOS path_helper
- * does). The user's `.zprofile` / `.bash_profile` here prepends a stand-in stock folder.
+ * does). Pod's overlay key wraps the pane; Orca's wrapper restore does the re-prepend. The
+ * user's `.zprofile` / `.bash_profile` here prepends a stand-in stock folder.
  */
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'

@@ -20,7 +20,7 @@ import { resolvePathEnvKey } from '../pty/windows-environment-path'
 import { ensureLinuxTerminalOrcaCliShimDir } from './linux-terminal-orca-cli-shim'
 import { getBundledLauncherPath } from './bundled-cli-launcher-path'
 import { DEV_COMMAND_NAME } from './cli-install-constants'
-import { BUNDLED_CLI_BIN_DIR_ENV } from '../pod/pod-cli-path-restore'
+import { BUNDLED_CLI_BIN_DIR_ENV } from '../pod/pod-pane-wrap-env'
 
 export type OrcaCliChildPathOptions = {
   isPackaged: boolean
@@ -73,7 +73,7 @@ export function prependOrcaCliDirToChildPath(
       ? `${devCliBin}${pathDelimiter}${inheritedPath}`
       : devCliBin
     if (platform === 'darwin') {
-      // Why: a shell rc can put the installed app's `orca` first; the wrappers re-prepend this dir.
+      // Why: wraps every macOS pane, so Orca's restore re-prepends this dir after a shell rc.
       env[BUNDLED_CLI_BIN_DIR_ENV] = devCliBin
     }
     return join(devCliBin, platform === 'win32' ? `${DEV_COMMAND_NAME}.cmd` : DEV_COMMAND_NAME)
@@ -99,7 +99,7 @@ export function prependOrcaCliDirToChildPath(
       ? `${bundledCliBin}${pathDelimiter}${inheritedPath}`
       : bundledCliBin
     if (platform === 'darwin') {
-      // Why: the shell wrappers re-prepend it after a login shell's path_helper reorders PATH.
+      // Why: wraps every macOS pane, so Orca's restore undoes a login shell's path_helper.
       env[BUNDLED_CLI_BIN_DIR_ENV] = bundledCliBin
     }
     // Why the native launcher on Windows: `orca.cmd` refuses message bodies cmd.exe would mangle.

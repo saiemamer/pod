@@ -29,7 +29,12 @@ const POD_IDENTITY_TEST_EXCLUDES = [
   'src/shared/release-channel.test.ts'
 ]
 
-const POD_EXCLUDE = [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES]
+// Why: Pod wraps every macOS pane (its overlay key) so Orca's CLI PATH restore runs in plain
+// panes too; this file's two bare-pane cases assert such a pane stays unwrapped.
+// src/main/pod/pod-pane-wrap-env.test.ts covers Pod's behaviour in real shells.
+const POD_BEHAVIOUR_TEST_EXCLUDES = ['src/main/ipc/pty-spawn-env-terminal-basics.test.ts']
+
+const POD_EXCLUDE = [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES, ...POD_BEHAVIOUR_TEST_EXCLUDES]
 
 // Why src only: upstream's config/scripts and tests/ suites are contracts over its CI
 // workflows, signing, and packaging pipeline, most of which Pod removed. Pod's own
