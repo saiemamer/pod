@@ -1,5 +1,6 @@
 import type { CommandHandler } from './dispatch'
 import { BROWSER_HANDLER_GROUPS } from './browser-handler-groups'
+import { AE_HANDLER_GROUPS } from './ae-handler-groups' // Pod
 
 export type HandlerGroup = {
   name: string
@@ -59,30 +60,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     ],
     load: async () => (await import('./handlers/project.js')).PROJECT_HANDLERS
   },
-  {
-    name: 'domain', // Pod
-    keys: ['domain list', 'domain show', 'domain initiative-update'],
-    load: async () => (await import('./handlers/ae-domain.js')).DOMAIN_HANDLERS
-  },
-  {
-    name: 'dbt', // Pod
-    keys: [
-      'dbt project',
-      'dbt list-models',
-      'dbt model-info',
-      'dbt lineage',
-      'dbt column-lineage',
-      'dbt show',
-      'dbt compile',
-      'dbt parse'
-    ],
-    load: async () => (await import('./handlers/ae-dbt.js')).DBT_HANDLERS
-  },
-  {
-    name: 'omni', // Pod
-    keys: ['omni branch', 'omni validate', 'omni commit'],
-    load: async () => (await import('./handlers/ae-omni.js')).OMNI_HANDLERS
-  },
+  ...AE_HANDLER_GROUPS, // Pod
   {
     name: 'repo',
     keys: [
