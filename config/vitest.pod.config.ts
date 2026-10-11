@@ -35,7 +35,24 @@ const POD_IDENTITY_TEST_EXCLUDES = [
 // src/main/pod/pod-pane-wrap-env.test.ts covers Pod's behaviour in real shells.
 const POD_BEHAVIOUR_TEST_EXCLUDES = ['src/main/ipc/pty-spawn-env-terminal-basics.test.ts']
 
-const POD_EXCLUDE = [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES, ...POD_BEHAVIOUR_TEST_EXCLUDES]
+// Why: Orca's own tests, untouched by Pod, that pass on macOS and failed on both attempts of
+// pod-pr.yml run 38178276006 on ubuntu. The first expects `find`'s directory order, which ext4
+// hashes; the second leaves its hooks mounted, so React's scheduler touches `window` after
+// happy-dom tears down under Node (Orca runs it under Bun).
+const POD_RUNNER_TEST_EXCLUDES =
+  process.platform === 'linux'
+    ? [
+        'src/main/ssh/ssh-remote-commands.test.ts',
+        'src/renderer/src/components/native-chat/use-structured-agent-session.cut-turn-notice.test.tsx'
+      ]
+    : []
+
+const POD_EXCLUDE = [
+  ...UNIT_EXCLUDE,
+  ...POD_IDENTITY_TEST_EXCLUDES,
+  ...POD_BEHAVIOUR_TEST_EXCLUDES,
+  ...POD_RUNNER_TEST_EXCLUDES
+]
 
 // Why src only: upstream's config/scripts and tests/ suites are contracts over its CI
 // workflows, signing, and packaging pipeline, most of which Pod removed. Pod's own

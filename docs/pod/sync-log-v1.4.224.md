@@ -164,3 +164,10 @@ Read from the code at the two tags; nothing here has been run.
 - Commits 40 to 77 carry two stale register rows (see "Register edits that clash"); the final register is right.
 - `sync.md` could say that the script has to run from a copy outside the tree during the early stops.
 - The checks under "When the script has finished" in `sync.md`, and the release-job comparison: Orca added `release-javascript*.yml` and `macos-updater-tests.yml`, now under `.github/workflows-upstream/`.
+
+## Excluded on GitHub's Linux runner
+
+Two of Orca's own tests, which Pod does not touch, pass on macOS and failed on both attempts of pod-pr.yml run 38178276006 on ubuntu. `config/vitest.pod.config.ts` leaves them out on Linux only (`POD_RUNNER_TEST_EXCLUDES`):
+
+- `src/main/ssh/ssh-remote-commands.test.ts`: "bounds real POSIX GC output with more than the exec-cap stage population" expects `relay-0.1.0+aaa` before `relay-0.1.0+bbb`, but `listRelayBaseDirsCommand` prints them in `find`'s directory order. APFS returns names sorted, ext4 in hash order. Orca's `unit-tests.yml` runs on ubuntu too, so the order there depends on the runner's filesystem.
+- `src/renderer/src/components/native-chat/use-structured-agent-session.cut-turn-notice.test.tsx`: every case passes, then React's scheduler runs on `setImmediate` after happy-dom has torn down and throws `window is not defined`, because the file never unmounts its two `renderHook` calls. Orca runs the file under Bun (`config/scripts/run-vitest.mjs`); Pod's `pod-pr.yml` runs it under Node. Not checked under Bun here: this Mac has no Bun.
