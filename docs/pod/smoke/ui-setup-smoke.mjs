@@ -101,7 +101,7 @@ const forgetSetup = () =>
         }
       }
       for (const repo of repos) {
-        await window.api.repos.remove({ repoId: repo.id })
+        await window.api.repos.removeForHost({ repoId: repo.id, hostId: 'local' })
       }
       for (const groupId of groupIds) {
         await window.api.projectGroups.delete({ groupId })
