@@ -4,11 +4,11 @@ Pod's `main` is an upstream Orca stable tag with Pod's commits replayed on top. 
 
 Three things keep a rebase small. Pod's own code lives in new files (`ae/` directories and the others listed in [`FORK_TOUCHPOINTS.md`](../../FORK_TOUCHPOINTS.md)), which never conflict. Every edit to an upstream file is one short touch with a row in that register, so a conflict is resolved by re-applying a known change. And `package.json` keeps upstream's name and version (the release workflow stamps Pod's version from the tag), so upstream's version bump does not conflict.
 
-## Where it stands (2026-10-04)
+## Where it stands (2026-10-11)
 
-Pod's `main` has been on Orca v1.4.219 since 2026-10-04; [`sync-log-v1.4.219.md`](./sync-log-v1.4.219.md) records that sync. The old `main`, on v1.4.197, is kept on GitHub as the branch `backup/main-before-v1.4.219`. The daily rehearsal below opened an issue for every stable tag from v1.4.198 to v1.4.219 (issues 2 to 19, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift)); they were closed on 2026-10-04 with a note that Pod is on v1.4.219. The same day the job opened issue 21 for Orca v1.4.220, which stays open.
+Pod's `main` has been on Orca v1.4.224 since 2026-10-11; [`sync-log-v1.4.224.md`](./sync-log-v1.4.224.md) records that sync, and [`sync-log-v1.4.219.md`](./sync-log-v1.4.219.md) the one before. The old `main`, on v1.4.219, is kept on GitHub as the branch `backup/main-before-v1.4.224`. The daily rehearsal below opened an issue for every stable tag from v1.4.220 to v1.4.224 (issues 21 to 25, [labelled `upstream-drift`](https://github.com/saiemamer/pod/issues?q=label%3Aupstream-drift)); they were closed on 2026-10-11 with a note that Pod is on v1.4.224.
 
-No Pod release has been built on v1.4.219 yet. `pod-release.yml` needed two new install steps to build on it (see the sync log), and a `mode=trial` run of it, which publishes nothing, has to pass before the next release.
+The last Pod release, 0.1.15 (2026-10-05), is built on v1.4.219. `pod-release.yml` needed no change for v1.4.224: Orca's mac job only gained an optional path that restores a prebuilt JavaScript bundle, and `pnpm build:release` is the same script at both tags. A `mode=trial` run of it, which publishes nothing, has to pass before the next release.
 
 ## The sync script
 
@@ -34,6 +34,13 @@ Each rule first checks that the Pod commit changed only what the rule knows how 
 Any other conflicted file stops it with the rebase left in progress. It prints the Pod commit (with its position, "commit 12 of 62"), each file a person must resolve and why, and the files it already staged. Resolve those, `git add` them, and run `--continue`; it carries on applying the rules at later stops. `git rebase --abort` gives up, and `git branch -D sync/<tag>` then removes the branch.
 
 After a clean rebase it moves every new upstream workflow from `.github/workflows/` to `.github/workflows-upstream/` (`src/shared/brand.test.ts` fails on a non-`pod-` file there) and bumps `upstreamBaseTag` in `config/pod-brand.cjs` and `POD_UPSTREAM_BASE_TAG` in `src/shared/brand.ts`, all in one commit, `pod(sync): rebase onto Orca <tag>`. A clash in that step (a moved workflow already in `workflows-upstream/`) stops it the same way, and `--continue` finishes once fixed. It exits 0 when done, 2 when stopped for a person, and 1 when it refused or failed.
+
+At the early stops the tree has no `config/pod-sync-upstream.mjs`, because the Pod commit that adds it has not been replayed yet. Copy `main`'s script to a directory outside the worktree (`$SCRATCH` below) and run that copy from the worktree for each `--continue`:
+
+```sh
+git show main:config/pod-sync-upstream.mjs > "$SCRATCH/pod-sync-upstream.mjs"   # once, before the first run
+node "$SCRATCH/pod-sync-upstream.mjs" --continue
+```
 
 `node --test config/pod-sync-upstream.test.mjs` runs its tests, which build a small upstream and a Pod clone and need only Node and git. The lockfile rule needs pnpm and the network, so only real syncs cover it.
 
@@ -72,7 +79,7 @@ The shell wrapper snapshots in `src/main/__fixtures__/shell-wrapper-snapshots/` 
 
 When the script has finished:
 
-1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and the RPC params catalog (`pnpm run generate:rpc-params-catalog`), and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm test <file>` and drop the exclusions that now pass for reasons other than Orca's identity strings.
+1. Check the tree: `pnpm install`, `NODE_OPTIONS=--max-old-space-size=6144 pnpm typecheck:web`, `pnpm tc`, and `pnpm test:pod` in full. Regenerate the bundled skills (`pnpm run generate:bundled-skill-guides && pnpm run generate:skill-bundle-manifest`) and the RPC params catalog (`pnpm run generate:rpc-params-catalog`), and commit any change. Then run each upstream test excluded in `config/vitest.pod.config.ts` with `pnpm exec vitest run --config config/vitest.config.ts <file>` (`pnpm test` needs Bun since v1.4.224) and drop the exclusions that now pass for reasons other than Orca's identity strings.
 2. Run the smokes in [`smoke/README.md`](./smoke/README.md) against `pnpm dev` on this tree, and the lineage performance gate, comparing with `main` on the same Mac.
 3. Run the data check below.
 4. Compare Orca's mac release job between the old and the new tag (`git diff <old-tag> <new-tag> -- .github/workflows/release-mac-build.yml`) against `pod-release.yml`. Carry over every install or build step the unsigned build cannot run without, and leave out signing, telemetry and Stably-only steps. Then push the branch and dispatch `pod-release.yml` on it with `mode=trial`, which builds and checks both apps and publishes nothing.
