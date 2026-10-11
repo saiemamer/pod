@@ -10,16 +10,19 @@ import { getAeOmniService } from '../../../ae/omni/omni-service'
 export const OMNI_METHODS = [
   defineMethod({
     name: 'omni.branch',
+    permission: 'workspace',
     params: OmniBranchParams,
     handler: (params) => getAeOmniService().branch(params)
   }),
   defineMethod({
     name: 'omni.validate',
+    permission: 'workspace',
     params: OmniPathParams,
     handler: (params) => getAeOmniService().validate(params)
   }),
   defineMethod({
     name: 'omni.commit',
+    permission: 'workspace',
     params: OmniCommitParams,
     handler: (params) => getAeOmniService().commit(params)
   })

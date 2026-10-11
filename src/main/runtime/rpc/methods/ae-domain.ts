@@ -10,6 +10,7 @@ import { AE_INITIATIVE_STATUSES, type AeInitiativeStatus } from '../../../../sha
 export const DOMAIN_METHODS = [
   defineMethod({
     name: 'domain.list',
+    permission: 'workspace',
     params: null,
     handler: () => {
       const service = getAeDomainService()
@@ -18,6 +19,7 @@ export const DOMAIN_METHODS = [
   }),
   defineMethod({
     name: 'domain.show',
+    permission: 'workspace',
     params: DomainSelectorParams,
     handler: (params) => {
       const service = getAeDomainService()
@@ -33,6 +35,7 @@ export const DOMAIN_METHODS = [
   }),
   defineMethod({
     name: 'domain.initiativeUpdate',
+    permission: 'workspace',
     params: DomainInitiativeUpdateParams,
     handler: (params) => {
       const service = getAeDomainService()

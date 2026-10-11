@@ -19,36 +19,43 @@ import {
 export const DBT_METHODS = [
   defineMethod({
     name: 'dbt.project',
+    permission: 'workspace',
     params: DbtPathParams,
     handler: (params) => getAeDbtService().project(params)
   }),
   defineMethod({
     name: 'dbt.show',
+    permission: 'workspace',
     params: DbtShowParams,
     handler: (params) => getAeDbtService().show(params)
   }),
   defineMethod({
     name: 'dbt.compile',
+    permission: 'workspace',
     params: DbtCompileParams,
     handler: (params) => getAeDbtService().compile(params)
   }),
   defineMethod({
     name: 'dbt.parse',
+    permission: 'workspace',
     params: DbtPathParams,
     handler: (params) => getAeDbtService().parse(params)
   }),
   defineMethod({
     name: 'dbt.listModels',
+    permission: 'workspace',
     params: DbtListParams,
     handler: (params) => getAeDbtService().listModels(params)
   }),
   defineMethod({
     name: 'dbt.modelInfo',
+    permission: 'workspace',
     params: DbtModelParams,
     handler: (params) => getAeDbtService().modelInfo(params)
   }),
   defineMethod({
     name: 'dbt.lineage',
+    permission: 'workspace',
     params: DbtLineageParams,
     handler: (params) =>
       dbtLineageWithColumns(getAeDbtService(), getDbtLineageServices(), {
@@ -58,6 +65,7 @@ export const DBT_METHODS = [
   }),
   defineMethod({
     name: 'dbt.columnLineage',
+    permission: 'workspace',
     params: DbtColumnLineageParams,
     handler: (params) => dbtColumnLineageRequest(getAeDbtService(), getDbtLineageServices(), params)
   })
