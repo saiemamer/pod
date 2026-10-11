@@ -103,11 +103,12 @@ describe('PodFolderWorkspaceCopies', () => {
 
   it("renders nothing when the store lacks the values it reads, as in Orca's sidebar row tests", async () => {
     const partialState = { ...initialAppState }
+    // Why not worktreesByRepo: Orca's settled-sort-epoch subscriber reads it on every write to the
+    // real store, so only a mocked store can lack it.
     for (const key of [
       'folderWorkspaces',
       'workspaceLineageByChildKey',
       'worktreeLineageById',
-      'worktreesByRepo',
       'collapsedGroups'
     ]) {
       Reflect.deleteProperty(partialState, key)
