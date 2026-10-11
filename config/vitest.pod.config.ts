@@ -15,6 +15,7 @@ const POD_IDENTITY_TEST_EXCLUDES = [
   'src/main/macos-press-and-hold-default.defaults-domain.test.ts',
   'src/main/macos-press-and-hold-default.test.ts',
   'src/main/macos-tcc-prompt-watch.test.ts',
+  'src/main/runtime/agent-state-rules/agent-state-rules-live-update.test.ts',
   'src/main/updater-prerelease-feed-readiness.test.ts',
   'src/main/updater-prerelease-feed.test.ts',
   'src/main/updater-release-builds.test.ts',
