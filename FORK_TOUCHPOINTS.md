@@ -193,10 +193,10 @@ A value sealed under `orca Safe Storage`, by Orca or by Pod 0.1.11 to 0.1.14, do
 
 ## Upstream tests Pod does not run
 
-`config/vitest.pod.config.ts` (used by `pnpm test:pod`, `pod-pr.yml` and the drift job) runs `src/**` only and excludes three groups:
+`config/vitest.pod.config.ts` (used by `pnpm test:pod`, `pod-pr.yml` and the drift job) runs `src/**` only and excludes these groups:
 
 - Tests that assert Orca's bundle id, release repository, or feed URLs as literals. Editing them would add a touch per test file that upstream rewrites often; `src/shared/brand.test.ts` and `src/main/updater-pod-release-feed.test.ts` cover the substituted values instead, and upstream CI still runs the originals at the tag Pod is rebased onto.
-- `config/scripts/**` and `tests/**`, which are contracts over upstream's workflows, signing and packaging pipeline, plus the one `src/` test that reads `.github/workflows/pr.yml`. Those workflows live in `.github/workflows-upstream/` in Pod; `pod-release.yml` producing an installable DMG is the check that matters.
+- `config/scripts/**` and `tests/**`, which are contracts over upstream's workflows, signing and packaging pipeline. Those workflows live in `.github/workflows-upstream/` in Pod; `pod-release.yml` producing an installable DMG is the check that matters.
 - Orca's own `UNIT_EXCLUDE` from `config/scripts/ci-unit-files.mjs`, the tests that need a live shell, node-pty or a real Chrome, which Orca's CI also skips. Pod imports the list rather than copying it.
 
-Review the identity list on every rebase: `pnpm test <file>` on an excluded file shows whether it still fails only on identity strings.
+Review the identity list on every rebase: `pnpm exec vitest run --config config/vitest.config.ts <file>` on an excluded file shows whether it still fails only on identity strings. Since v1.4.224 `pnpm test` runs Vitest under Bun (`config/scripts/run-vitest.mjs`, version in `config/.bun-version`); with Bun installed, `pnpm test <file>` does the same.

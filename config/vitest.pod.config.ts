@@ -28,14 +28,7 @@ const POD_IDENTITY_TEST_EXCLUDES = [
   'src/shared/release-channel.test.ts'
 ]
 
-// Why: these read upstream workflow files, which Pod keeps in .github/workflows-upstream.
-const POD_MOVED_WORKFLOW_TEST_EXCLUDES = ['src/shared/windows-lane-tree-removal-boundary.test.ts']
-
-const POD_EXCLUDE = [
-  ...UNIT_EXCLUDE,
-  ...POD_IDENTITY_TEST_EXCLUDES,
-  ...POD_MOVED_WORKFLOW_TEST_EXCLUDES
-]
+const POD_EXCLUDE = [...UNIT_EXCLUDE, ...POD_IDENTITY_TEST_EXCLUDES]
 
 // Why src only: upstream's config/scripts and tests/ suites are contracts over its CI
 // workflows, signing, and packaging pipeline, most of which Pod removed. Pod's own
